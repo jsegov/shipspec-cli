@@ -1,0 +1,34 @@
+{
+  "name": "shipspec-cli",
+  "version": "0.1.0",
+  "description": "Autonomous semantic engine for technical documentation and specification generation",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ship-spec": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli/index.js",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.79",
+    "@langchain/langgraph": "^0.2.74",
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3"
+  }
+}
