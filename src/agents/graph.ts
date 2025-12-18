@@ -21,7 +21,7 @@ export async function createSpecGraph(
   const workflow = new StateGraph(AgentState)
     .addNode("planner", plannerNode)
     .addNode("worker", workerNode)
-    .addNode("aggregator", aggregatorNode)
+    .addNode("aggregator", aggregatorNode, { defer: true })
     .addEdge(START, "planner")
     .addConditionalEdges("planner", (state: AgentStateType) => {
       if (!state.subtasks || state.subtasks.length === 0) {
