@@ -1,18 +1,14 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
-import type { Subtask } from "../state.js";
+import type { AgentStateType, Subtask } from "../state.js";
 import { HumanMessage } from "@langchain/core/messages";
-
-export interface WorkerInput {
-  subtask: Subtask;
-}
 
 export function createWorkerNode(
   model: BaseChatModel,
   retrieverTool: DynamicStructuredTool
 ) {
-  return async (input: WorkerInput) => {
-    const { subtask } = input;
+  return async (state: AgentStateType & { subtask: Subtask }) => {
+    const { subtask } = state;
 
     const toolResult = await retrieverTool.invoke({
       query: subtask.query,

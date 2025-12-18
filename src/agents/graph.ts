@@ -25,7 +25,7 @@ export async function createSpecGraph(
     .addEdge(START, "planner")
     .addConditionalEdges("planner", (state: AgentStateType) => {
       if (!state.subtasks || state.subtasks.length === 0) {
-        return ["aggregator"];
+        return "aggregator";
       }
       return state.subtasks.map(
         (subtask) => new Send("worker", { subtask })

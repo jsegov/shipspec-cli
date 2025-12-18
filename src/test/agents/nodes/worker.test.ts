@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createWorkerNode, type WorkerInput } from "../../../agents/nodes/worker.js";
+import { createWorkerNode } from "../../../agents/nodes/worker.js";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
-import type { Subtask } from "../../../agents/state.js";
+import type { Subtask, AgentStateType } from "../../../agents/state.js";
 
 describe("WorkerNode", () => {
   let mockModel: Partial<BaseChatModel>;
@@ -22,6 +22,15 @@ describe("WorkerNode", () => {
       mockModel as BaseChatModel,
       mockRetrieverTool as DynamicStructuredTool
     );
+  });
+
+  const createMockState = (subtask: Subtask): AgentStateType & { subtask: Subtask } => ({
+    userQuery: "test",
+    subtasks: [subtask],
+    messages: [],
+    context: [],
+    finalSpec: undefined,
+    subtask,
   });
 
   it("should process subtask with retrieval and summarization", async () => {
@@ -48,7 +57,7 @@ describe("WorkerNode", () => {
     (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockToolResult);
     (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSummary);
 
-    const input: WorkerInput = { subtask };
+    const input = createMockState(subtask);
     const result = await workerNode(input);
 
     expect(mockRetrieverTool.invoke).toHaveBeenCalledWith({
@@ -75,7 +84,7 @@ describe("WorkerNode", () => {
     (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockToolResult);
     (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSummary);
 
-    const input: WorkerInput = { subtask };
+    const input = createMockState(subtask);
     await workerNode(input);
 
     const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -95,7 +104,7 @@ describe("WorkerNode", () => {
       content: "Test summary",
     });
 
-    const input: WorkerInput = { subtask };
+    const input = createMockState(subtask);
     const result = await workerNode(input);
 
     expect(result.subtasks[0].status).toBe("complete");
