@@ -43,7 +43,7 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
     logger.progress("Starting analysis...\n");
 
     try {
-      for await (const event of await graph.stream(
+      for await (const event of graph.stream(
         { userQuery: prompt },
         { streamMode: "updates" }
       )) {

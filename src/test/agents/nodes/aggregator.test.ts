@@ -39,8 +39,9 @@ describe("AggregatorNode", () => {
         },
         {
           id: "3",
-          query: "Pending task",
-          status: "pending",
+          query: "Additional task",
+          status: "complete",
+          result: "Some other findings",
         },
       ],
       messages: [],
@@ -59,10 +60,10 @@ describe("AggregatorNode", () => {
     expect(invokeCall[0].content).toContain("Auth uses JWT tokens");
     expect(invokeCall[0].content).toContain("What is the database schema?");
     expect(invokeCall[0].content).toContain("Schema has users and posts tables");
-    expect(invokeCall[0].content).not.toContain("Pending task");
+    expect(invokeCall[0].content).toContain("Additional task");
   });
 
-  it("should only include completed subtasks", async () => {
+  it("should ignore subtasks without results", async () => {
     const mockSpec = { content: "Spec" };
     (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSpec);
 
@@ -77,13 +78,9 @@ describe("AggregatorNode", () => {
         },
         {
           id: "2",
-          query: "Pending task",
-          status: "pending",
-        },
-        {
-          id: "3",
-          query: "In progress task",
-          status: "in_progress",
+          query: "Task without result",
+          status: "complete",
+          result: undefined,
         },
       ],
       messages: [],
@@ -97,23 +94,16 @@ describe("AggregatorNode", () => {
     const content = invokeCall[0].content as string;
     expect(content).toContain("Complete task");
     expect(content).toContain("Result 1");
-    expect(content).not.toContain("Pending task");
-    expect(content).not.toContain("In progress task");
+    expect(content).not.toContain("Task without result");
   });
 
-  it("should handle empty completed subtasks", async () => {
+  it("should handle no complete subtasks", async () => {
     const mockSpec = { content: "No findings" };
     (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSpec);
 
     const state: AgentStateType = {
       userQuery: "Test query",
-      subtasks: [
-        {
-          id: "1",
-          query: "Pending",
-          status: "pending",
-        },
-      ],
+      subtasks: [],
       messages: [],
       context: [],
       finalSpec: undefined,
@@ -124,7 +114,6 @@ describe("AggregatorNode", () => {
     expect(result.finalSpec).toBe("No findings");
     const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(invokeCall[0].content).toContain("Test query");
-    expect(invokeCall[0].content).not.toContain("Pending");
   });
 
   it("should format findings with markdown headers", async () => {
