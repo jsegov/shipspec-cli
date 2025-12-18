@@ -8,14 +8,6 @@ export function createAggregatorNode(model: BaseChatModel) {
       (s) => s.status === "complete"
     );
 
-    // Only proceed if all subtasks are complete to handle fan-in correctly
-    if (
-      state.subtasks.length > 0 &&
-      completedSubtasks.length < state.subtasks.length
-    ) {
-      return {};
-    }
-
     const findings = completedSubtasks
       .filter((s) => s.result !== undefined)
       .map((s) => `## ${s.query}\n\n${s.result}`)

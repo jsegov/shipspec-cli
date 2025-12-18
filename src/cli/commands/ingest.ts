@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import fg from "fast-glob";
 import pLimit from "p-limit";
 import cliProgress from "cli-progress";
@@ -38,9 +38,6 @@ async function discoverFiles(
   return files.filter(isSourceFile);
 }
 
-/**
- * Generates a unique ID for a code chunk.
- */
 function generateChunkId(): string {
   return randomUUID();
 }
@@ -168,15 +165,16 @@ async function ingestAction(options: IngestOptions): Promise<void> {
   embeddingProgressBar.start(allChunks.length, 0);
 
   // Process chunks in batches
+  let successfulChunks = 0;
   for (let i = 0; i < allChunks.length; i += batchSize) {
     const batch = allChunks.slice(i, i + batchSize);
     try {
       await repository.addDocuments(batch);
-      embeddingProgressBar.update(Math.min(i + batchSize, allChunks.length));
+      successfulChunks += batch.length;
+      embeddingProgressBar.update(successfulChunks);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to add batch ${Math.floor(i / batchSize) + 1}: ${errorMsg}`);
-      // Don't update progress bar on failure to accurately reflect successful ingestion
     }
   }
 
@@ -194,6 +192,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
 
 export const ingestCommand = new Command("ingest")
   .description("Index the codebase into the vector store")
+  .addOption(new Option("--resolved-config").hideHelp())
   .option(
     "--concurrency <n>",
     "Number of concurrent file processors",

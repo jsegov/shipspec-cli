@@ -1,11 +1,19 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
+import { ShipSpecConfig } from "../../config/schema.js";
 import { loadConfig } from "../../config/loader.js";
+import { logger } from "../../utils/logger.js";
+
+interface ConfigOptions {
+  json: boolean;
+  resolvedConfig?: ShipSpecConfig;
+}
 
 export const configCommand = new Command("config")
   .description("Display resolved configuration")
+  .addOption(new Option("--resolved-config").hideHelp())
   .option("--json", "Output as JSON")
-  .action(async (options) => {
-    const config = await loadConfig();
+  .action(async (options: ConfigOptions) => {
+    const config = options.resolvedConfig || (await loadConfig());
     
     if (options.json) {
       console.log(JSON.stringify(config, null, 2));

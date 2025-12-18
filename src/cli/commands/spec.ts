@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { writeFile } from "fs/promises";
 import { resolve } from "path";
 import chalk from "chalk";
@@ -39,15 +39,15 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
   let finalSpec = "";
 
   if (options.stream) {
-    // Streaming mode - show progress as the graph executes
     logger.progress("Starting analysis...\n");
 
     try {
-      for await (const event of graph.stream(
+      const stream = await graph.stream(
         { userQuery: prompt },
         { streamMode: "updates" }
-      )) {
-        // Handle planner updates
+      );
+
+      for await (const event of stream) {
         if (event.planner) {
           const subtasks = event.planner.subtasks || [];
           console.error(
@@ -59,7 +59,6 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
           console.error();
         }
 
-        // Handle worker updates
         if (event.worker) {
           const subtasks = event.worker.subtasks || [];
           const completedTask = subtasks.find(
@@ -72,7 +71,6 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
           }
         }
 
-        // Handle aggregator updates (final result)
         if (event.aggregator?.finalSpec) {
           finalSpec = event.aggregator.finalSpec;
           console.error(chalk.green("\n[Aggregator] Specification generated!\n"));
@@ -82,7 +80,6 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`Analysis failed: ${errorMsg}`);
 
-      // Provide helpful error messages
       if (errorMsg.includes("API key")) {
         logger.info(
           "Make sure your API key is set in .env or environment variables."
@@ -96,7 +93,6 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
       process.exit(1);
     }
   } else {
-    // Non-streaming mode - invoke and wait for result
     try {
       const result = await graph.invoke({ userQuery: prompt });
       finalSpec = result.finalSpec || "";
@@ -112,19 +108,18 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Output the specification
   if (options.output) {
     const outputPath = resolve(options.output);
     await writeFile(outputPath, finalSpec, "utf-8");
     logger.success(`Specification written to: ${outputPath}`);
   } else {
-    // Output to stdout for piping
     console.log(finalSpec);
   }
 }
 
 export const specCommand = new Command("spec")
   .description("Generate a specification based on a prompt")
+  .addOption(new Option("--resolved-config").hideHelp())
   .argument("<prompt>", "The analysis prompt describing what to analyze")
   .option(
     "-o, --output <file>",
