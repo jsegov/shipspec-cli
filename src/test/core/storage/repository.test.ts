@@ -7,7 +7,7 @@ import { CodeChunk } from "../../../core/types/index.js";
 
 class MockEmbeddings extends Embeddings {
   constructor(private dimensions: number) {
-    super();
+    super({});
   }
 
   async embedDocuments(texts: string[]): Promise<number[][]> {
@@ -52,8 +52,8 @@ describe("DocumentRepository", () => {
       const mockTable = {
         add: vi.fn().mockResolvedValue(undefined),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable).mockResolvedValue(
-        mockTable as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
       );
 
       const chunks: CodeChunk[] = [
@@ -122,8 +122,8 @@ describe("DocumentRepository", () => {
           }),
         }),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable).mockResolvedValue(
-        mockTable as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
       );
 
       const results = await repository.similaritySearch("test query", 10);
@@ -155,8 +155,8 @@ describe("DocumentRepository", () => {
           }),
         }),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable).mockResolvedValue(
-        mockTable as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
       );
 
       const results = await repository.hybridSearch("test query", 10);
@@ -173,8 +173,8 @@ describe("DocumentRepository", () => {
       const mockTable = {
         delete: vi.fn().mockResolvedValue(undefined),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable).mockResolvedValue(
-        mockTable as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
       );
 
       await repository.deleteByFilepath("test's file.ts");

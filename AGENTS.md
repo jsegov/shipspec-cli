@@ -11,7 +11,7 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 - ✅ **Phase 1:** Foundation, Configuration & CLI Scaffolding
 - ✅ **Phase 2:** Knowledge Engine (LanceDB & Embeddings)
 - ✅ **Phase 3:** Code Parsing & Analysis (Tree-sitter)
-- ⏳ **Phase 4:** Agentic Core (LangGraph.js) — Not yet implemented
+- ✅ **Phase 4:** Agentic Core (LangGraph.js) — Completed
 - ⏳ **Phase 5:** Workflow Integration & CLI Commands — Placeholders only
 - ⏳ **Phase 6:** Advanced Features & Optimization — Not yet implemented
 
@@ -100,6 +100,7 @@ src/
 │       └── index.ts           # Shared TypeScript interfaces
 ├── test/
 │   ├── fixtures.ts            # Test fixtures (sample code)
+│   ├── agents/                # Agent tests (state, nodes, tools, graph)
 │   └── core/                  # Unit tests (mirrors src/core)
 └── utils/
     ├── logger.ts              # Logging utilities
@@ -207,6 +208,26 @@ export interface CodeChunk {
 3. Verify WASM binary exists in `tree-sitter-wasms` package
 4. Add tests in `src/test/core/parsing/`
 
+### Adding a New Agent Node
+
+1. Create a new node file in `src/agents/nodes/`
+2. Export a factory function that accepts required dependencies (e.g., `model`, `tools`)
+3. Return an async function that accepts `AgentStateType` and returns a partial state update
+4. Register the node in `src/agents/graph.ts` using `.addNode()`
+5. Connect it to the graph with `.addEdge()` or `.addConditionalEdges()`
+6. Add tests in `src/test/agents/nodes/`
+
+### Modifying the Graph Topology
+
+1. Edit `src/agents/graph.ts`
+2. Use `StateGraph` methods:
+   - `.addNode(name, nodeFunction)` - Add a node
+   - `.addEdge(from, to)` - Add a direct edge
+   - `.addConditionalEdges(from, conditionFn)` - Add conditional routing
+   - Use `Send` API for parallel fan-out (Map-Reduce pattern)
+3. Ensure state reducers handle updates correctly
+4. Update tests in `src/test/agents/graph.test.ts`
+
 ## Testing
 
 The project uses **Vitest** for unit testing with comprehensive coverage of core modules.
@@ -229,7 +250,14 @@ npm run test:coverage # Coverage report
 
 | Module | Tests |
 |--------|-------|
+| `agents/state` | Reducer behavior for subtasks/context merging |
+| `agents/nodes/planner` | Subtask decomposition with structured output |
+| `agents/nodes/worker` | Retrieval and summarization logic |
+| `agents/nodes/aggregator` | Final specification synthesis |
+| `agents/tools/retriever` | DocumentRepository tool wrapper |
+| `agents/graph` | Graph topology and node integration |
 | `core/models/embeddings` | Factory function, provider validation |
+| `core/models/llm` | Chat model factory with initChatModel |
 | `core/parsing/tree-sitter` | WASM loading, parser initialization |
 | `core/parsing/chunker` | Semantic chunking, comment coalescing |
 | `core/parsing/fallback-splitter` | Text splitting for unsupported files |
@@ -334,17 +362,82 @@ export const LANGUAGE_REGISTRY: Record<SupportedLanguage, LanguageConfig> = {
 
 Files with unsupported extensions (`.json`, `.yaml`, `.md`, etc.) are processed with the fallback text splitter.
 
+## Agentic Workflow
+
+The system uses a **Map-Reduce pattern** implemented with LangGraph.js to orchestrate intelligent code analysis:
+
+### Workflow Architecture
+
+```mermaid
+flowchart LR
+    UserQuery[User Query] --> Planner[Planner Node]
+    Planner -->|Send API| Worker1[Worker 1]
+    Planner -->|Send API| Worker2[Worker 2]
+    Planner -->|Send API| WorkerN[Worker N]
+    Worker1 --> Aggregator[Aggregator Node]
+    Worker2 --> Aggregator
+    WorkerN --> Aggregator
+    Aggregator --> FinalSpec[Final Specification]
+```
+
+### State Schema
+
+The `AgentState` (defined in `src/agents/state.ts`) manages:
+
+- **`userQuery`**: Original user request
+- **`subtasks`**: Dynamically generated subtasks with status tracking
+  - Reducer merges updates by subtask ID
+- **`messages`**: Conversation history for LLM context
+  - Reducer concatenates messages
+- **`context`**: Accumulated code chunks from retrievals
+  - Reducer appends new chunks
+- **`finalSpec`**: Generated technical specification
+
+### Node Responsibilities
+
+1. **Planner Node** (`src/agents/nodes/planner.ts`):
+   - Takes user query
+   - Uses LLM with structured output (Zod) to decompose into 3-7 focused subtasks
+   - Each subtask has an ID and specific query
+
+2. **Worker Node** (`src/agents/nodes/worker.ts`):
+   - Receives a single subtask via `Send` API
+   - Uses `retrieve_code` tool to find relevant code chunks
+   - Summarizes findings for that specific subtask
+   - Updates subtask status to "complete" with result
+
+3. **Aggregator Node** (`src/agents/nodes/aggregator.ts`):
+   - Collects all completed subtask results
+   - Synthesizes findings into a comprehensive markdown specification
+   - Sets `finalSpec` in state
+
+### Invoking the Graph
+
+```typescript
+import { createSpecGraph } from "./agents/graph.js";
+import { DocumentRepository } from "./core/storage/repository.js";
+import { loadConfig } from "./config/loader.js";
+
+const config = await loadConfig();
+const repository = new DocumentRepository(/* ... */);
+const graph = await createSpecGraph(config, repository);
+
+const result = await graph.invoke({
+  userQuery: "How does authentication work in this codebase?",
+});
+
+console.log(result.finalSpec); // Generated specification
+```
+
+### Retriever Tool
+
+The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentRepository.hybridSearch()` as a LangChain `DynamicStructuredTool`, enabling LLMs to semantically search the codebase during analysis.
+
 ## Next Implementation Steps
 
 When continuing development, follow the implementation plan:
 
-1. **Phase 4:** Build LangGraph.js agentic workflow
-   - `src/agents/state.ts` — Agent state definition with `Annotation.Root`
-   - `src/agents/graph.ts` — Map-Reduce workflow with Send API
-   - `src/core/models/llm.ts` — Chat model factory using `initChatModel`
-   - Implement planner, worker, and aggregator nodes
-
-2. **Phase 5:** Wire up CLI commands
+1. **Phase 5:** Wire up CLI commands
    - Complete `ingest` command with file discovery and batch processing
    - Complete `spec` command with graph execution and streaming output
    - Add progress indicators using `cli-progress`
