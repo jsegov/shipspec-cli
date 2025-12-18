@@ -110,7 +110,7 @@ describe("createRetrieverTool", () => {
       filepath: "file2.ts",
       content: "code2",
       type: "class",
-      symbolName: undefined,
+      symbolName: null,
       lines: "5-15",
     });
   });

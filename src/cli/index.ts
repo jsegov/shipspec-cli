@@ -2,12 +2,15 @@
 
 import { Command } from "commander";
 import { config as loadDotenv } from "dotenv";
+import { setMaxListeners } from "events";
 import { join } from "path";
 
 import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
 import { ingestCommand } from "./commands/ingest.js";
 import { specCommand } from "./commands/spec.js";
+
+setMaxListeners(20);
 
 loadDotenv({ path: join(process.cwd(), ".env") });
 
