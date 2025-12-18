@@ -25,6 +25,7 @@ export const EmbeddingConfigSchema = z.object({
   modelName: z.string().default("text-embedding-3-small"),
   dimensions: z.number().int().positive().default(1536),
   baseUrl: z.string().url().optional(),
+  apiKey: z.string().optional(),
 });
 
 export const ShipSpecConfigSchema = z.object({

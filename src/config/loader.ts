@@ -32,10 +32,26 @@ export async function loadConfig(
            || process.env.ANTHROPIC_API_KEY 
            || process.env.MISTRAL_API_KEY 
            || process.env.GOOGLE_API_KEY,
+      baseUrl: process.env.OLLAMA_BASE_URL,
     },
+    embedding: {
+      apiKey: process.env.OPENAI_API_KEY || process.env.GOOGLE_API_KEY,
+      baseUrl: process.env.OLLAMA_BASE_URL,
+    }
   };
 
   const merged = deepMerge(fileConfig, envConfig, overrides);
+
+  // Apply Ollama-specific defaults only if values are unset (undefined)
+  if (merged.embedding?.provider === "ollama") {
+    if (merged.embedding.dimensions === undefined) {
+      merged.embedding.dimensions = 768;
+    }
+    if (merged.embedding.modelName === undefined) {
+      merged.embedding.modelName = "nomic-embed-text";
+    }
+  }
+
   return ShipSpecConfigSchema.parse(merged);
 }
 

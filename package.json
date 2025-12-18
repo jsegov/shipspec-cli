@@ -18,8 +18,12 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@langchain/core": "^0.3.79",
-    "@langchain/langgraph": "^0.2.74",
+    "@lancedb/lancedb": "^0.23.0",
+    "@langchain/core": "^1.1.6",
+    "@langchain/langgraph": "^1.0.7",
+    "@langchain/ollama": "^1.1.0",
+    "@langchain/openai": "^1.2.0",
+    "apache-arrow": "^18.1.0",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
     "zod": "^4.2.1"
@@ -29,6 +33,7 @@
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
     "eslint": "^9.39.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
