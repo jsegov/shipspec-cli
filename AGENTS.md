@@ -13,9 +13,7 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 - ✅ **Phase 3:** Code Parsing & Analysis (Tree-sitter)
 - ✅ **Phase 4:** Agentic Core (LangGraph.js)
 - ✅ **Phase 5:** Workflow Integration & CLI Commands
-- ⏳ **Phase 6:** Advanced Features & Optimization — Not yet implemented
-
-See `implementation-plan.md` for the full technical specification.
+- ✅ **Phase 6:** Advanced Features & Optimization
 
 ## Tech Stack
 
@@ -105,6 +103,8 @@ ship-spec spec "Document the payment flow" > payment-spec.md
 **Options:**
 - `-o, --output <file>` - Write specification to file instead of stdout
 - `--no-stream` - Disable streaming progress output
+- `--checkpoint` - Enable state checkpointing for persistence
+- `--thread-id <id>` - Thread ID for resuming a session (requires `--checkpoint`; auto-generated if not provided)
 
 **Workflow:**
 1. Initializes the LangGraph.js agent workflow
@@ -166,6 +166,8 @@ src/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
 ├── core/
+│   ├── checkpoint/
+│   │   └── index.ts           # Checkpointer factory (MemorySaver/SQLite)
 │   ├── models/
 │   │   ├── embeddings.ts      # Embedding model factory
 │   │   └── llm.ts             # Chat model factory
@@ -185,8 +187,8 @@ src/
 │   ├── graph.ts               # Map-Reduce workflow with Send API
 │   ├── nodes/
 │   │   ├── planner.ts         # Query decomposition
-│   │   ├── worker.ts          # Retrieval and summarization
-│   │   └── aggregator.ts      # Specification synthesis
+│   │   ├── worker.ts          # Retrieval and summarization + context pruning
+│   │   └── aggregator.ts      # Specification synthesis + findings truncation
 │   └── tools/
 │       └── retriever.ts       # DocumentRepository tool wrapper
 ├── test/
@@ -195,10 +197,14 @@ src/
 │   ├── cli/                   # CLI command tests
 │   │   ├── commands/          # Unit tests for ingest, spec
 │   │   └── integration.test.ts # End-to-end workflow tests
-│   └── core/                  # Unit tests (mirrors src/core)
+│   ├── core/                  # Unit tests (mirrors src/core)
+│   │   └── checkpoint/        # Checkpointer factory tests
+│   └── utils/                 # Utility function tests
+│       └── tokens.test.ts     # Token counting/pruning tests
 └── utils/
     ├── logger.ts              # Logging utilities with chalk
-    └── fs.ts                  # File system helpers
+    ├── fs.ts                  # File system helpers
+    └── tokens.ts              # Token counting and context pruning
 ```
 
 ## Code Style
@@ -248,8 +254,9 @@ The `ShipSpecConfigSchema` defines:
 - `projectPath`: Root path to analyze
 - `vectorDbPath`: LanceDB storage location (default: `.ship-spec/lancedb`)
 - `ignorePatterns`: Glob patterns to exclude
-- `llm`: Provider, model, temperature settings
-- `embedding`: Provider, model, dimensions settings
+- `llm`: Provider, model, temperature, retry, and token budget settings
+- `embedding`: Provider, model, dimensions, and retry settings
+- `checkpoint`: Checkpointing configuration for state persistence
 
 ### Example Configuration File
 
@@ -266,12 +273,22 @@ The `ShipSpecConfigSchema` defines:
   "llm": {
     "provider": "openai",
     "modelName": "gpt-4-turbo",
-    "temperature": 0
+    "temperature": 0,
+    "maxRetries": 3,
+    "timeout": 60000,
+    "maxContextTokens": 16000,
+    "reservedOutputTokens": 4000
   },
   "embedding": {
     "provider": "openai",
     "modelName": "text-embedding-3-small",
-    "dimensions": 1536
+    "dimensions": 1536,
+    "maxRetries": 3
+  },
+  "checkpoint": {
+    "enabled": false,
+    "type": "memory",
+    "sqlitePath": ".ship-spec/checkpoint.db"
   }
 }
 ```
@@ -555,14 +572,102 @@ console.log(result.finalSpec); // Generated specification
 
 The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentRepository.hybridSearch()` as a LangChain `DynamicStructuredTool`, enabling LLMs to semantically search the codebase during analysis.
 
-## Next Implementation Steps
+## Phase 6 Features
 
-When continuing development, follow the implementation plan:
+### Checkpointing
 
-**Phase 6:** Advanced features
-- Checkpointing with `MemorySaver`
-- Retry logic for Ollama resilience
-- Token management and context pruning
+State persistence allows resuming long-running analysis sessions:
+
+```typescript
+import { createCheckpointer } from "./core/checkpoint/index.js";
+
+// Create in-memory checkpointer (for development)
+const checkpointer = await createCheckpointer("memory");
+
+// Create SQLite-backed checkpointer (for persistence)
+const checkpointer = await createCheckpointer("sqlite", ".ship-spec/checkpoint.db");
+
+// Pass to graph
+const graph = await createSpecGraph(config, repository, { checkpointer });
+
+// Invoke with thread ID for resumable sessions
+const result = await graph.invoke(
+  { userQuery: "..." },
+  { configurable: { thread_id: "session-123" } }
+);
+```
+
+**CLI Usage:**
+```bash
+# Enable checkpointing with auto-generated thread ID
+ship-spec spec "Analyze auth flow" --checkpoint
+
+# Resume a specific session
+ship-spec spec "Continue analysis" --checkpoint --thread-id session-123
+
+# Thread ID is auto-generated if not provided when checkpoint is enabled
+# Format: session-{timestamp}
+```
+
+**Configuration:**
+```json
+{
+  "checkpoint": {
+    "enabled": true,
+    "type": "sqlite",
+    "sqlitePath": ".ship-spec/checkpoint.db"
+  }
+}
+```
+
+### Retry Logic
+
+Automatic retries with exponential backoff for resilient API calls:
+
+```json
+{
+  "llm": {
+    "provider": "ollama",
+    "modelName": "llama2",
+    "maxRetries": 5,
+    "timeout": 60000
+  },
+  "embedding": {
+    "provider": "openai",
+    "modelName": "text-embedding-3-small",
+    "maxRetries": 3
+  }
+}
+```
+
+- `maxRetries`: Number of retry attempts (default: 3, max: 10)
+- `timeout`: Request timeout in milliseconds (optional)
+
+### Token Management
+
+Intelligent context pruning prevents LLM context overflow:
+
+```json
+{
+  "llm": {
+    "maxContextTokens": 16000,
+    "reservedOutputTokens": 4000
+  }
+}
+```
+
+- `maxContextTokens`: Maximum tokens for input context (default: 16000)
+- `reservedOutputTokens`: Tokens reserved for model output (default: 4000)
+
+The worker node automatically prunes retrieved code chunks to fit within the token budget. The aggregator node truncates accumulated findings if they exceed the available context.
+
+## Next Steps
+
+All core phases are complete. Future enhancements could include:
+- Human-in-the-loop workflows with interruption points
+- Multi-model routing for specialized tasks
+- Incremental re-indexing for changed files
+- Custom embedding fine-tuning for domain-specific codebases
 
 ## Troubleshooting
 

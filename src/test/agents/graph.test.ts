@@ -15,11 +15,11 @@ vi.mock("../../agents/nodes/planner.js", () => ({
 }));
 
 vi.mock("../../agents/nodes/worker.js", () => ({
-  createWorkerNode: vi.fn((model, tool) => vi.fn()),
+  createWorkerNode: vi.fn((model, tool, tokenBudget) => vi.fn()),
 }));
 
 vi.mock("../../agents/nodes/aggregator.js", () => ({
-  createAggregatorNode: vi.fn((model) => vi.fn()),
+  createAggregatorNode: vi.fn((model, tokenBudget) => vi.fn()),
 }));
 
 vi.mock("../../agents/tools/retriever.js", () => ({
@@ -49,11 +49,19 @@ describe("createSpecGraph", () => {
         provider: "openai",
         modelName: "gpt-4-turbo",
         temperature: 0,
+        maxRetries: 3,
+        maxContextTokens: 16000,
+        reservedOutputTokens: 4000,
       },
       embedding: {
         provider: "openai",
         modelName: "text-embedding-3-small",
         dimensions: 1536,
+        maxRetries: 3,
+      },
+      checkpoint: {
+        enabled: false,
+        type: "memory",
       },
     };
 
@@ -79,6 +87,7 @@ describe("createSpecGraph", () => {
     expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
       modelProvider: "openai",
       temperature: 0,
+      maxRetries: 3,
     });
   });
 
@@ -99,7 +108,10 @@ describe("createSpecGraph", () => {
 
     expect(createPlannerNode).toHaveBeenCalledWith(mockModel);
     expect(createWorkerNode).toHaveBeenCalled();
-    expect(createAggregatorNode).toHaveBeenCalledWith(mockModel);
+    expect(createAggregatorNode).toHaveBeenCalledWith(mockModel, {
+      maxContextTokens: 16000,
+      reservedOutputTokens: 4000,
+    });
   });
 
   it("should handle different LLM providers", async () => {
@@ -111,6 +123,9 @@ describe("createSpecGraph", () => {
         provider: "anthropic",
         modelName: "claude-3-opus",
         temperature: 0.7,
+        maxRetries: 3,
+        maxContextTokens: 16000,
+        reservedOutputTokens: 4000,
       },
     };
 
@@ -119,6 +134,7 @@ describe("createSpecGraph", () => {
     expect(initChatModel).toHaveBeenCalledWith("claude-3-opus", {
       modelProvider: "anthropic",
       temperature: 0.7,
+      maxRetries: 3,
     });
   });
 
@@ -133,6 +149,9 @@ describe("createSpecGraph", () => {
         temperature: 0,
         baseUrl: "http://localhost:11434",
         apiKey: "test-key",
+        maxRetries: 3,
+        maxContextTokens: 16000,
+        reservedOutputTokens: 4000,
       },
     };
 
@@ -141,8 +160,47 @@ describe("createSpecGraph", () => {
     expect(initChatModel).toHaveBeenCalledWith("llama2", {
       modelProvider: "ollama",
       temperature: 0,
+      maxRetries: 3,
       baseUrl: "http://localhost:11434",
       apiKey: "test-key",
     });
+  });
+
+  it("should pass token budget to worker and aggregator nodes", async () => {
+    const { createWorkerNode } = await import("../../agents/nodes/worker.js");
+    const { createAggregatorNode } = await import("../../agents/nodes/aggregator.js");
+    
+    await createSpecGraph(mockConfig, mockRepository);
+
+    expect(createWorkerNode).toHaveBeenCalledWith(
+      mockModel,
+      expect.anything(),
+      {
+        maxContextTokens: 16000,
+        reservedOutputTokens: 4000,
+      }
+    );
+    expect(createAggregatorNode).toHaveBeenCalledWith(mockModel, {
+      maxContextTokens: 16000,
+      reservedOutputTokens: 4000,
+    });
+  });
+
+  it("should accept optional checkpointer", async () => {
+    const mockCheckpointer = { type: "memory" };
+    
+    const graph = await createSpecGraph(mockConfig, mockRepository, {
+      checkpointer: mockCheckpointer as any,
+    });
+
+    expect(graph).toBeDefined();
+    expect(typeof graph.invoke).toBe("function");
+  });
+
+  it("should create graph without checkpointer when not provided", async () => {
+    const graph = await createSpecGraph(mockConfig, mockRepository);
+
+    expect(graph).toBeDefined();
+    expect(typeof graph.invoke).toBe("function");
   });
 });

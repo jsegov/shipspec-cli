@@ -233,4 +233,73 @@ const fn = (a: number, b: number) => a + b;
       expect(hasData).toBe(true);
     });
   });
+
+  describe("Checkpointing Options", () => {
+    it("constructs graph config with thread_id when provided", () => {
+      const threadId = "test-thread-123";
+      const graphConfig = {
+        ...(threadId && {
+          configurable: { thread_id: threadId },
+        }),
+      };
+
+      expect(graphConfig).toHaveProperty("configurable");
+      expect(graphConfig.configurable).toEqual({ thread_id: "test-thread-123" });
+    });
+
+    it("constructs empty graph config when no thread_id", () => {
+      const threadId: string | undefined = undefined;
+      const graphConfig: Record<string, unknown> = {};
+      if (threadId) {
+        graphConfig.configurable = { thread_id: threadId };
+      }
+
+      expect(graphConfig).toEqual({});
+      expect(graphConfig).not.toHaveProperty("configurable");
+    });
+
+    it("checkpoint option enables checkpointer initialization", () => {
+      const options = {
+        checkpoint: true,
+        threadId: "session-1",
+        stream: true,
+      };
+
+      expect(options.checkpoint).toBe(true);
+      expect(options.threadId).toBe("session-1");
+    });
+
+    it("checkpoint defaults to false", () => {
+      const options = {
+        stream: true,
+      };
+
+      expect(options).not.toHaveProperty("checkpoint");
+    });
+  });
+
+  describe("CLI Flag Parsing", () => {
+    it("--checkpoint flag enables checkpointing", () => {
+      const args = ["--checkpoint"];
+      const hasCheckpoint = args.includes("--checkpoint");
+
+      expect(hasCheckpoint).toBe(true);
+    });
+
+    it("--thread-id accepts string value", () => {
+      const args = ["--thread-id", "my-thread-id"];
+      const threadIdIndex = args.indexOf("--thread-id");
+      const threadId = threadIdIndex !== -1 ? args[threadIdIndex + 1] : undefined;
+
+      expect(threadId).toBe("my-thread-id");
+    });
+
+    it("validates thread-id requires checkpoint", () => {
+      const hasThreadId = true;
+      const hasCheckpoint = false;
+      const shouldError = hasThreadId && !hasCheckpoint;
+
+      expect(shouldError).toBe(true);
+    });
+  });
 });

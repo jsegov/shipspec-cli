@@ -7,10 +7,12 @@ vi.mock("@langchain/openai", () => {
     model: string;
     dimensions?: number;
     apiKey?: string;
-    constructor(config: { model: string; dimensions?: number; apiKey?: string }) {
+    maxRetries?: number;
+    constructor(config: { model: string; dimensions?: number; apiKey?: string; maxRetries?: number }) {
       this.model = config.model;
       this.dimensions = config.dimensions;
       this.apiKey = config.apiKey;
+      this.maxRetries = config.maxRetries;
     }
   }
   return {
@@ -22,9 +24,11 @@ vi.mock("@langchain/ollama", () => {
   class MockOllamaEmbeddings {
     model: string;
     baseUrl: string;
-    constructor(config: { model: string; baseUrl: string }) {
+    maxRetries?: number;
+    constructor(config: { model: string; baseUrl: string; maxRetries?: number }) {
       this.model = config.model;
       this.baseUrl = config.baseUrl;
+      this.maxRetries = config.maxRetries;
     }
   }
   return {
@@ -44,6 +48,7 @@ describe("embeddings", () => {
         modelName: "text-embedding-3-small",
         dimensions: 1536,
         apiKey: "test-api-key",
+        maxRetries: 3,
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
@@ -53,6 +58,7 @@ describe("embeddings", () => {
         model: "text-embedding-3-small",
         dimensions: 1536,
         apiKey: "test-api-key",
+        maxRetries: 3,
       });
       expect(result).toBeDefined();
     });
@@ -65,6 +71,7 @@ describe("embeddings", () => {
         provider: "openai",
         modelName: "text-embedding-3-small",
         dimensions: 1536,
+        maxRetries: 3,
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
@@ -74,6 +81,7 @@ describe("embeddings", () => {
         model: "text-embedding-3-small",
         dimensions: 1536,
         apiKey: "env-api-key",
+        maxRetries: 3,
       });
 
       if (originalKey) {
@@ -89,6 +97,7 @@ describe("embeddings", () => {
         modelName: "nomic-embed-text",
         dimensions: 768,
         baseUrl: "http://localhost:11434",
+        maxRetries: 3,
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
@@ -97,6 +106,7 @@ describe("embeddings", () => {
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "nomic-embed-text",
         baseUrl: "http://localhost:11434",
+        maxRetries: 3,
       });
       expect(result).toBeDefined();
     });
@@ -106,6 +116,7 @@ describe("embeddings", () => {
         provider: "ollama",
         modelName: "nomic-embed-text",
         dimensions: 768,
+        maxRetries: 3,
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
@@ -114,6 +125,7 @@ describe("embeddings", () => {
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "nomic-embed-text",
         baseUrl: "http://localhost:11434",
+        maxRetries: 3,
       });
     });
 
@@ -123,6 +135,7 @@ describe("embeddings", () => {
         modelName: "text-embedding-ada-002",
         dimensions: 1536,
         apiKey: "custom-key",
+        maxRetries: 3,
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
@@ -132,6 +145,7 @@ describe("embeddings", () => {
         model: "text-embedding-ada-002",
         dimensions: 1536,
         apiKey: "custom-key",
+        maxRetries: 3,
       });
     });
 
@@ -141,6 +155,7 @@ describe("embeddings", () => {
         modelName: "all-minilm",
         dimensions: 384,
         baseUrl: "http://custom-host:8080",
+        maxRetries: 3,
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
@@ -149,6 +164,7 @@ describe("embeddings", () => {
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "all-minilm",
         baseUrl: "http://custom-host:8080",
+        maxRetries: 3,
       });
     });
 
@@ -157,6 +173,7 @@ describe("embeddings", () => {
         provider: "unsupported" as any,
         modelName: "test-model",
         dimensions: 1536,
+        maxRetries: 3,
       };
 
       await expect(createEmbeddingsModel(config)).rejects.toThrow(

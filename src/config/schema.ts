@@ -18,6 +18,10 @@ export const LLMConfigSchema = z.object({
   temperature: z.number().min(0).max(2).default(0),
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
+  maxRetries: z.number().int().min(0).max(10).default(3),
+  timeout: z.number().int().positive().optional(),
+  maxContextTokens: z.number().int().positive().default(16000),
+  reservedOutputTokens: z.number().int().positive().default(4000),
 });
 
 export const EmbeddingConfigSchema = z.object({
@@ -26,6 +30,13 @@ export const EmbeddingConfigSchema = z.object({
   dimensions: z.number().int().positive().default(1536),
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
+  maxRetries: z.number().int().min(0).max(10).default(3),
+});
+
+export const CheckpointConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  type: z.enum(["memory", "sqlite"]).default("memory"),
+  sqlitePath: z.string().optional(),
 });
 
 export const ShipSpecConfigSchema = z.object({
@@ -43,14 +54,23 @@ export const ShipSpecConfigSchema = z.object({
     provider: "openai",
     modelName: "gpt-4-turbo",
     temperature: 0,
+    maxRetries: 3,
+    maxContextTokens: 16000,
+    reservedOutputTokens: 4000,
   }),
   embedding: EmbeddingConfigSchema.default({
     provider: "openai",
     modelName: "text-embedding-3-small",
     dimensions: 1536,
+    maxRetries: 3,
+  }),
+  checkpoint: CheckpointConfigSchema.default({
+    enabled: false,
+    type: "memory",
   }),
 });
 
 export type ShipSpecConfig = z.infer<typeof ShipSpecConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
+export type CheckpointConfig = z.infer<typeof CheckpointConfigSchema>;

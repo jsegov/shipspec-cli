@@ -22,10 +22,29 @@ export const configCommand = new Command("config")
       console.log("========================");
       console.log(`Project Path: ${config.projectPath}`);
       console.log(`Vector DB Path: ${config.vectorDbPath}`);
-      console.log(`LLM Provider: ${config.llm.provider}`);
-      console.log(`LLM Model: ${config.llm.modelName}`);
-      console.log(`Embedding Provider: ${config.embedding.provider}`);
-      console.log(`Embedding Model: ${config.embedding.modelName}`);
+      console.log();
+      console.log("LLM Configuration:");
+      console.log(`  Provider: ${config.llm.provider}`);
+      console.log(`  Model: ${config.llm.modelName}`);
+      console.log(`  Temperature: ${config.llm.temperature}`);
+      console.log(`  Max Retries: ${config.llm.maxRetries}`);
+      console.log(`  Timeout: ${config.llm.timeout ? `${config.llm.timeout}ms` : 'none'}`);
+      console.log(`  Max Context Tokens: ${config.llm.maxContextTokens}`);
+      console.log(`  Reserved Output Tokens: ${config.llm.reservedOutputTokens}`);
+      console.log();
+      console.log("Embedding Configuration:");
+      console.log(`  Provider: ${config.embedding.provider}`);
+      console.log(`  Model: ${config.embedding.modelName}`);
+      console.log(`  Dimensions: ${config.embedding.dimensions}`);
+      console.log(`  Max Retries: ${config.embedding.maxRetries}`);
+      console.log();
+      console.log("Checkpoint Configuration:");
+      console.log(`  Enabled: ${config.checkpoint.enabled}`);
+      console.log(`  Type: ${config.checkpoint.type}`);
+      if (config.checkpoint.sqlitePath) {
+        console.log(`  SQLite Path: ${config.checkpoint.sqlitePath}`);
+      }
+      console.log();
       console.log(`Ignore Patterns: ${config.ignorePatterns.join(", ")}`);
     }
   });

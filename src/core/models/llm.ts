@@ -6,6 +6,8 @@ export async function createChatModel(config: LLMConfig): Promise<BaseChatModel>
   const model = await initChatModel(config.modelName, {
     modelProvider: config.provider,
     temperature: config.temperature,
+    maxRetries: config.maxRetries ?? 3,
+    ...(config.timeout && { timeout: config.timeout }),
     ...(config.baseUrl && { baseUrl: config.baseUrl }),
     ...(config.apiKey && { apiKey: config.apiKey }),
   });

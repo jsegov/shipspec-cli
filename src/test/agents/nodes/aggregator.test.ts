@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createAggregatorNode } from "../../../agents/nodes/aggregator.js";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { AgentStateType } from "../../../agents/state.js";
+import type { TokenBudget } from "../../../utils/tokens.js";
 
 describe("AggregatorNode", () => {
   let mockModel: Partial<BaseChatModel>;
@@ -150,5 +151,81 @@ describe("AggregatorNode", () => {
     expect(content).toContain("## Question 2");
     expect(content).toContain("Answer 2");
     expect(content).toContain("---");
+  });
+
+  describe("with token budget", () => {
+    const tokenBudget: TokenBudget = {
+      maxContextTokens: 500,
+      reservedOutputTokens: 100,
+    };
+
+    beforeEach(() => {
+      aggregatorNode = createAggregatorNode(mockModel as BaseChatModel, tokenBudget);
+    });
+
+    it("should truncate findings when exceeding token budget", async () => {
+      const mockSpec = { content: "Truncated spec" };
+      (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSpec);
+
+      // Create subtasks with large results that exceed the budget
+      // Budget: (500 - 100) * 0.6 = 240 tokens = ~960 chars
+      const state: AgentStateType = {
+        userQuery: "Test query",
+        subtasks: [
+          {
+            id: "1",
+            query: "Large result 1",
+            status: "complete",
+            result: "a".repeat(2000), // ~500 tokens
+          },
+          {
+            id: "2",
+            query: "Large result 2",
+            status: "complete",
+            result: "b".repeat(2000), // ~500 tokens
+          },
+        ],
+        messages: [],
+        context: [],
+        finalSpec: undefined,
+      };
+
+      await aggregatorNode(state);
+
+      const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const content = invokeCall[0].content as string;
+
+      // Should contain truncation indicator
+      expect(content).toContain("truncated");
+    });
+
+    it("should not truncate findings when within token budget", async () => {
+      const mockSpec = { content: "Full spec" };
+      (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSpec);
+
+      const state: AgentStateType = {
+        userQuery: "Test query",
+        subtasks: [
+          {
+            id: "1",
+            query: "Small result",
+            status: "complete",
+            result: "Short answer",
+          },
+        ],
+        messages: [],
+        context: [],
+        finalSpec: undefined,
+      };
+
+      await aggregatorNode(state);
+
+      const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const content = invokeCall[0].content as string;
+
+      // Should not contain truncation indicator
+      expect(content).not.toContain("truncated");
+      expect(content).toContain("Short answer");
+    });
   });
 });

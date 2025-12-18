@@ -9,20 +9,29 @@ import { LanceDBManager } from "../../core/storage/vector-store.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
 import { createEmbeddingsModel } from "../../core/models/embeddings.js";
 import { createSpecGraph } from "../../agents/graph.js";
+import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
 
 interface SpecOptions {
   output?: string;
   stream: boolean;
+  checkpoint: boolean;
+  threadId?: string;
   resolvedConfig?: ShipSpecConfig;
 }
 
 async function specAction(prompt: string, options: SpecOptions): Promise<void> {
   const config = options.resolvedConfig || (await loadConfig(process.cwd()));
 
+  const checkpointEnabled = options.checkpoint || config.checkpoint.enabled;
+
+  if (options.threadId && !checkpointEnabled) {
+    logger.error("--thread-id requires --checkpoint to be enabled");
+    process.exit(1);
+  }
+
   logger.progress(`Generating specification for: "${prompt}"`);
 
-  // Initialize repository
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
   const embeddings = await createEmbeddingsModel(config.embedding);
@@ -32,11 +41,33 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
     config.embedding.dimensions
   );
 
-  // Create the graph
+  let checkpointer;
+  if (checkpointEnabled) {
+    try {
+      logger.progress("Initializing checkpointer...");
+      checkpointer = await createCheckpointer(
+        config.checkpoint.type,
+        config.checkpoint.sqlitePath
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to initialize checkpointer: ${errorMsg}`);
+      process.exit(1);
+    }
+  }
+
   logger.progress("Initializing analysis workflow...");
-  const graph = await createSpecGraph(config, repository);
+  const graph = await createSpecGraph(config, repository, { checkpointer });
 
   let finalSpec = "";
+
+  const graphConfig = checkpointEnabled
+    ? {
+        configurable: {
+          thread_id: options.threadId || `session-${Date.now()}`,
+        },
+      }
+    : {};
 
   if (options.stream) {
     logger.progress("Starting analysis...\n");
@@ -44,7 +75,7 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
     try {
       const stream = await graph.stream(
         { userQuery: prompt },
-        { streamMode: "updates" }
+        { streamMode: "updates", ...graphConfig }
       );
 
       for await (const event of stream) {
@@ -94,7 +125,7 @@ async function specAction(prompt: string, options: SpecOptions): Promise<void> {
     }
   } else {
     try {
-      const result = await graph.invoke({ userQuery: prompt });
+      const result = await graph.invoke({ userQuery: prompt }, graphConfig);
       finalSpec = result.finalSpec || "";
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -128,5 +159,13 @@ export const specCommand = new Command("spec")
   .option(
     "--no-stream",
     "Disable streaming progress output"
+  )
+  .option(
+    "--checkpoint",
+    "Enable checkpointing for state persistence"
+  )
+  .option(
+    "--thread-id <id>",
+    "Thread ID for resuming a session (requires --checkpoint; auto-generated if not provided)"
   )
   .action(specAction);
