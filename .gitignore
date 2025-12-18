@@ -3,4 +3,5 @@ dist/
 .env
 .ship-spec/
 *.log
+.cursor/
 implementation-plan.md

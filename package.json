@@ -23,9 +23,12 @@
     "@langchain/langgraph": "^1.0.7",
     "@langchain/ollama": "^1.1.0",
     "@langchain/openai": "^1.2.0",
+    "@langchain/textsplitters": "^1.0.1",
     "apache-arrow": "^18.1.0",
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "^0.21.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {

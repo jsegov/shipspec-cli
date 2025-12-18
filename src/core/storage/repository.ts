@@ -45,11 +45,11 @@ export class DocumentRepository {
     const queryVector = await this.embeddings.embedQuery(query);
 
     const results = await table
-      .search(queryVector, { queryType: "hybrid" })
+      .search(queryVector, "hybrid")
       .limit(k)
       .toArray();
 
-    return results.map((record) => this.recordToCodeChunk(record));
+    return results.map((record) => this.recordToCodeChunk(record as Record<string, unknown>));
   }
 
   async deleteByFilepath(filepath: string): Promise<void> {
@@ -62,8 +62,8 @@ export class DocumentRepository {
     return this.vectorStore.getOrCreateTable(this.tableName, this.dimensions);
   }
 
-  private recordToCodeChunk(record: any): CodeChunk {
+  private recordToCodeChunk(record: Record<string, unknown>): CodeChunk {
     const { vector, _distance, ...chunk } = record;
-    return chunk as CodeChunk;
+    return chunk as unknown as CodeChunk;
   }
 }
