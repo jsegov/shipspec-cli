@@ -10,7 +10,7 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 
 - ✅ **Phase 1:** Foundation, Configuration & CLI Scaffolding
 - ✅ **Phase 2:** Knowledge Engine (LanceDB & Embeddings)
-- ⏳ **Phase 3:** Code Parsing & Analysis (Tree-sitter) — Not yet implemented
+- ✅ **Phase 3:** Code Parsing & Analysis (Tree-sitter)
 - ⏳ **Phase 4:** Agentic Core (LangGraph.js) — Not yet implemented
 - ⏳ **Phase 5:** Workflow Integration & CLI Commands — Placeholders only
 - ⏳ **Phase 6:** Advanced Features & Optimization — Not yet implemented
@@ -28,6 +28,8 @@ See `implementation-plan.md` for the full technical specification.
 | LangChain.js | AI model abstraction |
 | LangGraph.js | Agentic workflow orchestration |
 | Apache Arrow | Vector data types |
+| Web-Tree-sitter | AST parsing for semantic chunking |
+| Vitest | Unit testing framework |
 
 ## Setup Commands
 
@@ -58,32 +60,50 @@ npm run lint
 
 # Build for production
 npm run build
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
 ## Project Structure
 
 ```
 src/
-├── cli/                    # Command definitions
-│   ├── index.ts           # CLI entry point (Commander.js)
+├── cli/                        # Command definitions
+│   ├── index.ts               # CLI entry point (Commander.js)
 │   └── commands/
-│       ├── config.ts      # Display resolved configuration
-│       ├── ingest.ts      # Index codebase (placeholder)
-│       └── spec.ts        # Generate specs (placeholder)
+│       ├── config.ts          # Display resolved configuration
+│       ├── ingest.ts          # Index codebase (placeholder)
+│       └── spec.ts            # Generate specs (placeholder)
 ├── config/
-│   ├── schema.ts          # Zod schemas for configuration
-│   └── loader.ts          # Config file & env var loader
+│   ├── schema.ts              # Zod schemas for configuration
+│   └── loader.ts              # Config file & env var loader
 ├── core/
 │   ├── models/
-│   │   └── embeddings.ts  # Embedding model factory
+│   │   └── embeddings.ts      # Embedding model factory
+│   ├── parsing/
+│   │   ├── index.ts           # Unified chunking entry point
+│   │   ├── tree-sitter.ts     # WASM parser loader
+│   │   ├── chunker.ts         # Semantic AST-based chunking
+│   │   ├── fallback-splitter.ts # Text splitter for unsupported files
+│   │   └── language-registry.ts # Language configs & queries
 │   ├── storage/
-│   │   ├── vector-store.ts # LanceDB manager
-│   │   └── repository.ts   # Document repository
+│   │   ├── vector-store.ts    # LanceDB manager
+│   │   └── repository.ts      # Document repository
 │   └── types/
-│       └── index.ts       # Shared TypeScript interfaces
+│       └── index.ts           # Shared TypeScript interfaces
+├── test/
+│   ├── fixtures.ts            # Test fixtures (sample code)
+│   └── core/                  # Unit tests (mirrors src/core)
 └── utils/
-    ├── logger.ts          # Logging utilities
-    └── fs.ts              # File system helpers (stub)
+    ├── logger.ts              # Logging utilities
+    └── fs.ts                  # File system helpers (stub)
 ```
 
 ## Code Style
@@ -145,6 +165,23 @@ LanceDB is used as an embedded, serverless vector store:
 - **Hybrid search:** Full-text search index created on `content` field
 - **Auto-migration:** Table is recreated if dimension mismatch detected
 
+### CodeChunk Schema
+
+```typescript
+// src/core/types/index.ts
+export interface CodeChunk {
+  id: string;          // UUID
+  content: string;     // Source code
+  filepath: string;    // Relative path
+  startLine: number;   // 1-indexed start line
+  endLine: number;     // 1-indexed end line
+  language: string;    // "typescript" | "python" | etc.
+  type: string;        // "function" | "class" | "interface" | "module"
+  name?: string;       // Symbol name if available
+  vector?: number[];   // Embedding (added by repository)
+}
+```
+
 ## Adding New Features
 
 ### Adding a New Embedding Provider
@@ -159,13 +196,69 @@ LanceDB is used as an embedded, serverless vector store:
 2. Export a `Command` instance
 3. Register in `src/cli/index.ts` via `program.addCommand()`
 
+### Adding a New Language for Tree-sitter Parsing
+
+1. Add the language type to `SupportedLanguage` in `src/core/parsing/language-registry.ts`
+2. Add the language config to `LANGUAGE_REGISTRY` with:
+   - `extensions`: File extensions (e.g., `[".rb"]`)
+   - `wasmName`: Name in `tree-sitter-wasms` package
+   - `queries`: Tree-sitter S-expression queries for functions/classes
+   - `commentPrefix`: Comment style (`//`, `#`, etc.)
+3. Verify WASM binary exists in `tree-sitter-wasms` package
+4. Add tests in `src/test/core/parsing/`
+
 ## Testing
 
-> Testing infrastructure not yet implemented. Plan: Vitest for unit tests.
+The project uses **Vitest** for unit testing with comprehensive coverage of core modules.
 
-When implemented, test files should follow:
-- Location: `src/**/*.test.ts` or `tests/`
-- Naming: `<module>.test.ts`
+### Test Structure
+
+- **Location:** `src/test/` directory, mirroring the `src/core/` structure
+- **Naming:** `<module>.test.ts`
+- **Fixtures:** Shared test fixtures in `src/test/fixtures.ts`
+
+### Running Tests
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
+
+### Current Test Coverage
+
+| Module | Tests |
+|--------|-------|
+| `core/models/embeddings` | Factory function, provider validation |
+| `core/parsing/tree-sitter` | WASM loading, parser initialization |
+| `core/parsing/chunker` | Semantic chunking, comment coalescing |
+| `core/parsing/fallback-splitter` | Text splitting for unsupported files |
+| `core/parsing/language-registry` | Extension detection, language configs |
+| `core/storage/vector-store` | LanceDB connection, table management |
+| `core/storage/repository` | Document CRUD, similarity search |
+
+### Writing Tests
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createTempDir, cleanupTempDir } from "../../fixtures.js";
+
+describe("MyModule", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await createTempDir();
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("should do something", () => {
+    expect(true).toBe(true);
+  });
+});
+```
 
 ## Common Patterns
 
@@ -197,22 +290,69 @@ class DocumentRepository {
 }
 ```
 
+### Semantic Chunking with Tree-sitter
+
+```typescript
+// src/core/parsing/index.ts — Unified entry point
+import { chunkSourceFile } from "./index.js";
+
+const chunks = await chunkSourceFile(filepath, content, {
+  minChunkSize: 50,
+  maxChunkSize: 4000,
+  includeComments: true,
+});
+```
+
+### Language Registry Pattern
+
+```typescript
+// src/core/parsing/language-registry.ts
+export const LANGUAGE_REGISTRY: Record<SupportedLanguage, LanguageConfig> = {
+  typescript: {
+    extensions: [".ts", ".tsx"],
+    wasmName: "typescript",
+    queries: {
+      functions: "(function_declaration name: (identifier) @name) @func",
+      classes: "(class_declaration name: (type_identifier) @name) @class",
+      interfaces: "(interface_declaration name: (type_identifier) @name) @interface",
+    },
+    commentPrefix: "//",
+  },
+  // ... python, javascript, go, rust
+};
+```
+
+### Supported Languages
+
+| Language | Extensions | Features |
+|----------|------------|----------|
+| TypeScript | `.ts`, `.tsx` | Functions, classes, interfaces |
+| JavaScript | `.js`, `.jsx`, `.mjs` | Functions, classes |
+| Python | `.py` | Functions, classes with docstrings |
+| Go | `.go` | Functions, methods, structs |
+| Rust | `.rs` | Functions, structs, enums, traits |
+
+Files with unsupported extensions (`.json`, `.yaml`, `.md`, etc.) are processed with the fallback text splitter.
+
 ## Next Implementation Steps
 
 When continuing development, follow the implementation plan:
 
-1. **Phase 3:** Implement Tree-sitter integration for semantic code chunking
-   - `src/core/parsing/tree-sitter.ts` — WASM loader
-   - `src/core/parsing/chunker.ts` — AST-based code splitting
-
-2. **Phase 4:** Build LangGraph.js agentic workflow
-   - `src/agents/state.ts` — Agent state definition
+1. **Phase 4:** Build LangGraph.js agentic workflow
+   - `src/agents/state.ts` — Agent state definition with `Annotation.Root`
    - `src/agents/graph.ts` — Map-Reduce workflow with Send API
-   - `src/core/models/llm.ts` — Chat model factory
+   - `src/core/models/llm.ts` — Chat model factory using `initChatModel`
+   - Implement planner, worker, and aggregator nodes
 
-3. **Phase 5:** Wire up CLI commands
+2. **Phase 5:** Wire up CLI commands
    - Complete `ingest` command with file discovery and batch processing
    - Complete `spec` command with graph execution and streaming output
+   - Add progress indicators using `cli-progress`
+
+3. **Phase 6:** Advanced features
+   - Checkpointing with `MemorySaver`
+   - Retry logic for Ollama resilience
+   - Token management and context pruning
 
 ## Troubleshooting
 
@@ -224,6 +364,12 @@ The embedding dimensions changed (e.g., switched from OpenAI to Ollama). The tab
 
 Ensure all local imports use `.js` extension. TypeScript compiles `.ts` to `.js`, but import paths are not rewritten.
 
-### WASM loading failures (Phase 3)
+### WASM loading failures
 
-When implementing Tree-sitter, use explicit file path resolution for `.wasm` files. The standard `Parser.init()` often fails in Node.js CLI environments.
+If Tree-sitter fails to parse a file, it will automatically fall back to text splitting. Common causes:
+
+- Missing WASM file: Ensure `tree-sitter-wasms` package is installed
+- Syntax errors in source: Malformed code triggers fallback gracefully
+- Memory issues: Very large files may exceed WASM limits
+
+Check logs with `--verbose` flag to see which files used fallback parsing.
