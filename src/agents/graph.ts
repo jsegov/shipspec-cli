@@ -30,8 +30,9 @@ export async function createSpecGraph(
       const sends = state.subtasks.map(
         (subtask) => new Send("worker", { subtask })
       );
-      return [...sends, "aggregator"];
+      return sends;
     })
+    .addEdge("worker", "aggregator")
     .addEdge("aggregator", END);
 
   return workflow.compile();
