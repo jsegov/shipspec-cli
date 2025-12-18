@@ -11,8 +11,8 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 - ✅ **Phase 1:** Foundation, Configuration & CLI Scaffolding
 - ✅ **Phase 2:** Knowledge Engine (LanceDB & Embeddings)
 - ✅ **Phase 3:** Code Parsing & Analysis (Tree-sitter)
-- ✅ **Phase 4:** Agentic Core (LangGraph.js) — Completed
-- ⏳ **Phase 5:** Workflow Integration & CLI Commands — Placeholders only
+- ✅ **Phase 4:** Agentic Core (LangGraph.js)
+- ✅ **Phase 5:** Workflow Integration & CLI Commands
 - ⏳ **Phase 6:** Advanced Features & Optimization — Not yet implemented
 
 See `implementation-plan.md` for the full technical specification.
@@ -29,6 +29,10 @@ See `implementation-plan.md` for the full technical specification.
 | LangGraph.js | Agentic workflow orchestration |
 | Apache Arrow | Vector data types |
 | Web-Tree-sitter | AST parsing for semantic chunking |
+| fast-glob | High-performance file discovery |
+| p-limit | Concurrency control |
+| cli-progress | Progress bar display |
+| chalk | Terminal styling |
 | Vitest | Unit testing framework |
 
 ## Setup Commands
@@ -47,6 +51,83 @@ node dist/cli/index.js
 
 # Development mode (watch)
 npm run dev
+```
+
+## CLI Commands
+
+### `ship-spec ingest`
+
+Index the codebase into the vector store.
+
+```bash
+# Basic usage - index current directory
+ship-spec ingest
+
+# With options
+ship-spec ingest --concurrency 20 --batch-size 100
+
+# Dry run to see what files would be processed
+ship-spec ingest --dry-run
+```
+
+**Options:**
+- `--concurrency <n>` - Number of concurrent file processors (default: 10)
+- `--batch-size <n>` - Documents per embedding batch (default: 50)
+- `--dry-run` - Show files that would be processed without indexing
+
+**Pipeline:**
+1. Discovers source files using fast-glob (respects `ignorePatterns`)
+2. Parses files with Tree-sitter for semantic chunking
+3. Generates embeddings in batches
+4. Stores vectors in LanceDB
+
+### `ship-spec spec <prompt>`
+
+Generate a technical specification based on a prompt.
+
+```bash
+# Basic usage
+ship-spec spec "How does authentication work in this codebase?"
+
+# Output to file
+ship-spec spec "Explain the database layer" -o database-spec.md
+
+# Disable streaming progress
+ship-spec spec "Analyze the API routes" --no-stream
+
+# Pipe output to file
+ship-spec spec "Document the payment flow" > payment-spec.md
+```
+
+**Arguments:**
+- `<prompt>` - The analysis prompt describing what to analyze
+
+**Options:**
+- `-o, --output <file>` - Write specification to file instead of stdout
+- `--no-stream` - Disable streaming progress output
+
+**Workflow:**
+1. Initializes the LangGraph.js agent workflow
+2. Planner decomposes query into subtasks
+3. Workers retrieve and analyze code in parallel
+4. Aggregator synthesizes findings into specification
+5. Outputs markdown to stdout (or file with `-o`)
+
+### `ship-spec config`
+
+Display the resolved configuration.
+
+```bash
+ship-spec config
+```
+
+### Global Options
+
+```bash
+ship-spec --help           # Show help
+ship-spec --version        # Show version
+ship-spec -v, --verbose    # Enable verbose logging
+ship-spec -c, --config <path>  # Path to config file
 ```
 
 ## Development Commands
@@ -79,14 +160,15 @@ src/
 │   ├── index.ts               # CLI entry point (Commander.js)
 │   └── commands/
 │       ├── config.ts          # Display resolved configuration
-│       ├── ingest.ts          # Index codebase (placeholder)
-│       └── spec.ts            # Generate specs (placeholder)
+│       ├── ingest.ts          # Index codebase with progress bar
+│       └── spec.ts            # Generate specs with streaming output
 ├── config/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
 ├── core/
 │   ├── models/
-│   │   └── embeddings.ts      # Embedding model factory
+│   │   ├── embeddings.ts      # Embedding model factory
+│   │   └── llm.ts             # Chat model factory
 │   ├── parsing/
 │   │   ├── index.ts           # Unified chunking entry point
 │   │   ├── tree-sitter.ts     # WASM parser loader
@@ -98,13 +180,25 @@ src/
 │   │   └── repository.ts      # Document repository
 │   └── types/
 │       └── index.ts           # Shared TypeScript interfaces
+├── agents/
+│   ├── state.ts               # AgentState with Annotation.Root
+│   ├── graph.ts               # Map-Reduce workflow with Send API
+│   ├── nodes/
+│   │   ├── planner.ts         # Query decomposition
+│   │   ├── worker.ts          # Retrieval and summarization
+│   │   └── aggregator.ts      # Specification synthesis
+│   └── tools/
+│       └── retriever.ts       # DocumentRepository tool wrapper
 ├── test/
 │   ├── fixtures.ts            # Test fixtures (sample code)
 │   ├── agents/                # Agent tests (state, nodes, tools, graph)
+│   ├── cli/                   # CLI command tests
+│   │   ├── commands/          # Unit tests for ingest, spec
+│   │   └── integration.test.ts # End-to-end workflow tests
 │   └── core/                  # Unit tests (mirrors src/core)
 └── utils/
-    ├── logger.ts              # Logging utilities
-    └── fs.ts                  # File system helpers (stub)
+    ├── logger.ts              # Logging utilities with chalk
+    └── fs.ts                  # File system helpers
 ```
 
 ## Code Style
@@ -156,6 +250,31 @@ The `ShipSpecConfigSchema` defines:
 - `ignorePatterns`: Glob patterns to exclude
 - `llm`: Provider, model, temperature settings
 - `embedding`: Provider, model, dimensions settings
+
+### Example Configuration File
+
+```json
+{
+  "projectPath": ".",
+  "vectorDbPath": ".ship-spec/lancedb",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/*.test.ts"
+  ],
+  "llm": {
+    "provider": "openai",
+    "modelName": "gpt-4-turbo",
+    "temperature": 0
+  },
+  "embedding": {
+    "provider": "openai",
+    "modelName": "text-embedding-3-small",
+    "dimensions": 1536
+  }
+}
+```
 
 ## Vector Database
 
@@ -256,6 +375,9 @@ npm run test:coverage # Coverage report
 | `agents/nodes/aggregator` | Final specification synthesis |
 | `agents/tools/retriever` | DocumentRepository tool wrapper |
 | `agents/graph` | Graph topology and node integration |
+| `cli/commands/ingest` | File discovery, batch processing, progress bar |
+| `cli/commands/spec` | Graph streaming, output formatting |
+| `cli/integration` | End-to-end ingest and query workflow |
 | `core/models/embeddings` | Factory function, provider validation |
 | `core/models/llm` | Chat model factory with initChatModel |
 | `core/parsing/tree-sitter` | WASM loading, parser initialization |
@@ -437,15 +559,10 @@ The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentReposi
 
 When continuing development, follow the implementation plan:
 
-1. **Phase 5:** Wire up CLI commands
-   - Complete `ingest` command with file discovery and batch processing
-   - Complete `spec` command with graph execution and streaming output
-   - Add progress indicators using `cli-progress`
-
-3. **Phase 6:** Advanced features
-   - Checkpointing with `MemorySaver`
-   - Retry logic for Ollama resilience
-   - Token management and context pruning
+**Phase 6:** Advanced features
+- Checkpointing with `MemorySaver`
+- Retry logic for Ollama resilience
+- Token management and context pruning
 
 ## Troubleshooting
 
@@ -466,3 +583,30 @@ If Tree-sitter fails to parse a file, it will automatically fall back to text sp
 - Memory issues: Very large files may exceed WASM limits
 
 Check logs with `--verbose` flag to see which files used fallback parsing.
+
+### "No indexed data found" error
+
+Run `ship-spec ingest` before running `ship-spec spec`. The spec command requires an indexed codebase.
+
+### API key errors
+
+Ensure your API keys are set in the `.env` file or as environment variables:
+
+```bash
+# For OpenAI (default)
+export OPENAI_API_KEY=sk-...
+
+# For Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# For Ollama (local)
+export OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### Ollama connection refused
+
+If using Ollama, ensure the server is running:
+
+```bash
+ollama serve
+```

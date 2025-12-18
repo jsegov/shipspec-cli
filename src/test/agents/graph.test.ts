@@ -3,6 +3,8 @@ import { createSpecGraph } from "../../agents/graph.js";
 import type { ShipSpecConfig } from "../../config/schema.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { LanceDBManager } from "../../core/storage/vector-store.js";
+import { Embeddings } from "@langchain/core/embeddings";
 
 vi.mock("langchain/chat_models/universal", () => ({
   initChatModel: vi.fn(),
@@ -55,7 +57,11 @@ describe("createSpecGraph", () => {
       },
     };
 
-    mockRepository = new DocumentRepository({} as any, {} as any, 1536);
+    mockRepository = new DocumentRepository(
+      {} as unknown as LanceDBManager,
+      {} as unknown as Embeddings,
+      1536
+    );
   });
 
   it("should create a compiled graph", async () => {

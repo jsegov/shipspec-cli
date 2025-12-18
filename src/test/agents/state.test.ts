@@ -1,21 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { type Subtask } from "../../agents/state.js";
+import {
+  subtasksReducer,
+  messagesReducer,
+  contextReducer,
+  type Subtask,
+} from "../../agents/state.js";
 import { CodeChunk } from "../../core/types/index.js";
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
-
-function subtasksReducer(current: Subtask[], update: Subtask[]): Subtask[] {
-  const map = new Map(current.map((t) => [t.id, t]));
-  update.forEach((t) => map.set(t.id, t));
-  return Array.from(map.values());
-}
-
-function messagesReducer(current: BaseMessage[], update: BaseMessage[]): BaseMessage[] {
-  return current.concat(update);
-}
-
-function contextReducer(current: CodeChunk[], update: CodeChunk[]): CodeChunk[] {
-  return [...current, ...update];
-}
+import { HumanMessage } from "@langchain/core/messages";
 
 describe("AgentState", () => {
   describe("subtasks reducer", () => {

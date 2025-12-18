@@ -10,22 +10,32 @@ export interface Subtask {
   retrievedContext?: CodeChunk[];
 }
 
+export function subtasksReducer(current: Subtask[], update: Subtask[]): Subtask[] {
+  const map = new Map(current.map((t) => [t.id, t]));
+  update.forEach((t) => map.set(t.id, t));
+  return Array.from(map.values());
+}
+
+export function messagesReducer(x: BaseMessage[], y: BaseMessage[]): BaseMessage[] {
+  return x.concat(y);
+}
+
+export function contextReducer(x: CodeChunk[], y: CodeChunk[]): CodeChunk[] {
+  return [...x, ...y];
+}
+
 export const AgentState = Annotation.Root({
   userQuery: Annotation<string>(),
   subtasks: Annotation<Subtask[]>({
-    reducer: (current, update) => {
-      const map = new Map(current.map((t) => [t.id, t]));
-      update.forEach((t) => map.set(t.id, t));
-      return Array.from(map.values());
-    },
+    reducer: subtasksReducer,
     default: () => [],
   }),
   messages: Annotation<BaseMessage[]>({
-    reducer: (x, y) => x.concat(y),
+    reducer: messagesReducer,
     default: () => [],
   }),
   context: Annotation<CodeChunk[]>({
-    reducer: (x, y) => [...x, ...y],
+    reducer: contextReducer,
     default: () => [],
   }),
   finalSpec: Annotation<string | undefined>(),

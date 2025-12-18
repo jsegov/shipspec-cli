@@ -111,7 +111,7 @@ export class SemanticChunker {
 
       let chunkContent = content.slice(node.startIndex, node.endIndex);
 
-      if (this.options.includeComments !== false) {
+      if (this.options.includeComments ?? true) {
         const comments = this.extractPrecedingComments(
           content,
           node,

@@ -3,6 +3,7 @@ import { DocumentRepository } from "../../../core/storage/repository.js";
 import { LanceDBManager } from "../../../core/storage/vector-store.js";
 import { createTempDir, cleanupTempDir } from "../../fixtures.js";
 import { Embeddings } from "@langchain/core/embeddings";
+import { Table } from "@lancedb/lancedb";
 import { CodeChunk } from "../../../core/types/index.js";
 
 class MockEmbeddings extends Embeddings {
@@ -53,7 +54,7 @@ describe("DocumentRepository", () => {
         add: vi.fn().mockResolvedValue(undefined),
       };
       vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
-        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+        mockTable as unknown as Table
       );
 
       const chunks: CodeChunk[] = [
@@ -123,7 +124,7 @@ describe("DocumentRepository", () => {
         }),
       };
       vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
-        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+        mockTable as unknown as Table
       );
 
       const results = await repository.similaritySearch("test query", 10);
@@ -156,7 +157,7 @@ describe("DocumentRepository", () => {
         }),
       };
       vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
-        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+        mockTable as unknown as Table
       );
 
       const results = await repository.hybridSearch("test query", 10);
@@ -174,7 +175,7 @@ describe("DocumentRepository", () => {
         delete: vi.fn().mockResolvedValue(undefined),
       };
       vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
-        mockTable as unknown as Awaited<ReturnType<LanceDBManager["getOrCreateTable"]>>
+        mockTable as unknown as Table
       );
 
       await repository.deleteByFilepath("test's file.ts");

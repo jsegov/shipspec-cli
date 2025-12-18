@@ -14,14 +14,14 @@ export function createAggregatorNode(model: BaseChatModel) {
       .join("\n\n---\n\n");
 
     const response = await model.invoke([
-      new HumanMessage(`Create a comprehensive technical specification based on these analysis findings.
+      new HumanMessage(`Create a technical specification based on these findings.
 
 Original Request: ${state.userQuery}
 
-Analysis Findings:
+Findings:
 ${findings}
 
-Generate a well-structured markdown specification that synthesizes these findings into actionable implementation guidance.`),
+Generate a structured markdown specification with actionable guidance.`),
     ]);
 
     return {
