@@ -159,7 +159,7 @@ async function productionalizeAction(context: string | undefined, options: Produ
     const outputPath = resolve(options.output);
     await writeFile(outputPath, finalReport, "utf-8");
     logger.success(`Report written to: ${outputPath}`);
-  } else if (!options.tasksOutput) {
+  } else {
     console.log(finalReport);
   }
 
