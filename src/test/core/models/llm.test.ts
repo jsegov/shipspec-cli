@@ -17,7 +17,7 @@ describe("LLM Factory", () => {
     it("passes maxRetries to initChatModel", async () => {
       const config: LLMConfig = {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0,
         maxRetries: 5,
         maxContextTokens: 16000,
@@ -27,7 +27,7 @@ describe("LLM Factory", () => {
       const { initChatModel } = await import("langchain/chat_models/universal");
       await createChatModel(config);
 
-      expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
+      expect(initChatModel).toHaveBeenCalledWith("gpt-5.2-2025-12-11", {
         modelProvider: "openai",
         temperature: 0,
         maxRetries: 5,
@@ -37,7 +37,7 @@ describe("LLM Factory", () => {
     it("defaults maxRetries to 3 when not provided", async () => {
       const config: LLMConfig = {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0,
         maxRetries: 3,
         maxContextTokens: 16000,
@@ -47,7 +47,7 @@ describe("LLM Factory", () => {
       const { initChatModel } = await import("langchain/chat_models/universal");
       await createChatModel(config);
 
-      expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
+      expect(initChatModel).toHaveBeenCalledWith("gpt-5.2-2025-12-11", {
         modelProvider: "openai",
         temperature: 0,
         maxRetries: 3,
@@ -57,7 +57,7 @@ describe("LLM Factory", () => {
     it("passes timeout when provided", async () => {
       const config: LLMConfig = {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0,
         maxRetries: 3,
         timeout: 30000,
@@ -68,7 +68,7 @@ describe("LLM Factory", () => {
       const { initChatModel } = await import("langchain/chat_models/universal");
       await createChatModel(config);
 
-      expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
+      expect(initChatModel).toHaveBeenCalledWith("gpt-5.2-2025-12-11", {
         modelProvider: "openai",
         temperature: 0,
         maxRetries: 3,
@@ -79,7 +79,7 @@ describe("LLM Factory", () => {
     it("does not pass timeout when not provided", async () => {
       const config: LLMConfig = {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0,
         maxRetries: 3,
         maxContextTokens: 16000,
@@ -118,7 +118,7 @@ describe("LLM Factory", () => {
     it("passes apiKey when provided", async () => {
       const config: LLMConfig = {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0.5,
         apiKey: "test-api-key",
         maxRetries: 3,
@@ -129,7 +129,7 @@ describe("LLM Factory", () => {
       const { initChatModel } = await import("langchain/chat_models/universal");
       await createChatModel(config);
 
-      expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
+      expect(initChatModel).toHaveBeenCalledWith("gpt-5.2-2025-12-11", {
         modelProvider: "openai",
         temperature: 0.5,
         maxRetries: 3,
@@ -158,3 +158,4 @@ describe("LLM Factory", () => {
     });
   });
 });
+

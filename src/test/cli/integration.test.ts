@@ -15,7 +15,7 @@ import type { CodeChunk } from "../../core/types/index.js";
  * Mock embeddings for testing without external API calls.
  */
 class MockEmbeddings extends Embeddings {
-  constructor(private dimensions: number = 1536) {
+  constructor(private dimensions: number = 3072) {
     super({});
   }
 
@@ -90,8 +90,8 @@ describe("CLI Integration Tests", () => {
 
       // Step 3: Store in vector database
       const vectorStore = new LanceDBManager(dbDir);
-      const embeddings = new MockEmbeddings(1536);
-      const repository = new DocumentRepository(vectorStore, embeddings, 1536);
+      const embeddings = new MockEmbeddings(3072);
+      const repository = new DocumentRepository(vectorStore, embeddings, 3072);
 
       await repository.addDocuments(allChunks);
 
@@ -259,8 +259,8 @@ export const more =
     beforeEach(async () => {
       tempDir = await createTempDir();
       vectorStore = new LanceDBManager(tempDir);
-      const embeddings = new MockEmbeddings(1536);
-      repository = new DocumentRepository(vectorStore, embeddings, 1536);
+      const embeddings = new MockEmbeddings(3072);
+      repository = new DocumentRepository(vectorStore, embeddings, 3072);
     });
 
     afterEach(async () => {
@@ -446,8 +446,8 @@ export class DatabaseConnection {
 
       // Step 2: Index into vector store
       const vectorStore = new LanceDBManager(dbDir);
-      const embeddings = new MockEmbeddings(1536);
-      const repository = new DocumentRepository(vectorStore, embeddings, 1536);
+      const embeddings = new MockEmbeddings(3072);
+      const repository = new DocumentRepository(vectorStore, embeddings, 3072);
 
       await repository.addDocuments(allChunks);
 

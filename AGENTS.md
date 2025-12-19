@@ -272,7 +272,7 @@ The `ShipSpecConfigSchema` defines:
   ],
   "llm": {
     "provider": "openai",
-    "modelName": "gpt-4-turbo",
+    "modelName": "gpt-5.2-2025-12-11",
     "temperature": 0,
     "maxRetries": 3,
     "timeout": 60000,
@@ -281,8 +281,8 @@ The `ShipSpecConfigSchema` defines:
   },
   "embedding": {
     "provider": "openai",
-    "modelName": "text-embedding-3-small",
-    "dimensions": 1536,
+    "modelName": "text-embedding-3-large",
+    "dimensions": 3072,
     "maxRetries": 3
   },
   "checkpoint": {
@@ -298,7 +298,7 @@ The `ShipSpecConfigSchema` defines:
 LanceDB is used as an embedded, serverless vector store:
 
 - **Schema:** `CodeChunk` interface in `src/core/types/index.ts`
-- **Dimensions:** Must match the embedding model (OpenAI: 1536, Ollama nomic-embed-text: 768)
+- **Dimensions:** Must match the embedding model (OpenAI: 3072, Ollama nomic-embed-text: 768)
 - **Hybrid search:** Full-text search index created on `content` field
 - **Auto-migration:** Table is recreated if dimension mismatch detected
 
@@ -634,7 +634,7 @@ Automatic retries with exponential backoff for resilient API calls:
   },
   "embedding": {
     "provider": "openai",
-    "modelName": "text-embedding-3-small",
+    "modelName": "text-embedding-3-large",
     "maxRetries": 3
   }
 }

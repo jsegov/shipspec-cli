@@ -212,13 +212,13 @@ Create a `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json` in your project r
   ],
   "llm": {
     "provider": "openai",
-    "modelName": "gpt-4-turbo",
+    "modelName": "gpt-5.2-2025-12-11",
     "temperature": 0
   },
   "embedding": {
     "provider": "openai",
-    "modelName": "text-embedding-3-small",
-    "dimensions": 1536
+    "modelName": "text-embedding-3-large",
+    "dimensions": 3072
   }
 }
 ```

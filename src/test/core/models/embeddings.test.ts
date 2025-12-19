@@ -45,8 +45,8 @@ describe("embeddings", () => {
     it("returns OpenAIEmbeddings when provider is 'openai'", async () => {
       const config: EmbeddingConfig = {
         provider: "openai",
-        modelName: "text-embedding-3-small",
-        dimensions: 1536,
+        modelName: "text-embedding-3-large",
+        dimensions: 3072,
         apiKey: "test-api-key",
         maxRetries: 3,
       };
@@ -55,8 +55,8 @@ describe("embeddings", () => {
       const result = await createEmbeddingsModel(config);
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
-        model: "text-embedding-3-small",
-        dimensions: 1536,
+        model: "text-embedding-3-large",
+        dimensions: 3072,
         apiKey: "test-api-key",
         maxRetries: 3,
       });
@@ -69,8 +69,8 @@ describe("embeddings", () => {
 
       const config: EmbeddingConfig = {
         provider: "openai",
-        modelName: "text-embedding-3-small",
-        dimensions: 1536,
+        modelName: "text-embedding-3-large",
+        dimensions: 3072,
         maxRetries: 3,
       };
 
@@ -78,8 +78,8 @@ describe("embeddings", () => {
       await createEmbeddingsModel(config);
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
-        model: "text-embedding-3-small",
-        dimensions: 1536,
+        model: "text-embedding-3-large",
+        dimensions: 3072,
         apiKey: "env-api-key",
         maxRetries: 3,
       });
@@ -133,7 +133,7 @@ describe("embeddings", () => {
       const config: EmbeddingConfig = {
         provider: "openai",
         modelName: "text-embedding-ada-002",
-        dimensions: 1536,
+        dimensions: 3072,
         apiKey: "custom-key",
         maxRetries: 3,
       };
@@ -143,7 +143,7 @@ describe("embeddings", () => {
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
         model: "text-embedding-ada-002",
-        dimensions: 1536,
+        dimensions: 3072,
         apiKey: "custom-key",
         maxRetries: 3,
       });
@@ -172,7 +172,7 @@ describe("embeddings", () => {
       const config = {
         provider: "unsupported" as any,
         modelName: "test-model",
-        dimensions: 1536,
+        dimensions: 3072,
         maxRetries: 3,
       };
 

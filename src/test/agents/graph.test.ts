@@ -47,7 +47,7 @@ describe("createSpecGraph", () => {
       ignorePatterns: [],
       llm: {
         provider: "openai",
-        modelName: "gpt-4-turbo",
+        modelName: "gpt-5.2-2025-12-11",
         temperature: 0,
         maxRetries: 3,
         maxContextTokens: 16000,
@@ -55,8 +55,8 @@ describe("createSpecGraph", () => {
       },
       embedding: {
         provider: "openai",
-        modelName: "text-embedding-3-small",
-        dimensions: 1536,
+        modelName: "text-embedding-3-large",
+        dimensions: 3072,
         maxRetries: 3,
       },
       checkpoint: {
@@ -68,7 +68,7 @@ describe("createSpecGraph", () => {
     mockRepository = new DocumentRepository(
       {} as unknown as LanceDBManager,
       {} as unknown as Embeddings,
-      1536
+      3072
     );
   });
 
@@ -84,7 +84,7 @@ describe("createSpecGraph", () => {
     
     await createSpecGraph(mockConfig, mockRepository);
 
-    expect(initChatModel).toHaveBeenCalledWith("gpt-4-turbo", {
+    expect(initChatModel).toHaveBeenCalledWith("gpt-5.2-2025-12-11", {
       modelProvider: "openai",
       temperature: 0,
       maxRetries: 3,

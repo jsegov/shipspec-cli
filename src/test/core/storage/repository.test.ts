@@ -45,7 +45,7 @@ describe("DocumentRepository", () => {
       repository = new DocumentRepository(
         mockVectorStore as LanceDBManager,
         mockEmbeddings as unknown as Embeddings,
-        1536
+        3072
       );
     });
 
@@ -195,8 +195,8 @@ describe("DocumentRepository", () => {
     beforeEach(async () => {
       tempDir = await createTempDir();
       vectorStore = new LanceDBManager(tempDir);
-      embeddings = new MockEmbeddings(1536);
-      repository = new DocumentRepository(vectorStore, embeddings, 1536);
+      embeddings = new MockEmbeddings(3072);
+      repository = new DocumentRepository(vectorStore, embeddings, 3072);
     });
 
     afterEach(async () => {

@@ -14,7 +14,7 @@ export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 
 export const LLMConfigSchema = z.object({
   provider: ModelProviderSchema.default("openai"),
-  modelName: z.string().default("gpt-4-turbo"),
+  modelName: z.string().default("gpt-5.2-2025-12-11"),
   temperature: z.number().min(0).max(2).default(0),
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
@@ -26,8 +26,8 @@ export const LLMConfigSchema = z.object({
 
 export const EmbeddingConfigSchema = z.object({
   provider: ModelProviderSchema.default("openai"),
-  modelName: z.string().default("text-embedding-3-small"),
-  dimensions: z.number().int().positive().default(1536),
+  modelName: z.string().default("text-embedding-3-large"),
+  dimensions: z.number().int().positive().default(3072),
   baseUrl: z.string().url().optional(),
   apiKey: z.string().optional(),
   maxRetries: z.number().int().min(0).max(10).default(3),
@@ -52,7 +52,7 @@ export const ShipSpecConfigSchema = z.object({
   ]),
   llm: LLMConfigSchema.default({
     provider: "openai",
-    modelName: "gpt-4-turbo",
+    modelName: "gpt-5.2-2025-12-11",
     temperature: 0,
     maxRetries: 3,
     maxContextTokens: 16000,
@@ -60,8 +60,8 @@ export const ShipSpecConfigSchema = z.object({
   }),
   embedding: EmbeddingConfigSchema.default({
     provider: "openai",
-    modelName: "text-embedding-3-small",
-    dimensions: 1536,
+    modelName: "text-embedding-3-large",
+    dimensions: 3072,
     maxRetries: 3,
   }),
   checkpoint: CheckpointConfigSchema.default({
