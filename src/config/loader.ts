@@ -37,7 +37,12 @@ export async function loadConfig(
     embedding: {
       apiKey: process.env.OPENAI_API_KEY || process.env.GOOGLE_API_KEY,
       baseUrl: process.env.OLLAMA_BASE_URL,
-    }
+    },
+    productionalize: {
+      webSearch: {
+        apiKey: process.env.TAVILY_API_KEY,
+      },
+    },
   };
 
   const merged = deepMerge(fileConfig, envConfig, overrides);

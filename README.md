@@ -145,6 +145,34 @@ ship-spec ingest --dry-run
 | `--batch-size <n>` | Documents per embedding batch | `50` |
 | `--dry-run` | Preview files without indexing | `false` |
 
+### `ship-spec productionalize [context]`
+
+Analyze your codebase for production readiness. This command combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and a Taskmaster-compatible task list.
+
+```bash
+# Basic usage
+ship-spec productionalize
+
+# With specific context
+ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
+
+# Enable SAST scans (Semgrep, Gitleaks, Trivy)
+ship-spec productionalize --enable-scans
+
+# Output report and tasks to files
+ship-spec productionalize -o report.md --tasks-output tasks.json
+```
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-o, --output <file>` | Write report to file | `stdout` |
+| `--tasks-output <file>` | Write tasks JSON to file | `stdout` |
+| `--enable-scans` | Run SAST scanners (requires binaries) | `false` |
+| `--categories <list>` | Filter to specific categories (csv) | `all` |
+| `--no-stream` | Disable real-time progress output | `false` |
+
 ### `ship-spec spec <prompt>`
 
 Generate technical specifications based on natural language prompts.

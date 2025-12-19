@@ -14,6 +14,7 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 - ✅ **Phase 4:** Agentic Core (LangGraph.js)
 - ✅ **Phase 5:** Workflow Integration & CLI Commands
 - ✅ **Phase 6:** Advanced Features & Optimization
+- ✅ **Phase 7:** Production Readiness Engine (Deterministic Signals, SAST, Web Search)
 
 ## Tech Stack
 
@@ -113,6 +114,37 @@ ship-spec spec "Document the payment flow" > payment-spec.md
 4. Aggregator synthesizes findings into specification
 5. Outputs markdown to stdout (or file with `-o`)
 
+### `ship-spec productionalize [context]`
+
+Analyze the codebase for production readiness.
+
+```bash
+# Basic usage
+ship-spec productionalize
+
+# With specific context
+ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
+
+# Enable SAST scans
+ship-spec productionalize --enable-scans
+```
+
+**Options:**
+- `-o, --output <file>` - Write report to file instead of stdout
+- `--tasks-output <file>` - Write Taskmaster JSON to file
+- `--enable-scans` - Run SAST scanners (Semgrep, Gitleaks, Trivy)
+- `--categories <list>` - Filter to specific categories (csv)
+- `--no-stream` - Disable streaming progress output
+
+**Workflow:**
+1. **Gather Signals** - Deterministic scan for tech stack, CI, tests, etc.
+2. **Researcher** - Web search for compliance standards (SOC 2, OWASP, SRE).
+3. **SAST Scans** - Run external scanners if enabled and available.
+4. **Planner** - Hybrid planner (core categories + dynamic signals).
+5. **Workers** - Parallel analysis with code/web/scan routing.
+6. **Aggregator** - Synthesize findings into Markdown report.
+7. **Task Generator** - Generate agent-executable Taskmaster JSON.
+
 ### `ship-spec config`
 
 Display the resolved configuration.
@@ -166,6 +198,8 @@ src/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
 ├── core/
+│   ├── analysis/              # NEW: Deterministic project signals
+│   │   └── project-signals.ts
 │   ├── checkpoint/
 │   │   └── index.ts           # Checkpointer factory (MemorySaver/SQLite)
 │   ├── models/
@@ -183,6 +217,15 @@ src/
 │   └── types/
 │       └── index.ts           # Shared TypeScript interfaces
 ├── agents/
+│   ├── productionalize/       # NEW: Production readiness workflow
+│   │   ├── graph.ts
+│   │   ├── state.ts
+│   │   └── nodes/
+│   │       ├── aggregator.ts
+│   │       ├── planner.ts
+│   │       ├── researcher.ts
+│   │       ├── task-generator.ts
+│   │       └── worker.ts
 │   ├── state.ts               # AgentState with Annotation.Root
 │   ├── graph.ts               # Map-Reduce workflow with Send API
 │   ├── nodes/
@@ -190,7 +233,9 @@ src/
 │   │   ├── worker.ts          # Retrieval and summarization + context pruning
 │   │   └── aggregator.ts      # Specification synthesis + findings truncation
 │   └── tools/
-│       └── retriever.ts       # DocumentRepository tool wrapper
+│       ├── retriever.ts       # DocumentRepository tool wrapper
+│       ├── sast-scanner.ts    # NEW: SAST tool wrapper
+│       └── web-search.ts      # NEW: Web search tool (Tavily/DDG)
 ├── test/
 │   ├── fixtures.ts            # Test fixtures (sample code)
 │   ├── agents/                # Agent tests (state, nodes, tools, graph)

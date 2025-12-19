@@ -39,6 +39,29 @@ export const CheckpointConfigSchema = z.object({
   sqlitePath: z.string().optional(),
 });
 
+export const WebSearchConfigSchema = z.object({
+  provider: z.enum(["tavily", "duckduckgo"]).default("tavily"),
+  apiKey: z.string().optional(),
+});
+
+export const SASTConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  tools: z.array(z.enum(["semgrep", "gitleaks", "trivy"])).default([]),
+});
+
+export const ProductionalizeConfigSchema = z.object({
+  webSearch: WebSearchConfigSchema.optional(),
+  sast: SASTConfigSchema.optional(),
+  coreCategories: z.array(z.string()).default([
+    "security",
+    "soc2",
+    "code-quality",
+    "dependencies",
+    "testing",
+    "configuration",
+  ]),
+});
+
 export const ShipSpecConfigSchema = z.object({
   projectPath: z.string().default("."),
   vectorDbPath: z.string().default(".ship-spec/lancedb"),
@@ -68,9 +91,13 @@ export const ShipSpecConfigSchema = z.object({
     enabled: false,
     type: "memory",
   }),
+  productionalize: ProductionalizeConfigSchema.default({}),
 });
 
 export type ShipSpecConfig = z.infer<typeof ShipSpecConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
 export type EmbeddingConfig = z.infer<typeof EmbeddingConfigSchema>;
 export type CheckpointConfig = z.infer<typeof CheckpointConfigSchema>;
+export type WebSearchConfig = z.infer<typeof WebSearchConfigSchema>;
+export type SASTConfig = z.infer<typeof SASTConfigSchema>;
+export type ProductionalizeConfig = z.infer<typeof ProductionalizeConfigSchema>;
