@@ -40,7 +40,7 @@ export class LanceDBManager {
 
   private tablePromises: Map<string, { promise: Promise<Table>; dimensions: number }> = new Map();
 
-  async getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
+  getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
     const existing = this.tablePromises.get(tableName);
     if (existing && existing.dimensions === dimensions) {
       return existing.promise;
