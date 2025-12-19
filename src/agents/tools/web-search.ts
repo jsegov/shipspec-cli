@@ -14,14 +14,17 @@ export function createWebSearchTool(config?: WebSearchConfig) {
     }),
     func: async ({ query, maxResults }) => {
       const apiKey = config?.apiKey || process.env.TAVILY_API_KEY;
+      const limit = maxResults ?? 5;
 
       if (apiKey && config?.provider !== "duckduckgo") {
         try {
           const tavily = new TavilySearchResults({
             apiKey,
-            maxResults,
+            maxResults: limit,
           });
-          return await tavily.invoke(query);
+          const results = await tavily.invoke(query);
+          // Ensure return is always a string for join() in researcher.ts
+          return typeof results === "string" ? results : JSON.stringify(results);
         } catch (error) {
           console.error("Tavily search failed, falling back to DuckDuckGo:", error);
         }
@@ -31,7 +34,7 @@ export function createWebSearchTool(config?: WebSearchConfig) {
       try {
         const results = await search(query, { safeSearch: "STRICT" });
         return JSON.stringify(
-          results.results.slice(0, maxResults).map((r) => ({
+          results.results.slice(0, limit).map((r) => ({
             title: r.title,
             url: r.url,
             content: r.description,
