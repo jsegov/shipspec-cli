@@ -6,16 +6,6 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and technic
 
 **Core Philosophy:** Local-First, Cloud-Optional — supports both local inference (Ollama) and cloud providers (OpenAI, Anthropic).
 
-### Current Implementation Status
-
-- ✅ **Phase 1:** Foundation, Configuration & CLI Scaffolding
-- ✅ **Phase 2:** Knowledge Engine (LanceDB & Embeddings)
-- ✅ **Phase 3:** Code Parsing & Analysis (Tree-sitter)
-- ✅ **Phase 4:** Agentic Core (LangGraph.js)
-- ✅ **Phase 5:** Workflow Integration & CLI Commands
-- ✅ **Phase 6:** Advanced Features & Optimization
-- ✅ **Phase 7:** Production Readiness Engine (Deterministic Signals, SAST, Web Search)
-
 ## Tech Stack
 
 | Technology | Purpose |
@@ -255,6 +245,7 @@ src/
 ## Code Style
 
 - **TypeScript strict mode** — All code must pass `tsc --noEmit`
+- **Strict Typing** — Use of `any` is strictly forbidden. Use of `unknown` should be minimized. Always define specific interfaces or types. Use Zod for validating external data.
 - **ESM modules** — Use `.js` extensions in imports (e.g., `./schema.js`)
 - **Zod validation** — All external inputs (config files, LLM outputs) must be validated
 - **Provider abstraction** — Never import vendor SDKs directly in business logic; use factory functions
@@ -267,6 +258,42 @@ import { loadConfig } from "../config/loader.js";
 
 // ❌ Incorrect: Missing extension
 import { loadConfig } from "../config/loader";
+```
+
+### Type Safety
+
+- **Strict Typing** — Use of `any` is strictly forbidden. Avoid `unknown` where possible; instead, define specific interfaces or use Zod to parse and validate external data.
+
+```typescript
+import { z } from "zod";
+
+// ✅ Correct: Use Zod to validate external data
+const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+type User = z.infer<typeof UserSchema>;
+
+function handleUserResponse(data: unknown) {
+  const user = UserSchema.parse(data); // Returns typed User or throws
+  console.log(`Hello, ${user.name}`);
+}
+
+// ✅ Correct: Use specific interfaces for internal logic
+interface ProjectConfig {
+  path: string;
+  depth: number;
+}
+
+function analyzeProject(config: ProjectConfig) {
+  // ...
+}
+
+// ❌ Incorrect: Using any or unknown without validation
+function handleData(data: any) {
+  console.log(data.someProperty);
+}
 ```
 
 ### Naming Conventions
@@ -617,7 +644,7 @@ console.log(result.finalSpec); // Generated specification
 
 The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentRepository.hybridSearch()` as a LangChain `DynamicStructuredTool`, enabling LLMs to semantically search the codebase during analysis.
 
-## Phase 6 Features
+## Advanced Features
 
 ### Checkpointing
 
@@ -708,7 +735,7 @@ The worker node automatically prunes retrieved code chunks to fit within the tok
 
 ## Next Steps
 
-All core phases are complete. Future enhancements could include:
+Future enhancements could include:
 - Human-in-the-loop workflows with interruption points
 - Multi-model routing for specialized tasks
 - Incremental re-indexing for changed files
