@@ -28,7 +28,10 @@ export function createSASTScannerTool(config?: SASTConfig) {
     func: async ({ tools: requestedTools }) => {
       const toolsToRun = requestedTools || config?.tools || [];
       if (toolsToRun.length === 0) {
-        return "No SAST tools configured or requested.";
+        return JSON.stringify({
+          findings: [],
+          skipped: ["No SAST tools configured or requested."],
+        });
       }
 
       const allFindings: SASTFinding[] = [];
