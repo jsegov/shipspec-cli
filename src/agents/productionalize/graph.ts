@@ -75,7 +75,12 @@ export async function createProductionalizeGraph(
         return ["aggregator"];
       }
       return state.subtasks.map(
-        (subtask) => new Send("worker", { subtask })
+        (subtask) => new Send("worker", { 
+          subtask,
+          researchDigest: state.researchDigest,
+          sastResults: state.sastResults,
+          signals: state.signals
+        })
       );
     })
     .addEdge("worker", "aggregator")
