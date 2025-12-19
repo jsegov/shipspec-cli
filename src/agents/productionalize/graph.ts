@@ -72,7 +72,7 @@ export async function createProductionalizeGraph(
     .addEdge("scanner", "planner")
     .addConditionalEdges("planner", (state: ProductionalizeStateType) => {
       if (!state.subtasks || state.subtasks.length === 0) {
-        return ["aggregator"];
+        return "aggregator";
       }
       return state.subtasks.map(
         (subtask) => new Send("worker", { 
