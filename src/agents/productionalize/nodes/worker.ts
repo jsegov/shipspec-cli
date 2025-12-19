@@ -20,9 +20,9 @@ const FindingSchema = z.object({
     codeRefs: z.array(z.object({
       filepath: z.string(),
       lines: z.string(),
-      content: z.string().optional(),
-    })).optional(),
-    links: z.array(z.string()).optional(),
+      content: z.string(),
+    })),
+    links: z.array(z.string()),
   }),
 });
 
@@ -103,20 +103,21 @@ ${subtask.query}`;
       new HumanMessage(userPrompt),
     ]);
 
-    const finalFindings = output.findings.map(f => {
-        if (subtask.source === "scan") {
-            return { 
-              ...f, 
-              evidence: { 
-                ...f.evidence, 
-                scanResults: sastResults.filter(r => 
-                  r.rule.toLowerCase().includes(subtask.category.toLowerCase()) || 
-                  r.message.toLowerCase().includes(subtask.category.toLowerCase())
-                )
-              } 
-            };
-        }
-        return f;
+    const finalFindings = output.findings.map((f) => {
+      if (subtask.source === "scan") {
+        return {
+          ...f,
+          evidence: {
+            ...f.evidence,
+            scanResults: sastResults.filter(
+              (r) =>
+                r.rule.toLowerCase().includes(subtask.category.toLowerCase()) ||
+                r.message.toLowerCase().includes(subtask.category.toLowerCase())
+            ),
+          },
+        };
+      }
+      return f;
     });
 
     return {

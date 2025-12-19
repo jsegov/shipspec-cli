@@ -165,5 +165,46 @@ describe("LanceDBManager", () => {
         expect(vectorType.listSize).toBe(dim);
       }
     });
+
+    it("handles concurrent getOrCreateTable calls without error", async () => {
+      const tableName = "concurrent_table";
+      const dimensions = 3072;
+      
+      // Simulate multiple concurrent requests for the same table
+      const results = await Promise.all([
+        manager.getOrCreateTable(tableName, dimensions),
+        manager.getOrCreateTable(tableName, dimensions),
+        manager.getOrCreateTable(tableName, dimensions),
+        manager.getOrCreateTable(tableName, dimensions),
+        manager.getOrCreateTable(tableName, dimensions),
+      ]);
+
+      expect(results).toHaveLength(5);
+      for (const table of results) {
+        expect(table).toBeDefined();
+        const schema = await table.schema();
+        const vectorField = schema.fields.find((f) => f.name === "vector");
+        expect((vectorField?.type as arrow.FixedSizeList).listSize).toBe(dimensions);
+      }
+      
+      // All results should be the same table instance due to promise caching
+      const firstTable = results[0];
+      for (let i = 1; i < results.length; i++) {
+        expect(results[i]).toBe(firstTable);
+      }
+    });
+
+    it("handles concurrent connect calls without error", async () => {
+      // Simulate multiple concurrent requests for connection
+      const results = await Promise.all([
+        manager.connect(),
+        manager.connect(),
+        manager.connect(),
+      ]);
+
+      expect(results).toHaveLength(3);
+      expect(results[0]).toBe(results[1]);
+      expect(results[1]).toBe(results[2]);
+    });
   });
 });

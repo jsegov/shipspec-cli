@@ -3,12 +3,12 @@ import { createWebSearchTool } from "../../../agents/tools/web-search.js";
 
 // Mock Tavily
 vi.mock("@langchain/tavily", () => {
-  const TavilySearchResults = vi.fn(function () {
+  const TavilySearch = vi.fn(function () {
     return {
       invoke: vi.fn().mockResolvedValue("tavily results"),
     };
   });
-  return { TavilySearchResults };
+  return { TavilySearch };
 });
 
 // Mock DuckDuckGo
@@ -17,6 +17,9 @@ vi.mock("duck-duck-scrape", () => {
     search: vi.fn().mockResolvedValue({
       results: [{ title: "ddg title", url: "ddg.com", description: "ddg desc" }],
     }),
+    SafeSearchType: {
+      STRICT: "STRICT",
+    },
   };
 });
 

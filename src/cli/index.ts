@@ -11,7 +11,7 @@ import { ingestCommand } from "./commands/ingest.js";
 import { specCommand } from "./commands/spec.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
-setMaxListeners(20);
+setMaxListeners(50);
 
 loadDotenv({ path: join(process.cwd(), ".env") });
 

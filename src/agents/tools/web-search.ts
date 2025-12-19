@@ -23,7 +23,6 @@ export function createWebSearchTool(config?: WebSearchConfig) {
             maxResults: limit,
           });
           const results = await tavily.invoke({ query });
-          // Ensure return is always a string for join() in researcher.ts
           return typeof results === "string" ? results : JSON.stringify(results);
         } catch (error) {
           console.error("Tavily search failed, falling back to DuckDuckGo:", error);

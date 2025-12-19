@@ -5,6 +5,7 @@ import { Table, Index } from "@lancedb/lancedb";
 
 export class LanceDBManager {
   private db: lancedb.Connection | null = null;
+  private connectionPromise: Promise<lancedb.Connection> | null = null;
   private readonly dbPath: string;
 
   constructor(dbPath: string) {
@@ -12,9 +13,11 @@ export class LanceDBManager {
   }
 
   async connect(): Promise<lancedb.Connection> {
-    if (!this.db) {
-      this.db = await lancedb.connect(this.dbPath);
-    }
+    if (this.db) return this.db;
+    if (this.connectionPromise) return this.connectionPromise;
+
+    this.connectionPromise = lancedb.connect(this.dbPath);
+    this.db = await this.connectionPromise;
     return this.db;
   }
 
@@ -35,29 +38,41 @@ export class LanceDBManager {
     ]);
   }
 
+  private tablePromises: Map<string, { promise: Promise<Table>; dimensions: number }> = new Map();
+
   async getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
-    const db = await this.connect();
-    const tableNames = await db.tableNames();
-
-    if (tableNames.includes(tableName)) {
-      const table = await db.openTable(tableName);
-      const schema = await table.schema();
-      
-      const vectorField = schema.fields.find((f) => f.name === "vector");
-      const existingDims = (vectorField?.type as arrow.FixedSizeList)?.listSize;
-
-      if (existingDims !== dimensions) {
-        logger.warn(
-          `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
-        );
-        await db.dropTable(tableName);
-        return this.createTable(tableName, dimensions);
-      }
-
-      return table;
+    const existing = this.tablePromises.get(tableName);
+    if (existing && existing.dimensions === dimensions) {
+      return existing.promise;
     }
 
-    return this.createTable(tableName, dimensions);
+    const tablePromise = (async () => {
+      const db = await this.connect();
+      const tableNames = await db.tableNames();
+
+      if (tableNames.includes(tableName)) {
+        const table = await db.openTable(tableName);
+        const schema = await table.schema();
+        
+        const vectorField = schema.fields.find((f) => f.name === "vector");
+        const existingDims = (vectorField?.type as arrow.FixedSizeList)?.listSize;
+
+        if (existingDims !== dimensions) {
+          logger.warn(
+            `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
+          );
+          await db.dropTable(tableName);
+          return this.createTable(tableName, dimensions);
+        }
+
+        return table;
+      }
+
+      return this.createTable(tableName, dimensions);
+    })();
+
+    this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
+    return tablePromise;
   }
 
   private async createTable(tableName: string, dimensions: number): Promise<Table> {

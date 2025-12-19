@@ -49,10 +49,6 @@ ${userQuery || "Perform a full production-readiness analysis of this codebase."}
       new HumanMessage(userPrompt),
     ]);
 
-// #region agent log
-    fetch('http://127.0.0.1:7242/ingest/55322ab6-a122-49b2-a3e4-46ea155ba6a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'planner.ts:51',message:'Planner generated subtasks',data:{subtaskCount: plan.subtasks.length, sources: plan.subtasks.map(s => s.source)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H-E'})}).catch(()=>{});
-// #endregion
-
     return {
       subtasks: plan.subtasks.map((t) => ({
         ...t,

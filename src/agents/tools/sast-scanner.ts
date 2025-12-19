@@ -106,9 +106,8 @@ async function runSemgrep(): Promise<SASTFinding[]> {
     const { stdout } = await execAsync("semgrep scan --json --quiet");
     return parseResults(stdout);
   } catch (error: unknown) {
-    const execError = error as { stdout?: string };
-    if (execError.stdout) {
-      return parseResults(execError.stdout);
+    if (error && typeof error === "object" && "stdout" in error && typeof error.stdout === "string") {
+      return parseResults(error.stdout);
     }
     throw error;
   }
@@ -150,12 +149,10 @@ async function runGitleaks(): Promise<SASTFinding[]> {
     const { stdout } = await execAsync("gitleaks detect --no-git --report-format json --report-path -");
     return parseResults(stdout);
   } catch (error: unknown) {
-    const execError = error as { stdout?: string; code?: number };
-    // Gitleaks returns exit code 1 if findings are found
-    if (execError.stdout) {
-      return parseResults(execError.stdout);
+    if (error && typeof error === "object" && "stdout" in error && typeof error.stdout === "string") {
+      return parseResults(error.stdout);
     }
-    if (execError.code === 1 && !execError.stdout) return [];
+    if (error && typeof error === "object" && "code" in error && error.code === 1) return [];
     throw error;
   }
 }
@@ -226,9 +223,8 @@ async function runTrivy(): Promise<SASTFinding[]> {
     const { stdout } = await execAsync("trivy fs . --format json --quiet");
     return parseResults(stdout);
   } catch (error: unknown) {
-    const execError = error as { stdout?: string };
-    if (execError.stdout) {
-      return parseResults(execError.stdout);
+    if (error && typeof error === "object" && "stdout" in error && typeof error.stdout === "string") {
+      return parseResults(error.stdout);
     }
     throw error;
   }

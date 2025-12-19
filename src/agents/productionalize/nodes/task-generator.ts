@@ -12,7 +12,7 @@ const TaskSchema: z.ZodType<TaskmasterTask> = z.lazy(() => z.object({
   dependencies: z.array(z.number()),
   details: z.string(),
   testStrategy: z.string(),
-  subtasks: z.array(TaskSchema).optional(),
+  subtasks: z.array(TaskSchema),
 }));
 
 const TasksOutputSchema = z.object({
