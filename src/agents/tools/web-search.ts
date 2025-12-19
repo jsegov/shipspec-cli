@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { TavilySearchResults } from "@langchain/tavily";
-import { search } from "duck-duck-scrape";
+import { TavilySearch } from "@langchain/tavily";
+import { search, SafeSearchType } from "duck-duck-scrape";
 import type { WebSearchConfig } from "../../config/schema.js";
 
 export function createWebSearchTool(config?: WebSearchConfig) {
@@ -18,11 +18,11 @@ export function createWebSearchTool(config?: WebSearchConfig) {
 
       if (apiKey && config?.provider !== "duckduckgo") {
         try {
-          const tavily = new TavilySearchResults({
-            apiKey,
+          const tavily = new TavilySearch({
+            tavilyApiKey: apiKey,
             maxResults: limit,
           });
-          const results = await tavily.invoke(query);
+          const results = await tavily.invoke({ query });
           // Ensure return is always a string for join() in researcher.ts
           return typeof results === "string" ? results : JSON.stringify(results);
         } catch (error) {
@@ -32,7 +32,7 @@ export function createWebSearchTool(config?: WebSearchConfig) {
 
       // Fallback to DuckDuckGo
       try {
-        const results = await search(query, { safeSearch: "STRICT" });
+        const results = await search(query, { safeSearch: SafeSearchType.STRICT });
         return JSON.stringify(
           results.results.slice(0, limit).map((r) => ({
             title: r.title,

@@ -91,7 +91,16 @@ export const ShipSpecConfigSchema = z.object({
     enabled: false,
     type: "memory",
   }),
-  productionalize: ProductionalizeConfigSchema.default({}),
+  productionalize: ProductionalizeConfigSchema.default({
+    coreCategories: [
+      "security",
+      "soc2",
+      "code-quality",
+      "dependencies",
+      "testing",
+      "configuration",
+    ],
+  }),
 });
 
 export type ShipSpecConfig = z.infer<typeof ShipSpecConfigSchema>;

@@ -22,24 +22,12 @@ export function createResearcherNode(model: BaseChatModel, webSearchTool: Dynami
     const context = results.join("\n\n");
 
     const summaryResponse = await model.invoke([
-      new SystemMessage(`You are a technical researcher. Your goal is to synthesize research into a compact "Compliance and Best Practices Digest" that will ground a production-readiness analysis.
-Focus on:
-- SOC 2 Security & Availability requirements
-- OWASP Top 10 / ASVS highlights
-- SRE Launch Checklist essentials
-- NIST SSDF practices
-
-Keep the digest structured and actionable.`),
-      new HumanMessage(`Based on the following search results and project signals, create a research digest for this project:
-
-Project Signals:
-${JSON.stringify(signals, null, 2)}
-
-Search Results:
-${context}
-
-Return the digest as a structured markdown summary.`),
+// ... (omitted content)
     ]);
+
+// #region agent log
+    fetch('http://127.0.0.1:7242/ingest/55322ab6-a122-49b2-a3e4-46ea155ba6a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'researcher.ts:43',message:'Researcher digest generated',data:{digestLength: (summaryResponse.content as string).length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H-C'})}).catch(()=>{});
+// #endregion
 
     return {
       researchDigest: summaryResponse.content as string,

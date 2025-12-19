@@ -7,6 +7,10 @@ export function createAggregatorNode(model: BaseChatModel, _tokenBudget?: TokenB
   return async (state: ProductionalizeStateType) => {
     const { findings, signals, researchDigest } = state;
 
+// #region agent log
+    fetch('http://127.0.0.1:7242/ingest/55322ab6-a122-49b2-a3e4-46ea155ba6a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'aggregator.ts:8',message:'Aggregator received findings',data:{findingsCount: findings.length, signalsPresent: !!signals, digestLength: researchDigest?.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H-B'})}).catch(()=>{});
+// #endregion
+
     const systemPrompt = `You are a production-readiness report aggregator. Your goal is to synthesize multiple domain-specific findings into a single, cohesive, professional Markdown report.
 The report should be structured for a CTO or Engineering Manager.
 

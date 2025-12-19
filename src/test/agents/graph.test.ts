@@ -63,6 +63,16 @@ describe("createSpecGraph", () => {
         enabled: false,
         type: "memory",
       },
+      productionalize: {
+        coreCategories: [
+          "security",
+          "soc2",
+          "code-quality",
+          "dependencies",
+          "testing",
+          "configuration",
+        ],
+      },
     };
 
     mockRepository = new DocumentRepository(

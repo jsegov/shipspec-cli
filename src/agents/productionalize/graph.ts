@@ -44,6 +44,9 @@ export async function createProductionalizeGraph(
       return { sastResults: [] };
     }
     const resultsString = await sastTool.invoke({});
+// #region agent log
+    fetch('http://127.0.0.1:7242/ingest/55322ab6-a122-49b2-a3e4-46ea155ba6a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'graph.ts:46',message:'SAST Tool raw results',data:{resultsString: resultsString.slice(0, 500)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H-D'})}).catch(()=>{});
+// #endregion
     try {
       const results = JSON.parse(resultsString);
       return { sastResults: results.findings || [] };

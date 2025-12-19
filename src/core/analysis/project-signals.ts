@@ -124,5 +124,8 @@ export async function gatherProjectSignals(projectPath: string): Promise<Project
     }
   }
 
+// #region agent log
+  fetch('http://127.0.0.1:7242/ingest/55322ab6-a122-49b2-a3e4-46ea155ba6a6',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'project-signals.ts:127',message:'Project signals gathered',data:{signals},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H-A'})}).catch(()=>{});
+// #endregion
   return signals;
 }
