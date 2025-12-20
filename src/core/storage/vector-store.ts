@@ -46,25 +46,22 @@ export class LanceDBManager {
   }
 
   private tablePromises: Map<string, { promise: Promise<Table>; dimensions: number }> = new Map();
+  private tableSerializationChains: Map<string, Promise<any>> = new Map();
 
   getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
-    const existing = this.tablePromises.get(tableName);
-    if (existing && existing.dimensions === dimensions) {
-      return existing.promise;
+    const cached = this.tablePromises.get(tableName);
+    if (cached && cached.dimensions === dimensions) {
+      return cached.promise;
     }
 
-    const previousPromise = existing?.promise;
+    // Get the latest serialization point for this table name.
+    // This ensures that all operations on the same table (opening, dropping, creating)
+    // are strictly sequential, even across different dimension requests.
+    const previousChain = this.tableSerializationChains.get(tableName) || Promise.resolve();
 
     const tablePromise = (async () => {
-      // If dimensions changed, wait for the previous operation to complete
-      // to avoid concurrent modifications to the same table.
-      if (previousPromise) {
-        try {
-          await previousPromise;
-        } catch (error) {
-          // Ignore errors from previous operations when dimensions mismatch
-        }
-      }
+      // Always wait for the previous operation to complete, regardless of success/failure.
+      await previousChain.catch(() => {});
 
       try {
         const db = await this.connect();
@@ -90,7 +87,9 @@ export class LanceDBManager {
 
         return await this.createTable(tableName, dimensions);
       } catch (error) {
-        // Clean up on failure to allow retries
+        // Clean up from the cache on failure to allow future retries.
+        // We don't clear the serialization chain because it's still needed 
+        // by any subsequent operations already waiting for this one.
         if (this.tablePromises.get(tableName)?.promise === tablePromise) {
           this.tablePromises.delete(tableName);
         }
@@ -98,9 +97,10 @@ export class LanceDBManager {
       }
     })();
 
-    // Store the promise immediately to ensure subsequent concurrent calls 
-    // find it in the cache before it has even started any async work.
+    // Update both the cache and the serialization chain immediately.
     this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
+    this.tableSerializationChains.set(tableName, tablePromise);
+    
     return tablePromise;
   }
 
