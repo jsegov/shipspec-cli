@@ -1,5 +1,6 @@
 <p align="center">
-  <h1 align="center">🚀 Ship Spec</h1>
+  <img src="assets/ship-spec-logo-16-9.png" alt="Ship Spec Logo" width="600">
+  <h1 align="center">Ship Spec</h1>
   <p align="center">
     <strong>AI-powered codebase analysis and production readiness evaluation</strong>
   </p>
