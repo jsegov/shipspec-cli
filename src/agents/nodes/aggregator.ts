@@ -1,11 +1,12 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { AgentStateType } from "../state.js";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { TokenBudget } from "../../utils/tokens.js";
 import {
   truncateTextByTokenBudget,
   getAvailableContextBudget,
 } from "../../utils/tokens.js";
+import { SPEC_AGGREGATOR_TEMPLATE } from "../prompts/index.js";
 
 export function createAggregatorNode(
   model: BaseChatModel,
@@ -28,14 +29,11 @@ export function createAggregatorNode(
     }
 
     const response = await model.invoke([
-      new HumanMessage(`Create a technical specification based on these findings.
-
-Original Request: ${state.userQuery}
+      new SystemMessage(SPEC_AGGREGATOR_TEMPLATE),
+      new HumanMessage(`Original Request: ${state.userQuery}
 
 Findings:
-${findings}
-
-Generate a structured markdown specification with actionable guidance.`),
+${findings}`),
     ]);
 
     return {

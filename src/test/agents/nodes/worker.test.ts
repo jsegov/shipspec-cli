@@ -14,28 +14,23 @@ describe("WorkerNode", () => {
   let mockRetrieverTool: Partial<DynamicStructuredTool>;
   let workerNode: ReturnType<typeof createWorkerNode>;
 
-  const getInvokeContent = (mock: unknown): string => {
+  const getInvokeContent = (mock: unknown, index = 0): string => {
     const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
     const calls = mocked.invoke.mock.calls;
     const firstCall = calls[0];
     if (!firstCall) return "";
     const firstArg = firstCall[0];
-    return firstArg[0]?.content ?? "";
+    return firstArg[index]?.content ?? "";
   };
 
   beforeEach(() => {
     mockModel = {
-      invoke: vi.fn(),
+      withStructuredOutput: vi.fn(),
     };
 
     mockRetrieverTool = {
       invoke: vi.fn(),
     };
-
-    workerNode = createWorkerNode(
-      mockModel as BaseChatModel,
-      mockRetrieverTool as DynamicStructuredTool
-    );
   });
 
   const createMockState = (subtask: Subtask): AgentStateType & { subtask: Subtask } => ({
@@ -64,12 +59,24 @@ describe("WorkerNode", () => {
       },
     ]);
 
-    const mockSummary = {
-      content: "Authentication is handled by the authenticate function",
+    const mockOutput = {
+      summary: "Authentication is handled by the authenticate function",
+      reasoning: "Reasoning",
+      findings: [],
+      confidenceLevel: "high",
     };
 
+    const mockStructuredModel = {
+      invoke: vi.fn().mockResolvedValue(mockOutput),
+    };
+
+    (mockModel.withStructuredOutput as ReturnType<typeof vi.fn>).mockReturnValue(mockStructuredModel);
     (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockToolResult);
-    (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSummary);
+
+    workerNode = createWorkerNode(
+      mockModel as BaseChatModel,
+      mockRetrieverTool as DynamicStructuredTool
+    );
 
     const input = createMockState(subtask);
     const result = await workerNode(input);
@@ -78,7 +85,7 @@ describe("WorkerNode", () => {
       query: "How does authentication work?",
       k: 10,
     });
-    expect(mockModel.invoke).toHaveBeenCalled();
+    expect(mockStructuredModel.invoke).toHaveBeenCalled();
     expect(result.subtasks).toHaveLength(1);
     const resultSubtask = result.subtasks[0];
     expect(resultSubtask).toBeDefined();
@@ -95,17 +102,26 @@ describe("WorkerNode", () => {
     };
 
     const mockToolResult = JSON.stringify([{ filepath: "schema.ts", content: "export const schema = {}" }]);
-    const mockSummary = { content: "Summary" };
+    const mockOutput = { summary: "Summary", reasoning: "Reasoning", findings: [], confidenceLevel: "high" };
 
+    const mockStructuredModel = {
+      invoke: vi.fn().mockResolvedValue(mockOutput),
+    };
+
+    (mockModel.withStructuredOutput as ReturnType<typeof vi.fn>).mockReturnValue(mockStructuredModel);
     (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockToolResult);
-    (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSummary);
+
+    workerNode = createWorkerNode(
+      mockModel as BaseChatModel,
+      mockRetrieverTool as DynamicStructuredTool
+    );
 
     const input = createMockState(subtask);
     await workerNode(input);
 
-    const content = getInvokeContent(mockModel);
-    expect(content).toContain("What is the database schema?");
-    expect(content).toContain(mockToolResult);
+    const humanContent = getInvokeContent(mockStructuredModel, 1);
+    expect(humanContent).toContain("What is the database schema?");
+    expect(humanContent).toContain(mockToolResult);
   });
 
   it("should mark subtask as complete with result", async () => {
@@ -115,10 +131,24 @@ describe("WorkerNode", () => {
       status: "pending",
     };
 
+    const mockOutput = {
+      summary: "Test summary",
+      reasoning: "Reasoning",
+      findings: [],
+      confidenceLevel: "high",
+    };
+
+    const mockStructuredModel = {
+      invoke: vi.fn().mockResolvedValue(mockOutput),
+    };
+
+    (mockModel.withStructuredOutput as ReturnType<typeof vi.fn>).mockReturnValue(mockStructuredModel);
     (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue("[]");
-    (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({
-      content: "Test summary",
-    });
+
+    workerNode = createWorkerNode(
+      mockModel as BaseChatModel,
+      mockRetrieverTool as DynamicStructuredTool
+    );
 
     const input = createMockState(subtask);
     const result = await workerNode(input);
@@ -137,14 +167,6 @@ describe("WorkerNode", () => {
       reservedOutputTokens: 200,
     };
 
-    beforeEach(() => {
-      workerNode = createWorkerNode(
-        mockModel as BaseChatModel,
-        mockRetrieverTool as DynamicStructuredTool,
-        tokenBudget
-      );
-    });
-
     it("should prune chunks when exceeding token budget", async () => {
       const subtask: Subtask = {
         id: "4",
@@ -152,9 +174,6 @@ describe("WorkerNode", () => {
         status: "pending",
       };
 
-      // Create chunks that exceed budget
-      // Budget available: (1000 - 200) * 0.7 = 560 tokens
-      // Each chunk with 800 chars = ~200 tokens, so only ~2-3 should fit
       const mockChunks = [
         { id: "1", content: "a".repeat(800), filepath: "a.ts", startLine: 1, endLine: 10, language: "typescript", type: "function" },
         { id: "2", content: "b".repeat(800), filepath: "b.ts", startLine: 1, endLine: 10, language: "typescript", type: "function" },
@@ -162,16 +181,25 @@ describe("WorkerNode", () => {
         { id: "4", content: "d".repeat(800), filepath: "d.ts", startLine: 1, endLine: 10, language: "typescript", type: "function" },
       ];
 
+      const mockOutput = { summary: "Summary", reasoning: "Reasoning", findings: [], confidenceLevel: "high" };
+      const mockStructuredModel = {
+        invoke: vi.fn().mockResolvedValue(mockOutput),
+      };
+
+      (mockModel.withStructuredOutput as ReturnType<typeof vi.fn>).mockReturnValue(mockStructuredModel);
       (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(mockChunks));
-      (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ content: "Summary" });
+
+      workerNode = createWorkerNode(
+        mockModel as BaseChatModel,
+        mockRetrieverTool as DynamicStructuredTool,
+        tokenBudget
+      );
 
       const input = createMockState(subtask);
       await workerNode(input);
 
-      const contextInPrompt = getInvokeContent(mockModel);
+      const contextInPrompt = getInvokeContent(mockStructuredModel, 1);
 
-      // The context should have pruned some chunks
-      // Parse the JSON from the prompt to verify pruning
       const jsonMatch = /\[.*\]/s.exec(contextInPrompt);
       if (jsonMatch) {
         const parsedChunks = JSON.parse(jsonMatch[0]) as unknown[];
@@ -186,13 +214,23 @@ describe("WorkerNode", () => {
         status: "pending",
       };
 
+      const mockOutput = { summary: "Summary", reasoning: "Reasoning", findings: [], confidenceLevel: "high" };
+      const mockStructuredModel = {
+        invoke: vi.fn().mockResolvedValue(mockOutput),
+      };
+
+      (mockModel.withStructuredOutput as ReturnType<typeof vi.fn>).mockReturnValue(mockStructuredModel);
       (mockRetrieverTool.invoke as ReturnType<typeof vi.fn>).mockResolvedValue("not valid json");
-      (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ content: "Summary" });
+
+      workerNode = createWorkerNode(
+        mockModel as BaseChatModel,
+        mockRetrieverTool as DynamicStructuredTool,
+        tokenBudget
+      );
 
       const input = createMockState(subtask);
       const result = await workerNode(input);
 
-      // Should still complete successfully, using original result
       const resultSubtask = result.subtasks[0];
       expect(resultSubtask).toBeDefined();
       expect(resultSubtask?.status).toBe("complete");

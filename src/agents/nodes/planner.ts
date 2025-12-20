@@ -1,25 +1,15 @@
-import { z } from "zod";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { AgentStateType } from "../state.js";
-import { HumanMessage } from "@langchain/core/messages";
-
-const SubtaskSchema = z.object({
-  subtasks: z.array(z.object({
-    id: z.string(),
-    query: z.string().describe("Specific question to investigate"),
-  })).nonempty().min(1),
-});
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { SPEC_PLANNER_TEMPLATE, SpecPlanSchema } from "../prompts/index.js";
 
 export function createPlannerNode(model: BaseChatModel) {
-  const structuredModel = model.withStructuredOutput(SubtaskSchema);
+  const structuredModel = model.withStructuredOutput(SpecPlanSchema);
 
   return async (state: AgentStateType) => {
     const response = await structuredModel.invoke([
-      new HumanMessage(`Decompose this request into specific code analysis subtasks:
-
-User Query: ${state.userQuery}
-
-Break this into 3-7 focused subtasks that can be investigated independently.`),
+      new SystemMessage(SPEC_PLANNER_TEMPLATE),
+      new HumanMessage(`User Query: ${state.userQuery}`),
     ]);
 
     return {

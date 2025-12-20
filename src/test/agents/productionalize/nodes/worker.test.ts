@@ -3,7 +3,8 @@ import { createWorkerNode } from "../../../../agents/productionalize/nodes/worke
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
-import type { ProductionalizeStateType, ProductionalizeSubtask } from "../../../../agents/productionalize/state.js";
+import type { ProductionalizeStateType } from "../../../../agents/productionalize/state.js";
+import type { ProductionalizeSubtask } from "../../../../agents/productionalize/types.js";
 
 describe("Worker Node", () => {
   it("should analyze code and return findings", async () => {

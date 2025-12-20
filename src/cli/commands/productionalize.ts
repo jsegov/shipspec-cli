@@ -11,7 +11,7 @@ import { createEmbeddingsModel } from "../../core/models/embeddings.js";
 import { createProductionalizeGraph } from "../../agents/productionalize/graph.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
-import type { ProductionalizeSubtask, TaskmasterTask } from "../../agents/productionalize/state.js";
+import type { ProductionalizeSubtask, TaskmasterTask } from "../../agents/productionalize/types.js";
 
 interface ProductionalizeOptions {
   output?: string;

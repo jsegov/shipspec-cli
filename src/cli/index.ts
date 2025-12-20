@@ -10,7 +10,7 @@ import { configCommand } from "./commands/config.js";
 import { ingestCommand } from "./commands/ingest.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
-setMaxListeners(50);
+setMaxListeners(100);
 
 loadDotenv({ path: join(process.cwd(), ".env") });
 

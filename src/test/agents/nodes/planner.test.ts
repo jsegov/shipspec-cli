@@ -11,13 +11,13 @@ describe("PlannerNode", () => {
   let mockModel: Partial<BaseChatModel>;
   let plannerNode: ReturnType<typeof createPlannerNode>;
 
-  const getInvokeContent = (mock: unknown): string => {
+  const getInvokeContent = (mock: unknown, index = 0): string => {
     const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
     const calls = mocked.invoke.mock.calls;
     const firstCall = calls[0];
     if (!firstCall) return "";
     const firstArg = firstCall[0];
-    return firstArg[0]?.content ?? "";
+    return firstArg[index]?.content ?? "";
   };
 
   beforeEach(() => {
@@ -29,10 +29,11 @@ describe("PlannerNode", () => {
   it("should decompose query into subtasks", async () => {
     const mockStructuredModel = {
       invoke: vi.fn().mockResolvedValue({
+        reasoning: "Overall reasoning",
         subtasks: [
-          { id: "1", query: "Analyze authentication flow" },
-          { id: "2", query: "Review database schema" },
-          { id: "3", query: "Check API endpoints" },
+          { id: "1", query: "Analyze authentication flow", reasoning: "R1" },
+          { id: "2", query: "Review database schema", reasoning: "R2" },
+          { id: "3", query: "Check API endpoints", reasoning: "R3" },
         ],
       }),
     };
@@ -65,6 +66,7 @@ describe("PlannerNode", () => {
   it("should include user query in prompt", async () => {
     const mockStructuredModel = {
       invoke: vi.fn().mockResolvedValue({
+        reasoning: "Overall reasoning",
         subtasks: [],
       }),
     };
@@ -82,17 +84,19 @@ describe("PlannerNode", () => {
 
     await plannerNode(state);
 
-    const content = getInvokeContent(mockStructuredModel);
-    expect(content).toContain("Explain the codebase architecture");
-    expect(content).toContain("Decompose this request");
+    const systemContent = getInvokeContent(mockStructuredModel, 0);
+    const humanContent = getInvokeContent(mockStructuredModel, 1);
+    expect(systemContent).toContain("You are a senior software architect");
+    expect(humanContent).toContain("Explain the codebase architecture");
   });
 
   it("should set all subtasks to pending status", async () => {
     const mockStructuredModel = {
       invoke: vi.fn().mockResolvedValue({
+        reasoning: "Overall reasoning",
         subtasks: [
-          { id: "1", query: "Task 1" },
-          { id: "2", query: "Task 2" },
+          { id: "1", query: "Task 1", reasoning: "R1" },
+          { id: "2", query: "Task 2", reasoning: "R2" },
         ],
       }),
     };

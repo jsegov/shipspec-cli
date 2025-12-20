@@ -12,13 +12,13 @@ describe("AggregatorNode", () => {
   let mockModel: Partial<BaseChatModel>;
   let aggregatorNode: ReturnType<typeof createAggregatorNode>;
 
-  const getInvokeContent = (mock: unknown): string => {
+  const getInvokeContent = (mock: unknown, index = 0): string => {
     const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
     const calls = mocked.invoke.mock.calls;
     const firstCall = calls[0];
     if (!firstCall) return "";
     const firstArg = firstCall[0];
-    return firstArg[0]?.content ?? "";
+    return firstArg[index]?.content ?? "";
   };
 
   beforeEach(() => {
@@ -68,13 +68,15 @@ describe("AggregatorNode", () => {
     expect(mockModel.invoke).toHaveBeenCalled();
     expect(result.finalSpec).toBe(mockSpec.content);
     
-    const content = getInvokeContent(mockModel);
-    expect(content).toContain("Analyze the codebase");
-    expect(content).toContain("How does auth work?");
-    expect(content).toContain("Auth uses JWT tokens");
-    expect(content).toContain("What is the database schema?");
-    expect(content).toContain("Schema has users and posts tables");
-    expect(content).toContain("Additional task");
+    const systemContent = getInvokeContent(mockModel, 0);
+    const humanContent = getInvokeContent(mockModel, 1);
+    expect(systemContent).toContain("You are a technical writer");
+    expect(humanContent).toContain("Analyze the codebase");
+    expect(humanContent).toContain("How does auth work?");
+    expect(humanContent).toContain("Auth uses JWT tokens");
+    expect(humanContent).toContain("What is the database schema?");
+    expect(humanContent).toContain("Schema has users and posts tables");
+    expect(humanContent).toContain("Additional task");
   });
 
   it("should ignore subtasks without results", async () => {
@@ -104,10 +106,10 @@ describe("AggregatorNode", () => {
 
     await aggregatorNode(state);
 
-    const content = getInvokeContent(mockModel);
-    expect(content).toContain("Complete task");
-    expect(content).toContain("Result 1");
-    expect(content).not.toContain("Task without result");
+    const humanContent = getInvokeContent(mockModel, 1);
+    expect(humanContent).toContain("Complete task");
+    expect(humanContent).toContain("Result 1");
+    expect(humanContent).not.toContain("Task without result");
   });
 
   it("should handle no complete subtasks", async () => {
@@ -125,8 +127,8 @@ describe("AggregatorNode", () => {
     const result = await aggregatorNode(state);
 
     expect(result.finalSpec).toBe("No findings");
-    const content = getInvokeContent(mockModel);
-    expect(content).toContain("Test query");
+    const humanContent = getInvokeContent(mockModel, 1);
+    expect(humanContent).toContain("Test query");
   });
 
   it("should format findings with markdown headers", async () => {
@@ -156,12 +158,12 @@ describe("AggregatorNode", () => {
 
     await aggregatorNode(state);
 
-    const content = getInvokeContent(mockModel);
-    expect(content).toContain("## Question 1");
-    expect(content).toContain("Answer 1");
-    expect(content).toContain("## Question 2");
-    expect(content).toContain("Answer 2");
-    expect(content).toContain("---");
+    const humanContent = getInvokeContent(mockModel, 1);
+    expect(humanContent).toContain("## Question 1");
+    expect(humanContent).toContain("Answer 1");
+    expect(humanContent).toContain("## Question 2");
+    expect(humanContent).toContain("Answer 2");
+    expect(humanContent).toContain("---");
   });
 
   describe("with token budget", () => {
@@ -178,8 +180,6 @@ describe("AggregatorNode", () => {
       const mockSpec = { content: "Truncated spec" };
       (mockModel.invoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockSpec);
 
-      // Create subtasks with large results that exceed the budget
-      // Budget: (500 - 100) * 0.6 = 240 tokens = ~960 chars
       const state: AgentStateType = {
         userQuery: "Test query",
         subtasks: [
@@ -203,10 +203,8 @@ describe("AggregatorNode", () => {
 
       await aggregatorNode(state);
 
-      const content = getInvokeContent(mockModel);
-
-      // Should contain truncation indicator
-      expect(content).toContain("truncated");
+      const humanContent = getInvokeContent(mockModel, 1);
+      expect(humanContent).toContain("truncated");
     });
 
     it("should not truncate findings when within token budget", async () => {
@@ -230,11 +228,9 @@ describe("AggregatorNode", () => {
 
       await aggregatorNode(state);
 
-      const content = getInvokeContent(mockModel);
-
-      // Should not contain truncation indicator
-      expect(content).not.toContain("truncated");
-      expect(content).toContain("Short answer");
+      const humanContent = getInvokeContent(mockModel, 1);
+      expect(humanContent).not.toContain("truncated");
+      expect(humanContent).toContain("Short answer");
     });
   });
 });

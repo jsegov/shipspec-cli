@@ -2,47 +2,7 @@ import { Annotation } from "@langchain/langgraph";
 import { BaseMessage } from "@langchain/core/messages";
 import type { ProjectSignals } from "../../core/analysis/project-signals.js";
 import type { SASTFinding } from "../tools/sast-scanner.js";
-
-export interface CodeRef {
-  filepath: string;
-  lines: string;
-  content?: string;
-}
-
-export interface Finding {
-  id: string;
-  severity: "critical" | "high" | "medium" | "low" | "info";
-  category: string;
-  title: string;
-  description: string;
-  evidence: {
-    codeRefs?: CodeRef[];
-    links?: string[];
-    scanResults?: SASTFinding[];
-  };
-}
-
-export interface ProductionalizeSubtask {
-  id: string;
-  category: string;
-  query: string;
-  source: "code" | "web" | "scan";
-  status: "pending" | "complete";
-  findings?: Finding[];
-  result?: string;
-}
-
-export interface TaskmasterTask {
-  id: number;
-  title: string;
-  description: string;
-  status: "pending";
-  priority: "high" | "medium" | "low";
-  dependencies: number[];
-  details: string;
-  testStrategy: string;
-  subtasks?: TaskmasterTask[];
-}
+import type { Finding, ProductionalizeSubtask, TaskmasterTask } from "./types.js";
 
 export function subtasksReducer(current: ProductionalizeSubtask[], update: ProductionalizeSubtask[]): ProductionalizeSubtask[] {
   const map = new Map(current.map((t) => [t.id, t]));

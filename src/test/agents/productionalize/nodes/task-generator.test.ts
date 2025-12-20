@@ -16,6 +16,8 @@ describe("Task Generator Node", () => {
           priority: "high", 
           dependencies: [], 
           details: "steps", 
+          effort: "1-2h",
+          acceptanceCriteria: ["criterion 1"],
           testStrategy: "verify",
           subtasks: []
         }

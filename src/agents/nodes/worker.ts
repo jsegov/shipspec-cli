@@ -1,26 +1,29 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
 import type { AgentStateType, Subtask } from "../state.js";
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { TokenBudget } from "../../utils/tokens.js";
 import {
   pruneChunksByTokenBudget,
   getAvailableContextBudget,
 } from "../../utils/tokens.js";
 import type { CodeChunk } from "../../core/types/index.js";
+import { SPEC_WORKER_TEMPLATE, WorkerOutputSchema } from "../prompts/index.js";
 
 export function createWorkerNode(
   model: BaseChatModel,
   retrieverTool: DynamicStructuredTool,
   tokenBudget?: TokenBudget
 ) {
+  const structuredModel = model.withStructuredOutput(WorkerOutputSchema);
+
   return async (state: AgentStateType & { subtask: Subtask }) => {
     const { subtask } = state;
 
-    const toolResult = await retrieverTool.invoke({
+    const toolResult = (await retrieverTool.invoke({
       query: subtask.query,
       k: 10,
-    }) as string;
+    })) as string;
 
     let contextString: string = toolResult;
     if (tokenBudget) {
@@ -30,27 +33,28 @@ export function createWorkerNode(
         const availableBudget = getAvailableContextBudget(tokenBudget);
         const chunkBudget = Math.floor(availableBudget * 0.7);
         const prunedChunks = pruneChunksByTokenBudget(chunks, chunkBudget);
-        contextString = JSON.stringify(prunedChunks);
+        contextString = JSON.stringify(prunedChunks, null, 2);
       } catch {
         // Fall back to original if parsing fails
       }
     }
 
-    const summary = await model.invoke([
-      new HumanMessage(`Analyze the following code context for: "${subtask.query}"
+    const output = await structuredModel.invoke([
+      new SystemMessage(SPEC_WORKER_TEMPLATE),
+      new HumanMessage(`Query: "${subtask.query}"
 
 Code Context:
-${contextString}
-
-Provide a concise technical summary of the findings.`),
+${contextString}`),
     ]);
 
     return {
-      subtasks: [{
-        ...subtask,
-        status: "complete" as const,
-        result: summary.content as string,
-      }],
+      subtasks: [
+        {
+          ...subtask,
+          status: "complete" as const,
+          result: output.summary,
+        },
+      ],
     };
   };
 }
