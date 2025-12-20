@@ -83,7 +83,9 @@ export class LanceDBManager {
           const schema = await table.schema();
           
           const vectorField = schema.fields.find((f) => f.name === "vector");
-          const existingDims = (vectorField?.type as arrow.FixedSizeList).listSize;
+          const existingDims = vectorField?.type instanceof arrow.FixedSizeList
+            ? vectorField.type.listSize
+            : undefined;
 
           if (existingDims !== dimensions) {
             logger.warn(
