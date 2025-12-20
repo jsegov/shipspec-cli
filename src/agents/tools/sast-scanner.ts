@@ -77,12 +77,16 @@ interface SemgrepResult {
   };
 }
 
-async function runSemgrep(): Promise<SASTFinding[]> {
+async function checkToolInstalled(command: string, installInstructions: string): Promise<void> {
   try {
-    await execAsync("semgrep --version");
+    await execAsync(command);
   } catch {
-    throw new Error("Semgrep not found. Install it: pip install semgrep");
+    throw new Error(`${command.split(" ")[0]} not found. ${installInstructions}`);
   }
+}
+
+async function runSemgrep(): Promise<SASTFinding[]> {
+  await checkToolInstalled("semgrep --version", "Install it: pip install semgrep");
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {
@@ -122,11 +126,7 @@ function mapSemgrepSeverity(severity: string): SASTFinding["severity"] {
 }
 
 async function runGitleaks(): Promise<SASTFinding[]> {
-  try {
-    await execAsync("gitleaks version");
-  } catch {
-    throw new Error("Gitleaks not found. Install it: https://github.com/gitleaks/gitleaks");
-  }
+  await checkToolInstalled("gitleaks version", "Install it: https://github.com/gitleaks/gitleaks");
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {
@@ -179,11 +179,7 @@ interface TrivyResult {
 }
 
 async function runTrivy(): Promise<SASTFinding[]> {
-  try {
-    await execAsync("trivy --version");
-  } catch {
-    throw new Error("Trivy not found. Install it: https://trivy.dev/");
-  }
+  await checkToolInstalled("trivy --version", "Install it: https://trivy.dev/");
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {

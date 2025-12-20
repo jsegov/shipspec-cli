@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Ship Spec CLI is an autonomous semantic engine for codebase analysis and technical specification generation. It's a Retrieval-Augmented Generation (RAG) system that ingests source code, constructs vector embeddings, and uses LangGraph.js to orchestrate agentic workflows for generating implementation plans and documentation.
+Ship Spec CLI is an autonomous semantic engine for codebase analysis and production readiness evaluation. It's a Retrieval-Augmented Generation (RAG) system that ingests source code, constructs vector embeddings, and uses LangGraph.js to orchestrate agentic workflows for analyzing technical debt and security.
 
 **Core Philosophy:** Local-First, Cloud-Optional — supports both local inference (Ollama) and cloud providers (OpenAI, Anthropic).
 
@@ -69,40 +69,6 @@ ship-spec ingest --dry-run
 2. Parses files with Tree-sitter for semantic chunking
 3. Generates embeddings in batches
 4. Stores vectors in LanceDB
-
-### `ship-spec spec <prompt>`
-
-Generate a technical specification based on a prompt.
-
-```bash
-# Basic usage
-ship-spec spec "How does authentication work in this codebase?"
-
-# Output to file
-ship-spec spec "Explain the database layer" -o database-spec.md
-
-# Disable streaming progress
-ship-spec spec "Analyze the API routes" --no-stream
-
-# Pipe output to file
-ship-spec spec "Document the payment flow" > payment-spec.md
-```
-
-**Arguments:**
-- `<prompt>` - The analysis prompt describing what to analyze
-
-**Options:**
-- `-o, --output <file>` - Write specification to file instead of stdout
-- `--no-stream` - Disable streaming progress output
-- `--checkpoint` - Enable state checkpointing for persistence
-- `--thread-id <id>` - Thread ID for resuming a session (requires `--checkpoint`; auto-generated if not provided)
-
-**Workflow:**
-1. Initializes the LangGraph.js agent workflow
-2. Planner decomposes query into subtasks
-3. Workers retrieve and analyze code in parallel
-4. Aggregator synthesizes findings into specification
-5. Outputs markdown to stdout (or file with `-o`)
 
 ### `ship-spec productionalize [context]`
 
@@ -183,7 +149,7 @@ src/
 │   └── commands/
 │       ├── config.ts          # Display resolved configuration
 │       ├── ingest.ts          # Index codebase with progress bar
-│       └── spec.ts            # Generate specs with streaming output
+│       └── productionalize.ts # Production readiness analysis
 ├── config/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
@@ -230,7 +196,7 @@ src/
 │   ├── fixtures.ts            # Test fixtures (sample code)
 │   ├── agents/                # Agent tests (state, nodes, tools, graph)
 │   ├── cli/                   # CLI command tests
-│   │   ├── commands/          # Unit tests for ingest, spec
+│   │   ├── commands/          # Unit tests for ingest
 │   │   └── integration.test.ts # End-to-end workflow tests
 │   ├── core/                  # Unit tests (mirrors src/core)
 │   │   └── checkpoint/        # Checkpointer factory tests
@@ -465,7 +431,6 @@ npm run test:coverage # Coverage report
 | `agents/tools/retriever` | DocumentRepository tool wrapper |
 | `agents/graph` | Graph topology and node integration |
 | `cli/commands/ingest` | File discovery, batch processing, progress bar |
-| `cli/commands/spec` | Graph streaming, output formatting |
 | `cli/integration` | End-to-end ingest and query workflow |
 | `core/models/embeddings` | Factory function, provider validation |
 | `core/models/llm` | Chat model factory with initChatModel |
@@ -588,7 +553,7 @@ flowchart LR
     Worker1 --> Aggregator[Aggregator Node]
     Worker2 --> Aggregator
     WorkerN --> Aggregator
-    Aggregator --> FinalSpec[Final Specification]
+    Aggregator --> Result[Final Report]
 ```
 
 ### State Schema
@@ -622,24 +587,6 @@ The `AgentState` (defined in `src/agents/state.ts`) manages:
    - Synthesizes findings into a comprehensive markdown specification
    - Sets `finalSpec` in state
 
-### Invoking the Graph
-
-```typescript
-import { createSpecGraph } from "./agents/graph.js";
-import { DocumentRepository } from "./core/storage/repository.js";
-import { loadConfig } from "./config/loader.js";
-
-const config = await loadConfig();
-const repository = new DocumentRepository(/* ... */);
-const graph = await createSpecGraph(config, repository);
-
-const result = await graph.invoke({
-  userQuery: "How does authentication work in this codebase?",
-});
-
-console.log(result.finalSpec); // Generated specification
-```
-
 ### Retriever Tool
 
 The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentRepository.hybridSearch()` as a LangChain `DynamicStructuredTool`, enabling LLMs to semantically search the codebase during analysis.
@@ -658,27 +605,6 @@ const checkpointer = await createCheckpointer("memory");
 
 // Create SQLite-backed checkpointer (for persistence)
 const checkpointer = await createCheckpointer("sqlite", ".ship-spec/checkpoint.db");
-
-// Pass to graph
-const graph = await createSpecGraph(config, repository, { checkpointer });
-
-// Invoke with thread ID for resumable sessions
-const result = await graph.invoke(
-  { userQuery: "..." },
-  { configurable: { thread_id: "session-123" } }
-);
-```
-
-**CLI Usage:**
-```bash
-# Enable checkpointing with auto-generated thread ID
-ship-spec spec "Analyze auth flow" --checkpoint
-
-# Resume a specific session
-ship-spec spec "Continue analysis" --checkpoint --thread-id session-123
-
-# Thread ID is auto-generated if not provided when checkpoint is enabled
-# Format: session-{timestamp}
 ```
 
 **Configuration:**
@@ -763,7 +689,7 @@ Check logs with `--verbose` flag to see which files used fallback parsing.
 
 ### "No indexed data found" error
 
-Run `ship-spec ingest` before running `ship-spec spec`. The spec command requires an indexed codebase.
+Run `ship-spec ingest` before running analysis.
 
 ### API key errors
 

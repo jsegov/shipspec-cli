@@ -8,7 +8,6 @@ import { join } from "path";
 import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
 import { ingestCommand } from "./commands/ingest.js";
-import { specCommand } from "./commands/spec.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
 setMaxListeners(50);
@@ -32,7 +31,6 @@ program
 
 program.addCommand(configCommand);
 program.addCommand(ingestCommand);
-program.addCommand(specCommand);
 program.addCommand(productionalizeCommand);
 
 program.parse();

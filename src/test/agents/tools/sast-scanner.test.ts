@@ -23,10 +23,10 @@ describe("SAST Scanner Tool", () => {
       }]
     });
 
-    (exec as unknown as any).mockImplementation((cmd: string, callback: any) => {
+    vi.mocked(exec).mockImplementation(((cmd: string, callback: any) => {
       if (cmd.includes("--version")) callback(null, { stdout: "1.0.0" });
       else if (cmd.includes("semgrep scan")) callback(null, { stdout: mockSemgrepOutput });
-    });
+    }) as any);
 
     const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
     const resultString = await tool.invoke({ tools: ["semgrep"] });
@@ -38,9 +38,9 @@ describe("SAST Scanner Tool", () => {
   });
 
   it("should handle missing tools gracefully", async () => {
-    (exec as unknown as any).mockImplementation((_cmd: string, callback: any) => {
+    vi.mocked(exec).mockImplementation(((_cmd: string, callback: any) => {
       callback(new Error("command not found"));
-    });
+    }) as any);
 
     const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
     const resultString = await tool.invoke({ tools: ["semgrep"] });

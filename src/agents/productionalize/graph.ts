@@ -55,7 +55,7 @@ export async function createProductionalizeGraph(
   const researcherNode = createResearcherNode(model, webSearchTool);
   const plannerNode = createPlannerNode(model);
   const workerNode = createWorkerNode(model, retrieverTool, webSearchTool, tokenBudget);
-  const aggregatorNode = createAggregatorNode(model, tokenBudget);
+  const aggregatorNode = createAggregatorNode(model);
   const taskGeneratorNode = createTaskGeneratorNode(model);
 
   const workflow = new StateGraph(ProductionalizeState)
