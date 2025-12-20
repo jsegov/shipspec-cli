@@ -54,16 +54,27 @@ export class LanceDBManager {
       return cached.promise;
     }
 
-    // Get the latest serialization point for this table name.
-    // This ensures that all operations on the same table (opening, dropping, creating)
-    // are strictly sequential, even across different dimension requests.
     const previousChain = this.tableSerializationChains.get(tableName) || Promise.resolve();
 
-    const tablePromise = (async () => {
-      // Always wait for the previous operation to complete, regardless of success/failure.
-      await previousChain.catch(() => {});
+    // Create the promise and store it in caches immediately and synchronously.
+    // This prevents any other call in the same or subsequent event loop ticks
+    // from initiating a redundant or conflicting operation for the same table.
+    let resolveTable: (table: Table) => void;
+    let rejectTable: (err: any) => void;
+    const tablePromise = new Promise<Table>((res, rej) => {
+      resolveTable = res;
+      rejectTable = rej;
+    });
 
+    this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
+    this.tableSerializationChains.set(tableName, tablePromise);
+
+    // Start the async operation chain
+    (async () => {
       try {
+        // Always wait for the previous operation on this table to finish
+        await previousChain.catch(() => {});
+
         const db = await this.connect();
         const tableNames = await db.tableNames();
 
@@ -79,28 +90,27 @@ export class LanceDBManager {
               `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
             );
             await db.dropTable(tableName);
-            return await this.createTable(tableName, dimensions);
+            const newTable = await this.createTable(tableName, dimensions);
+            resolveTable(newTable);
+            return;
           }
 
-          return table;
+          resolveTable(table);
+          return;
         }
 
-        return await this.createTable(tableName, dimensions);
+        const createdTable = await this.createTable(tableName, dimensions);
+        resolveTable(createdTable);
       } catch (error) {
         // Clean up from the cache on failure to allow future retries.
-        // We don't clear the serialization chain because it's still needed 
-        // by any subsequent operations already waiting for this one.
+        // The serialization chain is preserved as it's still needed by pending operations.
         if (this.tablePromises.get(tableName)?.promise === tablePromise) {
           this.tablePromises.delete(tableName);
         }
-        throw error;
+        rejectTable(error);
       }
     })();
 
-    // Update both the cache and the serialization chain immediately.
-    this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
-    this.tableSerializationChains.set(tableName, tablePromise);
-    
     return tablePromise;
   }
 

@@ -81,6 +81,9 @@ export const ProductionalizeState = Annotation.Root({
     default: () => [],
   }),
   finalReport: Annotation<string>(),
+  subtask: Annotation<ProductionalizeSubtask>({
+    reducer: (x, y) => y ?? x,
+  }),
   tasks: Annotation<TaskmasterTask[]>({
     reducer: (_x, y) => y,
     default: () => [],
