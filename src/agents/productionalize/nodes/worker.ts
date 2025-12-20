@@ -20,9 +20,9 @@ const FindingSchema = z.object({
     codeRefs: z.array(z.object({
       filepath: z.string(),
       lines: z.string(),
-      content: z.string().optional(),
-    })).optional(),
-    links: z.array(z.string()).optional(),
+      content: z.string(),
+    })),
+    links: z.array(z.string()),
   }),
 });
 

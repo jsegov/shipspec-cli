@@ -49,8 +49,9 @@ export class LanceDBManager {
   private tableSerializationChains = new Map<string, Promise<unknown>>();
 
   getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
-    const cached = this.tablePromises.get(tableName);
-    if (cached?.dimensions === dimensions) {
+    const cacheKey = `${tableName}:${String(dimensions)}`;
+    const cached = this.tablePromises.get(cacheKey);
+    if (cached) {
       return cached.promise;
     }
 
@@ -66,7 +67,7 @@ export class LanceDBManager {
       rejectTable = rej;
     });
 
-    this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
+    this.tablePromises.set(cacheKey, { promise: tablePromise, dimensions });
     this.tableSerializationChains.set(tableName, tablePromise);
 
     // Start the async operation chain
@@ -83,9 +84,7 @@ export class LanceDBManager {
           const schema = await table.schema();
           
           const vectorField = schema.fields.find((f) => f.name === "vector");
-          const existingDims = vectorField?.type instanceof arrow.FixedSizeList
-            ? vectorField.type.listSize
-            : undefined;
+          const existingDims = vectorField?.type ? (vectorField.type as unknown as { listSize?: number }).listSize : undefined;
 
           if (existingDims !== dimensions) {
             logger.warn(
@@ -106,8 +105,8 @@ export class LanceDBManager {
       } catch (error) {
         // Clean up from the cache on failure to allow future retries.
         // The serialization chain is preserved as it's still needed by pending operations.
-        if (this.tablePromises.get(tableName)?.promise === tablePromise) {
-          this.tablePromises.delete(tableName);
+        if (this.tablePromises.get(cacheKey)?.promise === tablePromise) {
+          this.tablePromises.delete(cacheKey);
         }
         rejectTable(error);
       }
