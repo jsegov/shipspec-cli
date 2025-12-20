@@ -18,6 +18,59 @@ export interface SASTFinding {
   cveId?: string;
 }
 
+const SemgrepResultSchema = z.object({
+  check_id: z.string(),
+  path: z.string(),
+  start: z.object({ line: z.number() }).optional(),
+  end: z.object({ line: z.number() }).optional(),
+  extra: z.object({
+    severity: z.string().optional(),
+    message: z.string().optional(),
+    metadata: z.object({
+      cwe: z.union([z.string(), z.array(z.string())]).optional(),
+    }).optional(),
+  }).optional(),
+});
+
+const SemgrepOutputSchema = z.object({
+  results: z.array(SemgrepResultSchema).optional(),
+});
+
+const GitleaksResultSchema = z.object({
+  RuleID: z.string(),
+  Description: z.string(),
+  File: z.string(),
+  StartLine: z.number(),
+  EndLine: z.number(),
+});
+
+const GitleaksOutputSchema = z.array(GitleaksResultSchema);
+
+const TrivyVulnerabilitySchema = z.object({
+  Severity: z.string(),
+  VulnerabilityID: z.string(),
+  Title: z.string().optional(),
+  Description: z.string().optional(),
+});
+
+const TrivySecretSchema = z.object({
+  Severity: z.string(),
+  RuleID: z.string(),
+  Title: z.string(),
+  StartLine: z.number(),
+  EndLine: z.number(),
+});
+
+const TrivyResultSchema = z.object({
+  Target: z.string(),
+  Vulnerabilities: z.array(TrivyVulnerabilitySchema).optional(),
+  Secrets: z.array(TrivySecretSchema).optional(),
+});
+
+const TrivyOutputSchema = z.object({
+  Results: z.array(TrivyResultSchema).optional(),
+});
+
 export function createSASTScannerTool(config?: SASTConfig) {
   return new DynamicStructuredTool({
     name: "run_sast_scans",
@@ -26,7 +79,7 @@ export function createSASTScannerTool(config?: SASTConfig) {
       tools: z.array(z.enum(["semgrep", "gitleaks", "trivy"])).optional().describe("Specific tools to run. If not provided, runs all enabled tools from config."),
     }),
     func: async ({ tools: requestedTools }) => {
-      const toolsToRun = requestedTools || config?.tools || [];
+      const toolsToRun = requestedTools ?? config?.tools ?? [];
       if (toolsToRun.length === 0) {
         return JSON.stringify({
           findings: [],
@@ -63,25 +116,12 @@ export function createSASTScannerTool(config?: SASTConfig) {
   });
 }
 
-interface SemgrepResult {
-  check_id: string;
-  path: string;
-  start?: { line: number };
-  end?: { line: number };
-  extra?: {
-    severity: string;
-    message?: string;
-    metadata?: {
-      cwe?: string | string[];
-    };
-  };
-}
-
 async function checkToolInstalled(command: string, installInstructions: string): Promise<void> {
   try {
     await execAsync(command);
   } catch {
-    throw new Error(`${command.split(" ")[0]} not found. ${installInstructions}`);
+    const toolName = command.split(" ")[0] ?? "tool";
+    throw new Error(`${toolName} not found. ${installInstructions}`);
   }
 }
 
@@ -90,17 +130,24 @@ async function runSemgrep(): Promise<SASTFinding[]> {
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {
-      const data = JSON.parse(stdout);
-      return (data.results || []).map((r: SemgrepResult) => ({
-        tool: "semgrep",
-        severity: mapSemgrepSeverity(r.extra?.severity || ""),
-        rule: r.check_id,
-        message: r.extra?.message || "",
-        filepath: r.path,
-        startLine: r.start?.line,
-        endLine: r.end?.line,
-        cweId: Array.isArray(r.extra?.metadata?.cwe) ? r.extra.metadata.cwe[0] : r.extra?.metadata?.cwe,
-      }));
+      const parsed: unknown = JSON.parse(stdout);
+      const result = SemgrepOutputSchema.safeParse(parsed);
+      if (!result.success) return [];
+      
+      const data = result.data;
+      return (data.results ?? []).map((r) => {
+        const cweValue = r.extra?.metadata?.cwe;
+        return {
+          tool: "semgrep" as const,
+          severity: mapSemgrepSeverity(r.extra?.severity ?? ""),
+          rule: r.check_id,
+          message: r.extra?.message ?? "",
+          filepath: r.path,
+          startLine: r.start?.line,
+          endLine: r.end?.line,
+          cweId: Array.isArray(cweValue) ? cweValue[0] : cweValue,
+        };
+      });
     } catch {
       return [];
     }
@@ -130,10 +177,13 @@ async function runGitleaks(): Promise<SASTFinding[]> {
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {
-      const data = JSON.parse(stdout || "[]");
-      return data.map((r: { RuleID: string; Description: string; File: string; StartLine: number; EndLine: number }) => ({
-        tool: "gitleaks",
-        severity: "high",
+      const parsed: unknown = JSON.parse(stdout || "[]");
+      const result = GitleaksOutputSchema.safeParse(parsed);
+      if (!result.success) return [];
+      
+      return result.data.map((r) => ({
+        tool: "gitleaks" as const,
+        severity: "high" as const,
         rule: r.RuleID,
         message: r.Description,
         filepath: r.File,
@@ -157,53 +207,36 @@ async function runGitleaks(): Promise<SASTFinding[]> {
   }
 }
 
-interface TrivyVulnerability {
-  Severity: string;
-  VulnerabilityID: string;
-  Title?: string;
-  Description?: string;
-}
-
-interface TrivySecret {
-  Severity: string;
-  RuleID: string;
-  Title: string;
-  StartLine: number;
-  EndLine: number;
-}
-
-interface TrivyResult {
-  Target: string;
-  Vulnerabilities?: TrivyVulnerability[];
-  Secrets?: TrivySecret[];
-}
-
 async function runTrivy(): Promise<SASTFinding[]> {
   await checkToolInstalled("trivy --version", "Install it: https://trivy.dev/");
 
   const parseResults = (stdout: string): SASTFinding[] => {
     try {
-      const data = JSON.parse(stdout);
+      const parsed: unknown = JSON.parse(stdout);
+      const result = TrivyOutputSchema.safeParse(parsed);
+      if (!result.success) return [];
+      
       const findings: SASTFinding[] = [];
+      const data = result.data;
 
-      for (const result of (data.Results || []) as TrivyResult[]) {
-        for (const vuln of (result.Vulnerabilities || [])) {
+      for (const trivyResult of data.Results ?? []) {
+        for (const vuln of trivyResult.Vulnerabilities ?? []) {
           findings.push({
             tool: "trivy",
             severity: mapTrivySeverity(vuln.Severity),
             rule: vuln.VulnerabilityID,
-            message: vuln.Title || vuln.Description || "",
-            filepath: result.Target,
+            message: vuln.Title ?? vuln.Description ?? "",
+            filepath: trivyResult.Target,
             cveId: vuln.VulnerabilityID,
           });
         }
-        for (const secret of (result.Secrets || [])) {
+        for (const secret of trivyResult.Secrets ?? []) {
           findings.push({
             tool: "trivy",
             severity: mapTrivySeverity(secret.Severity),
             rule: secret.RuleID,
-            message: secret.Title || "",
-            filepath: result.Target,
+            message: secret.Title,
+            filepath: trivyResult.Target,
             startLine: secret.StartLine,
             endLine: secret.EndLine,
           });
@@ -227,7 +260,7 @@ async function runTrivy(): Promise<SASTFinding[]> {
 }
 
 function mapTrivySeverity(severity: string): SASTFinding["severity"] {
-  const s = severity?.toLowerCase();
+  const s = severity.toLowerCase();
   if (s === "critical") return "critical";
   if (s === "high") return "high";
   if (s === "medium") return "medium";

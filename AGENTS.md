@@ -213,8 +213,21 @@ src/
 - **TypeScript strict mode** — All code must pass `tsc --noEmit`
 - **Strict Typing** — Use of `any` is strictly forbidden. Use of `unknown` should be minimized. Always define specific interfaces or types. Use Zod for validating external data.
 - **ESM modules** — Use `.js` extensions in imports (e.g., `./schema.js`)
-- **Zod validation** — All external inputs (config files, LLM outputs) must be validated
-- **Provider abstraction** — Never import vendor SDKs directly in business logic; use factory functions
+- **Zod validation** — All external inputs (config files, LLM outputs, tool results) must be validated with `safeParse`.
+- **Provider abstraction** — Never import vendor SDKs directly in business logic; use factory functions.
+- **No Non-Null Assertions** — Avoid `!` operator. Use optional chaining (`?.`), nullish coalescing (`??`), or type guards instead.
+- **Template Literals** — When using non-string values (numbers, booleans) in template literals, wrap them in `String()` to satisfy strict linting.
+
+### Type Safety & Linting
+
+The project enforces a zero-warning ESLint policy with strict TypeScript rules. Key learnings and requirements:
+
+1.  **Zero `any` Usage**: Never use `any` to bypass type checks. Use generics, unions, or `unknown` with narrowing.
+2.  **Robust JSON Parsing**: Always type the result of `JSON.parse` as `unknown` before validating with a Zod schema.
+3.  **Modern TypeScript Operators**: Use `??` (nullish coalescing) and `?.` (optional chaining) consistently. Avoid `||` for values that could be valid empty strings or zero.
+4.  **Array Syntax**: Use `T[]` instead of `Array<T>` for consistency.
+5.  **Sync vs Async**: Remove `async` from functions that do not perform `await` operations.
+6.  **Floating Promises**: Always await promises or explicitly mark them as ignored using the `void` operator.
 
 ### Import Conventions
 
@@ -443,12 +456,28 @@ npm run test:coverage # Coverage report
 
 ### Writing Tests
 
+Use type-safe mocking with Vitest. Avoid `any` in tests.
+
 ```typescript
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createTempDir, cleanupTempDir } from "../../fixtures.js";
+
+interface Message {
+  content: string;
+}
 
 describe("MyModule", () => {
   let tempDir: string;
+
+  // Helper to extract content from mocked LLM calls
+  const getInvokeContent = (mock: unknown): string => {
+    const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
+    const calls = mocked.invoke.mock.calls;
+    const firstCall = calls[0];
+    if (!firstCall) return "";
+    const firstArg = firstCall[0];
+    return firstArg[0]?.content ?? "";
+  };
 
   beforeEach(async () => {
     tempDir = await createTempDir();

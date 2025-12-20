@@ -39,7 +39,8 @@ describe("AgentState", () => {
       const result = subtasksReducer(current, update);
       
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      expect(result[0]).toBeDefined();
+      expect(result[0]?.id).toBe("1");
     });
 
     it("should handle empty update array", () => {
@@ -51,7 +52,8 @@ describe("AgentState", () => {
       const result = subtasksReducer(current, update);
       
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      expect(result[0]).toBeDefined();
+      expect(result[0]?.id).toBe("1");
     });
   });
 
@@ -63,8 +65,10 @@ describe("AgentState", () => {
       const result = messagesReducer(current, update);
       
       expect(result).toHaveLength(2);
-      expect(result[0].content).toBe("Message 1");
-      expect(result[1].content).toBe("Message 2");
+      expect(result[0]).toBeDefined();
+      expect(result[0]?.content).toBe("Message 1");
+      expect(result[1]).toBeDefined();
+      expect(result[1]?.content).toBe("Message 2");
     });
 
     it("should handle empty arrays", () => {
@@ -102,8 +106,10 @@ describe("AgentState", () => {
       const result = contextReducer(current, update);
       
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe("1");
-      expect(result[1].id).toBe("2");
+      expect(result[0]).toBeDefined();
+      expect(result[0]?.id).toBe("1");
+      expect(result[1]).toBeDefined();
+      expect(result[1]?.id).toBe("2");
     });
 
     it("should handle empty arrays", () => {

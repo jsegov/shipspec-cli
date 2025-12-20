@@ -52,7 +52,7 @@ describe("embeddings", () => {
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
-      const result = await createEmbeddingsModel(config);
+      const result = createEmbeddingsModel(config);
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
         model: "text-embedding-3-large",
@@ -75,7 +75,7 @@ describe("embeddings", () => {
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
-      await createEmbeddingsModel(config);
+      createEmbeddingsModel(config);
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
         model: "text-embedding-3-large",
@@ -101,7 +101,7 @@ describe("embeddings", () => {
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
-      const result = await createEmbeddingsModel(config);
+      const result = createEmbeddingsModel(config);
 
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "nomic-embed-text",
@@ -120,7 +120,7 @@ describe("embeddings", () => {
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
-      await createEmbeddingsModel(config);
+      createEmbeddingsModel(config);
 
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "nomic-embed-text",
@@ -139,7 +139,7 @@ describe("embeddings", () => {
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
-      await createEmbeddingsModel(config);
+      createEmbeddingsModel(config);
 
       expect(OpenAIEmbeddings).toHaveBeenCalledWith({
         model: "text-embedding-ada-002",
@@ -159,7 +159,7 @@ describe("embeddings", () => {
       };
 
       const { OllamaEmbeddings } = await import("@langchain/ollama");
-      await createEmbeddingsModel(config);
+      createEmbeddingsModel(config);
 
       expect(OllamaEmbeddings).toHaveBeenCalledWith({
         model: "all-minilm",
@@ -168,15 +168,15 @@ describe("embeddings", () => {
       });
     });
 
-    it("throws error for unsupported provider", async () => {
+    it("throws error for unsupported provider", () => {
       const config = {
-        provider: "unsupported" as any,
+        provider: "unsupported" as EmbeddingConfig["provider"],
         modelName: "test-model",
         dimensions: 3072,
         maxRetries: 3,
       };
 
-      await expect(createEmbeddingsModel(config)).rejects.toThrow(
+      expect(() => createEmbeddingsModel(config as EmbeddingConfig)).toThrow(
         "Unsupported embedding provider: unsupported"
       );
     });

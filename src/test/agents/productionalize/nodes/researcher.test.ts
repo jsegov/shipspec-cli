@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { createResearcherNode } from "../../../../agents/productionalize/nodes/researcher.js";
-import { HumanMessage } from "@langchain/core/messages";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
@@ -8,11 +7,13 @@ import type { ProductionalizeStateType } from "../../../../agents/productionaliz
 
 describe("Researcher Node", () => {
   it("should generate a research digest", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue({ content: "mock research digest" });
     const mockModel = {
-      invoke: vi.fn().mockResolvedValue({ content: "mock research digest" }),
+      invoke: mockInvoke,
     } as unknown as BaseChatModel;
+    const mockWebSearchInvoke = vi.fn().mockResolvedValue("search results");
     const mockWebSearchTool = {
-      invoke: vi.fn().mockResolvedValue("search results"),
+      invoke: mockWebSearchInvoke,
       name: "web_search",
       description: "search",
     } as unknown as DynamicStructuredTool;
@@ -27,7 +28,7 @@ describe("Researcher Node", () => {
     const result = await node(state);
 
     expect(result.researchDigest).toBe("mock research digest");
-    expect(mockWebSearchTool.invoke).toHaveBeenCalled();
-    expect(mockModel.invoke).toHaveBeenCalled();
+    expect(mockWebSearchInvoke).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalled();
   });
 });

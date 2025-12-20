@@ -81,8 +81,9 @@ describe("Token Utilities", () => {
       const result = pruneChunksByTokenBudget(chunks, 10);
 
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe("1");
-      expect(result[1].id).toBe("2");
+      const [first, second] = result;
+      expect(first?.id).toBe("1");
+      expect(second?.id).toBe("2");
     });
 
     it("prunes chunks that exceed budget", () => {
@@ -95,7 +96,8 @@ describe("Token Utilities", () => {
       const result = pruneChunksByTokenBudget(chunks, 8);
 
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      const first = result[0];
+      expect(first?.id).toBe("1");
     });
 
     it("keeps order when pruning", () => {
@@ -108,8 +110,9 @@ describe("Token Utilities", () => {
       const result = pruneChunksByTokenBudget(chunks, 2);
 
       expect(result).toHaveLength(2);
-      expect(result[0].id).toBe("1");
-      expect(result[1].id).toBe("2");
+      const [first, second] = result;
+      expect(first?.id).toBe("1");
+      expect(second?.id).toBe("2");
     });
 
     it("returns empty array when first chunk exceeds budget", () => {

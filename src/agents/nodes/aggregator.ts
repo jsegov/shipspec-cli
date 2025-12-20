@@ -17,7 +17,7 @@ export function createAggregatorNode(
     );
 
     let findings = completedSubtasks
-      .filter((s) => s.result !== undefined)
+      .filter((s): s is typeof s & { result: string } => s.result !== undefined)
       .map((s) => `## ${s.query}\n\n${s.result}`)
       .join("\n\n---\n\n");
 

@@ -89,7 +89,10 @@ describe("LLM Factory", () => {
       const { initChatModel } = await import("langchain/chat_models/universal");
       await createChatModel(config);
 
-      const callArgs = (initChatModel as ReturnType<typeof vi.fn>).mock.calls[0][1];
+      const mockCalls = (initChatModel as ReturnType<typeof vi.fn>).mock.calls as unknown[][];
+      const firstCall = mockCalls[0];
+      if (!firstCall) throw new Error("Expected at least one call");
+      const callArgs = firstCall[1] as Record<string, unknown>;
       expect(callArgs).not.toHaveProperty("timeout");
     });
 

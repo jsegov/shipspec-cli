@@ -23,9 +23,9 @@ vi.mock("../../../core/storage/vector-store.js", () => ({
 vi.mock("../../../core/models/embeddings.js", () => ({
   createEmbeddingsModel: vi.fn().mockResolvedValue({
     embedDocuments: vi.fn().mockImplementation((texts: string[]) =>
-      Promise.resolve(texts.map(() => new Array(3072).fill(0.1)))
+      Promise.resolve(texts.map(() => new Array<number>(3072).fill(0.1)))
     ),
-    embedQuery: vi.fn().mockResolvedValue(new Array(3072).fill(0.1)),
+    embedQuery: vi.fn().mockResolvedValue(new Array<number>(3072).fill(0.1)),
   }),
 }));
 

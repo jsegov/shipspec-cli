@@ -26,7 +26,8 @@ program
   .option("-c, --config <path>", "Path to config file")
   .hook("preAction", async (thisCommand, actionCommand) => {
     const config = await loadConfig(process.cwd(), {});
-    (actionCommand || thisCommand).setOptionValue("resolvedConfig", config);
+    // actionCommand is always defined in Commander.js hooks
+    actionCommand.setOptionValue("resolvedConfig", config);
   });
 
 program.addCommand(configCommand);

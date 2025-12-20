@@ -6,8 +6,9 @@ import type { ProductionalizeStateType } from "../../../../agents/productionaliz
 
 describe("Aggregator Node", () => {
   it("should synthesize a final report", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue({ content: "# Final Report" });
     const mockModel = {
-      invoke: vi.fn().mockResolvedValue({ content: "# Final Report" }),
+      invoke: mockInvoke,
     } as unknown as BaseChatModel;
 
     const node = createAggregatorNode(mockModel);
@@ -20,6 +21,6 @@ describe("Aggregator Node", () => {
     const result = await node(state);
 
     expect(result.finalReport).toBe("# Final Report");
-    expect(mockModel.invoke).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalled();
   });
 });

@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSASTScannerTool } from "../../../agents/tools/sast-scanner.js";
-import { exec } from "child_process";
+import { exec, type ExecException } from "child_process";
 
 // Mock child_process
 vi.mock("child_process", () => ({
   exec: vi.fn(),
 }));
+
+type ExecCallback = (error: ExecException | null, result: { stdout: string; stderr?: string }) => void;
+
+interface ScannerResult {
+  findings: { tool: string; severity: string }[];
+  skipped: string[];
+}
 
 describe("SAST Scanner Tool", () => {
   beforeEach(() => {
@@ -23,30 +30,36 @@ describe("SAST Scanner Tool", () => {
       }]
     });
 
-    vi.mocked(exec).mockImplementation(((cmd: string, callback: any) => {
-      if (cmd.includes("--version")) callback(null, { stdout: "1.0.0" });
-      else if (cmd.includes("semgrep scan")) callback(null, { stdout: mockSemgrepOutput });
-    }) as any);
+    vi.mocked(exec).mockImplementation((cmd: string, callback: unknown) => {
+      const cb = callback as ExecCallback;
+      if (cmd.includes("--version")) cb(null, { stdout: "1.0.0" });
+      else if (cmd.includes("semgrep scan")) cb(null, { stdout: mockSemgrepOutput });
+      return {} as ReturnType<typeof exec>;
+    });
 
     const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
     const resultString = await tool.invoke({ tools: ["semgrep"] });
-    const result = JSON.parse(resultString);
+    const result = JSON.parse(resultString) as ScannerResult;
 
     expect(result.findings).toHaveLength(1);
-    expect(result.findings[0].tool).toBe("semgrep");
-    expect(result.findings[0].severity).toBe("high");
+    const firstFinding = result.findings[0];
+    expect(firstFinding?.tool).toBe("semgrep");
+    expect(firstFinding?.severity).toBe("high");
   });
 
   it("should handle missing tools gracefully", async () => {
-    vi.mocked(exec).mockImplementation(((_cmd: string, callback: any) => {
-      callback(new Error("command not found"));
-    }) as any);
+    vi.mocked(exec).mockImplementation((_cmd: string, callback: unknown) => {
+      const cb = callback as ExecCallback;
+      cb({ name: "Error", message: "command not found" }, { stdout: "" });
+      return {} as ReturnType<typeof exec>;
+    });
 
     const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
     const resultString = await tool.invoke({ tools: ["semgrep"] });
-    const result = JSON.parse(resultString);
+    const result = JSON.parse(resultString) as ScannerResult;
 
     expect(result.findings).toHaveLength(0);
-    expect(result.skipped[0]).toContain("semgrep failed");
+    const firstSkipped = result.skipped[0];
+    expect(firstSkipped).toContain("semgrep failed");
   });
 });

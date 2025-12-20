@@ -95,8 +95,8 @@ describe("fallback-splitter", () => {
 
       // With overlap, chunks should share some content
       if (chunks.length > 1) {
-        const firstChunk = chunks[0].content;
-        const secondChunk = chunks[1].content;
+        const firstChunk = chunks[0]?.content ?? "";
+        const secondChunk = chunks[1]?.content ?? "";
         // There should be some overlap between chunks
         expect(
           firstChunk.includes(secondChunk.slice(0, 5)) ||
@@ -155,8 +155,9 @@ describe("fallback-splitter", () => {
 
       expect(chunks.length).toBeGreaterThan(0);
       const firstChunk = chunks[0];
-      expect(firstChunk.content).toContain("test");
-      expect(firstChunk.language).toBe("json");
+      expect(firstChunk).toBeDefined();
+      expect(firstChunk?.content).toContain("test");
+      expect(firstChunk?.language).toBe("json");
     });
 
     it("handles YAML files correctly", async () => {
@@ -164,8 +165,9 @@ describe("fallback-splitter", () => {
 
       expect(chunks.length).toBeGreaterThan(0);
       const firstChunk = chunks[0];
-      expect(firstChunk.content).toContain("test");
-      expect(firstChunk.language).toBe("yaml");
+      expect(firstChunk).toBeDefined();
+      expect(firstChunk?.content).toContain("test");
+      expect(firstChunk?.language).toBe("yaml");
     });
 
     it("handles Markdown files correctly", async () => {
@@ -173,8 +175,9 @@ describe("fallback-splitter", () => {
 
       expect(chunks.length).toBeGreaterThan(0);
       const firstChunk = chunks[0];
-      expect(firstChunk.content).toContain("Test Document");
-      expect(firstChunk.language).toBe("md");
+      expect(firstChunk).toBeDefined();
+      expect(firstChunk?.content).toContain("Test Document");
+      expect(firstChunk?.language).toBe("md");
     });
 
     it("uses default chunkSize when not provided", async () => {

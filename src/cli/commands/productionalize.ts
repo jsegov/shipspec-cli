@@ -25,20 +25,18 @@ interface ProductionalizeOptions {
 }
 
 async function productionalizeAction(context: string | undefined, options: ProductionalizeOptions): Promise<void> {
-  const config = options.resolvedConfig || (await loadConfig(process.cwd()));
+  const config = options.resolvedConfig ?? (await loadConfig(process.cwd()));
 
   // Override config with CLI options
   if (options.enableScans) {
-    config.productionalize = config.productionalize || {};
-    config.productionalize.sast = config.productionalize.sast || { enabled: false, tools: [] };
+    config.productionalize.sast ??= { enabled: false, tools: [] };
     config.productionalize.sast.enabled = true;
-    if (!config.productionalize.sast.tools || config.productionalize.sast.tools.length === 0) {
+    if (config.productionalize.sast.tools.length === 0) {
       config.productionalize.sast.tools = ["semgrep", "gitleaks", "trivy"];
     }
   }
   
   if (options.categories) {
-    config.productionalize = config.productionalize || {};
     config.productionalize.coreCategories = options.categories.split(",").map(c => c.trim());
   }
 
@@ -53,7 +51,7 @@ async function productionalizeAction(context: string | undefined, options: Produ
 
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
-  const embeddings = await createEmbeddingsModel(config.embedding);
+  const embeddings = createEmbeddingsModel(config.embedding);
   const repository = new DocumentRepository(
     vectorStore,
     embeddings,
@@ -64,7 +62,7 @@ async function productionalizeAction(context: string | undefined, options: Produ
   if (checkpointEnabled) {
     try {
       logger.progress("Initializing checkpointer...");
-      checkpointer = await createCheckpointer(
+      checkpointer = createCheckpointer(
         config.checkpoint.type,
         config.checkpoint.sqlitePath
       );
@@ -84,7 +82,7 @@ async function productionalizeAction(context: string | undefined, options: Produ
   const graphConfig = checkpointEnabled
     ? {
         configurable: {
-          thread_id: options.threadId || `session-${Date.now()}`,
+          thread_id: options.threadId ?? `session-${String(Date.now())}`,
         },
       }
     : {};
@@ -94,7 +92,7 @@ async function productionalizeAction(context: string | undefined, options: Produ
 
     try {
       const stream = await graph.stream(
-        { userQuery: context || "Perform a full production-readiness analysis of this codebase." },
+        { userQuery: context ?? "Perform a full production-readiness analysis of this codebase." },
         { streamMode: "updates", ...graphConfig }
       );
 
@@ -109,16 +107,16 @@ async function productionalizeAction(context: string | undefined, options: Produ
           logger.progress(chalk.cyan("[Scanner] SAST scans completed."));
         }
         if (event.planner) {
-          const subtasks = (event.planner.subtasks || []) as ProductionalizeSubtask[];
-          console.error(chalk.cyan(`[Planner] Generated ${subtasks.length} analysis subtasks:`));
+          const subtasks = event.planner.subtasks as ProductionalizeSubtask[];
+          console.error(chalk.cyan(`[Planner] Generated ${String(subtasks.length)} analysis subtasks:`));
           subtasks.forEach((task, i: number) => {
-            console.error(chalk.cyan(`  ${i + 1}. [${task.source}] ${task.category}: ${task.query}`));
+            console.error(chalk.cyan(`  ${String(i + 1)}. [${task.source}] ${task.category}: ${task.query}`));
           });
           console.error();
         }
 
         if (event.worker) {
-          const subtasks = (event.worker.subtasks || []) as ProductionalizeSubtask[];
+          const subtasks = event.worker.subtasks as ProductionalizeSubtask[];
           const completedTask = subtasks.find((t) => t.status === "complete");
           if (completedTask) {
             console.error(chalk.yellow(`[Worker] Completed: ${completedTask.category}`));
@@ -143,11 +141,11 @@ async function productionalizeAction(context: string | undefined, options: Produ
   } else {
     try {
       const result = await graph.invoke(
-        { userQuery: context || "Perform a full production-readiness analysis of this codebase." },
+        { userQuery: context ?? "Perform a full production-readiness analysis of this codebase." },
         graphConfig
       );
-      finalReport = result.finalReport || "";
-      finalTasks = result.tasks || [];
+      finalReport = result.finalReport;
+      finalTasks = result.tasks;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`Analysis failed: ${errorMsg}`);

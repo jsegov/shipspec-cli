@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { writeFile, mkdir, rm } from "fs/promises";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import fg from "fast-glob";
 
@@ -15,16 +15,16 @@ import type { CodeChunk } from "../../core/types/index.js";
  * Mock embeddings for testing without external API calls.
  */
 class MockEmbeddings extends Embeddings {
-  constructor(private dimensions: number = 3072) {
+  constructor(private dimensions = 3072) {
     super({});
   }
 
-  async embedDocuments(texts: string[]): Promise<number[][]> {
-    return texts.map(() => new Array(this.dimensions).fill(0.1));
+  embedDocuments(texts: string[]): Promise<number[][]> {
+    return Promise.resolve(texts.map(() => new Array<number>(this.dimensions).fill(0.1)));
   }
 
-  async embedQuery(_text: string): Promise<number[]> {
-    return new Array(this.dimensions).fill(0.1);
+  embedQuery(_text: string): Promise<number[]> {
+    return Promise.resolve(new Array<number>(this.dimensions).fill(0.1));
   }
 }
 
@@ -74,7 +74,7 @@ describe("CLI Integration Tests", () => {
         // Add IDs to chunks
         const chunksWithIds = chunks.map((chunk, i) => ({
           ...chunk,
-          id: `${relativePath}-${i}`,
+          id: `${relativePath}-${String(i)}`,
           filepath: relativePath,
         }));
 
@@ -247,7 +247,9 @@ export const more =
 
       const chunks = await chunkSourceFile("package.json", jsonContent);
       expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks[0].language).toBe("json");
+      const firstChunk = chunks[0];
+      expect(firstChunk).toBeDefined();
+      expect(firstChunk?.language).toBe("json");
     });
   });
 
@@ -328,14 +330,14 @@ export const more =
 
     it("handles batch insertions efficiently", async () => {
       const chunks: CodeChunk[] = Array.from({ length: 100 }, (_, i) => ({
-        id: `chunk-${i}`,
-        content: `function func${i}() { return ${i}; }`,
-        filepath: `src/file${Math.floor(i / 10)}.ts`,
+        id: `chunk-${String(i)}`,
+        content: `function func${String(i)}() { return ${String(i)}; }`,
+        filepath: `src/file${String(Math.floor(i / 10))}.ts`,
         startLine: (i % 10) * 5 + 1,
         endLine: (i % 10) * 5 + 4,
         language: "typescript",
         type: "function",
-        symbolName: `func${i}`,
+        symbolName: `func${String(i)}`,
       }));
 
       const startTime = Date.now();
@@ -386,7 +388,9 @@ export async function authenticateUser(email: string, password: string): Promise
  * Generates a JWT token for the authenticated user.
  */
 export function generateToken(user: User): string {
-  return jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET not defined");
+  return jwt.sign({ userId: user.id }, secret, {
     expiresIn: '24h'
   });
 }
@@ -436,7 +440,7 @@ export class DatabaseConnection {
         allChunks.push(
           ...chunks.map((c, i) => ({
             ...c,
-            id: `${relativePath}-${i}`,
+            id: `${relativePath}-${String(i)}`,
             filepath: relativePath,
           }))
         );

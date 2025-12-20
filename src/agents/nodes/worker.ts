@@ -20,12 +20,13 @@ export function createWorkerNode(
     const toolResult = await retrieverTool.invoke({
       query: subtask.query,
       k: 10,
-    });
+    }) as string;
 
-    let contextString = toolResult;
+    let contextString: string = toolResult;
     if (tokenBudget) {
       try {
-        const chunks: CodeChunk[] = JSON.parse(toolResult);
+        const parsed: unknown = JSON.parse(toolResult);
+        const chunks = parsed as CodeChunk[];
         const availableBudget = getAvailableContextBudget(tokenBudget);
         const chunkBudget = Math.floor(availableBudget * 0.7);
         const prunedChunks = pruneChunksByTokenBudget(chunks, chunkBudget);

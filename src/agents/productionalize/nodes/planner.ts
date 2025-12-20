@@ -39,7 +39,7 @@ Research Digest:
 ${researchDigest}
 
 SAST Results Summary:
-${sastResults.length} findings detected from ${[...new Set(sastResults.map(r => r.tool))].join(", ") || "no tools"}.
+${String(sastResults.length)} findings detected from ${[...new Set(sastResults.map(r => r.tool))].join(", ") || "no tools"}.
 
 User Request:
 ${userQuery || "Perform a full production-readiness analysis of this codebase."}`;

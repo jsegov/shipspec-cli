@@ -11,15 +11,15 @@ vi.mock("langchain/chat_models/universal", () => ({
 }));
 
 vi.mock("../../agents/nodes/planner.js", () => ({
-  createPlannerNode: vi.fn((model) => vi.fn()),
+  createPlannerNode: vi.fn((_model) => vi.fn()),
 }));
 
 vi.mock("../../agents/nodes/worker.js", () => ({
-  createWorkerNode: vi.fn((model, tool, tokenBudget) => vi.fn()),
+  createWorkerNode: vi.fn((_model, _tool, _tokenBudget) => vi.fn()),
 }));
 
 vi.mock("../../agents/nodes/aggregator.js", () => ({
-  createAggregatorNode: vi.fn((model, tokenBudget) => vi.fn()),
+  createAggregatorNode: vi.fn((_model, _tokenBudget) => vi.fn()),
 }));
 
 vi.mock("../../agents/tools/retriever.js", () => ({
@@ -200,7 +200,7 @@ describe("createSpecGraph", () => {
     const mockCheckpointer = { type: "memory" };
     
     const graph = await createSpecGraph(mockConfig, mockRepository, {
-      checkpointer: mockCheckpointer as any,
+      checkpointer: mockCheckpointer as unknown as Parameters<typeof createSpecGraph>[2] extends { checkpointer?: infer C } ? C : never,
     });
 
     expect(graph).toBeDefined();

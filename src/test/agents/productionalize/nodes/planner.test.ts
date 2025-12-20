@@ -8,7 +8,7 @@ describe("Planner Node", () => {
   it("should generate analysis subtasks", async () => {
     const mockPlan = {
       subtasks: [
-        { id: "1", category: "security", query: "audit auth", source: "code", rationale: "test" }
+        { id: "1", category: "security", query: "audit auth", source: "code" }
       ]
     };
     const mockModel = {
@@ -28,7 +28,8 @@ describe("Planner Node", () => {
     const result = await node(state);
 
     expect(result.subtasks).toHaveLength(1);
-    expect(result.subtasks[0].status).toBe("pending");
-    expect(result.subtasks[0].category).toBe("security");
+    const firstSubtask = result.subtasks[0];
+    expect(firstSubtask?.status).toBe("pending");
+    expect(firstSubtask?.category).toBe("security");
   });
 });

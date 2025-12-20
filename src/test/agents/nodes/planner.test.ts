@@ -3,9 +3,22 @@ import { createPlannerNode } from "../../../agents/nodes/planner.js";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { AgentStateType } from "../../../agents/state.js";
 
+interface Message {
+  content: string;
+}
+
 describe("PlannerNode", () => {
   let mockModel: Partial<BaseChatModel>;
   let plannerNode: ReturnType<typeof createPlannerNode>;
+
+  const getInvokeContent = (mock: unknown): string => {
+    const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
+    const calls = mocked.invoke.mock.calls;
+    const firstCall = calls[0];
+    if (!firstCall) return "";
+    const firstArg = firstCall[0];
+    return firstArg[0]?.content ?? "";
+  };
 
   beforeEach(() => {
     mockModel = {
@@ -40,11 +53,13 @@ describe("PlannerNode", () => {
     expect(mockModel.withStructuredOutput).toHaveBeenCalled();
     expect(mockStructuredModel.invoke).toHaveBeenCalled();
     expect(result.subtasks).toHaveLength(3);
-    expect(result.subtasks[0].id).toBe("1");
-    expect(result.subtasks[0].query).toBe("Analyze authentication flow");
-    expect(result.subtasks[0].status).toBe("pending");
-    expect(result.subtasks[1].status).toBe("pending");
-    expect(result.subtasks[2].status).toBe("pending");
+    const [first, second, third] = result.subtasks;
+    expect(first).toBeDefined();
+    expect(first?.id).toBe("1");
+    expect(first?.query).toBe("Analyze authentication flow");
+    expect(first?.status).toBe("pending");
+    expect(second?.status).toBe("pending");
+    expect(third?.status).toBe("pending");
   });
 
   it("should include user query in prompt", async () => {
@@ -67,9 +82,9 @@ describe("PlannerNode", () => {
 
     await plannerNode(state);
 
-    const invokeCall = mockStructuredModel.invoke.mock.calls[0][0];
-    expect(invokeCall[0].content).toContain("Explain the codebase architecture");
-    expect(invokeCall[0].content).toContain("Decompose this request");
+    const content = getInvokeContent(mockStructuredModel);
+    expect(content).toContain("Explain the codebase architecture");
+    expect(content).toContain("Decompose this request");
   });
 
   it("should set all subtasks to pending status", async () => {

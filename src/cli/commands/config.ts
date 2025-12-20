@@ -1,7 +1,6 @@
 import { Command, Option } from "commander";
 import { ShipSpecConfig } from "../../config/schema.js";
 import { loadConfig } from "../../config/loader.js";
-import { logger } from "../../utils/logger.js";
 
 interface ConfigOptions {
   json: boolean;
@@ -13,7 +12,7 @@ export const configCommand = new Command("config")
   .addOption(new Option("--resolved-config").hideHelp())
   .option("--json", "Output as JSON")
   .action(async (options: ConfigOptions) => {
-    const config = options.resolvedConfig || (await loadConfig());
+    const config = options.resolvedConfig ?? (await loadConfig());
     
     if (options.json) {
       console.log(JSON.stringify(config, null, 2));
@@ -26,20 +25,20 @@ export const configCommand = new Command("config")
       console.log("LLM Configuration:");
       console.log(`  Provider: ${config.llm.provider}`);
       console.log(`  Model: ${config.llm.modelName}`);
-      console.log(`  Temperature: ${config.llm.temperature}`);
-      console.log(`  Max Retries: ${config.llm.maxRetries}`);
-      console.log(`  Timeout: ${config.llm.timeout ? `${config.llm.timeout}ms` : 'none'}`);
-      console.log(`  Max Context Tokens: ${config.llm.maxContextTokens}`);
-      console.log(`  Reserved Output Tokens: ${config.llm.reservedOutputTokens}`);
+      console.log(`  Temperature: ${String(config.llm.temperature)}`);
+      console.log(`  Max Retries: ${String(config.llm.maxRetries)}`);
+      console.log(`  Timeout: ${config.llm.timeout ? `${String(config.llm.timeout)}ms` : 'none'}`);
+      console.log(`  Max Context Tokens: ${String(config.llm.maxContextTokens)}`);
+      console.log(`  Reserved Output Tokens: ${String(config.llm.reservedOutputTokens)}`);
       console.log();
       console.log("Embedding Configuration:");
       console.log(`  Provider: ${config.embedding.provider}`);
       console.log(`  Model: ${config.embedding.modelName}`);
-      console.log(`  Dimensions: ${config.embedding.dimensions}`);
-      console.log(`  Max Retries: ${config.embedding.maxRetries}`);
+      console.log(`  Dimensions: ${String(config.embedding.dimensions)}`);
+      console.log(`  Max Retries: ${String(config.embedding.maxRetries)}`);
       console.log();
       console.log("Checkpoint Configuration:");
-      console.log(`  Enabled: ${config.checkpoint.enabled}`);
+      console.log(`  Enabled: ${String(config.checkpoint.enabled)}`);
       console.log(`  Type: ${config.checkpoint.type}`);
       if (config.checkpoint.sqlitePath) {
         console.log(`  SQLite Path: ${config.checkpoint.sqlitePath}`);

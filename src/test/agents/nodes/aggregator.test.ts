@@ -4,9 +4,22 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { AgentStateType } from "../../../agents/state.js";
 import type { TokenBudget } from "../../../utils/tokens.js";
 
+interface Message {
+  content: string;
+}
+
 describe("AggregatorNode", () => {
   let mockModel: Partial<BaseChatModel>;
   let aggregatorNode: ReturnType<typeof createAggregatorNode>;
+
+  const getInvokeContent = (mock: unknown): string => {
+    const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
+    const calls = mocked.invoke.mock.calls;
+    const firstCall = calls[0];
+    if (!firstCall) return "";
+    const firstArg = firstCall[0];
+    return firstArg[0]?.content ?? "";
+  };
 
   beforeEach(() => {
     mockModel = {
@@ -55,13 +68,13 @@ describe("AggregatorNode", () => {
     expect(mockModel.invoke).toHaveBeenCalled();
     expect(result.finalSpec).toBe(mockSpec.content);
     
-    const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(invokeCall[0].content).toContain("Analyze the codebase");
-    expect(invokeCall[0].content).toContain("How does auth work?");
-    expect(invokeCall[0].content).toContain("Auth uses JWT tokens");
-    expect(invokeCall[0].content).toContain("What is the database schema?");
-    expect(invokeCall[0].content).toContain("Schema has users and posts tables");
-    expect(invokeCall[0].content).toContain("Additional task");
+    const content = getInvokeContent(mockModel);
+    expect(content).toContain("Analyze the codebase");
+    expect(content).toContain("How does auth work?");
+    expect(content).toContain("Auth uses JWT tokens");
+    expect(content).toContain("What is the database schema?");
+    expect(content).toContain("Schema has users and posts tables");
+    expect(content).toContain("Additional task");
   });
 
   it("should ignore subtasks without results", async () => {
@@ -91,8 +104,7 @@ describe("AggregatorNode", () => {
 
     await aggregatorNode(state);
 
-    const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    const content = invokeCall[0].content as string;
+    const content = getInvokeContent(mockModel);
     expect(content).toContain("Complete task");
     expect(content).toContain("Result 1");
     expect(content).not.toContain("Task without result");
@@ -113,8 +125,8 @@ describe("AggregatorNode", () => {
     const result = await aggregatorNode(state);
 
     expect(result.finalSpec).toBe("No findings");
-    const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(invokeCall[0].content).toContain("Test query");
+    const content = getInvokeContent(mockModel);
+    expect(content).toContain("Test query");
   });
 
   it("should format findings with markdown headers", async () => {
@@ -144,8 +156,7 @@ describe("AggregatorNode", () => {
 
     await aggregatorNode(state);
 
-    const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    const content = invokeCall[0].content as string;
+    const content = getInvokeContent(mockModel);
     expect(content).toContain("## Question 1");
     expect(content).toContain("Answer 1");
     expect(content).toContain("## Question 2");
@@ -192,8 +203,7 @@ describe("AggregatorNode", () => {
 
       await aggregatorNode(state);
 
-      const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const content = invokeCall[0].content as string;
+      const content = getInvokeContent(mockModel);
 
       // Should contain truncation indicator
       expect(content).toContain("truncated");
@@ -220,8 +230,7 @@ describe("AggregatorNode", () => {
 
       await aggregatorNode(state);
 
-      const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const content = invokeCall[0].content as string;
+      const content = getInvokeContent(mockModel);
 
       // Should not contain truncation indicator
       expect(content).not.toContain("truncated");

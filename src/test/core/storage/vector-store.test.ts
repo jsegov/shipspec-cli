@@ -71,13 +71,13 @@ describe("LanceDBManager", () => {
       const table1 = await manager.getOrCreateTable("test_table", 3072);
       const schema1 = await table1.schema();
       const vectorField1 = schema1.fields.find((f) => f.name === "vector");
-      const dims1 = (vectorField1?.type as arrow.FixedSizeList)?.listSize;
+      const dims1 = (vectorField1?.type as arrow.FixedSizeList).listSize;
       expect(dims1).toBe(3072);
 
       const table2 = await manager.getOrCreateTable("test_table", 768);
       const schema2 = await table2.schema();
       const vectorField2 = schema2.fields.find((f) => f.name === "vector");
-      const dims2 = (vectorField2?.type as arrow.FixedSizeList)?.listSize;
+      const dims2 = (vectorField2?.type as arrow.FixedSizeList).listSize;
       expect(dims2).toBe(768);
     });
 
@@ -116,8 +116,8 @@ describe("LanceDBManager", () => {
       const vectorField1 = schema1.fields.find((f) => f.name === "vector");
       const vectorField2 = schema2.fields.find((f) => f.name === "vector");
 
-      const dims1 = (vectorField1?.type as arrow.FixedSizeList)?.listSize;
-      const dims2 = (vectorField2?.type as arrow.FixedSizeList)?.listSize;
+      const dims1 = (vectorField1?.type as arrow.FixedSizeList).listSize;
+      const dims2 = (vectorField2?.type as arrow.FixedSizeList).listSize;
 
       expect(dims1).toBe(3072);
       expect(dims2).toBe(768);
@@ -158,7 +158,7 @@ describe("LanceDBManager", () => {
       const dimensions = [128, 256, 512, 768, 3072];
 
       for (const dim of dimensions) {
-        const table = await manager.getOrCreateTable(`table_${dim}`, dim);
+        const table = await manager.getOrCreateTable(`table_${String(dim)}`, dim);
         const schema = await table.schema();
         const vectorField = schema.fields.find((f) => f.name === "vector");
         const vectorType = vectorField?.type as arrow.FixedSizeList;

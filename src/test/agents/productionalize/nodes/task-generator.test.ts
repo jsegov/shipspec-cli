@@ -36,7 +36,9 @@ describe("Task Generator Node", () => {
     const result = await node(state);
 
     expect(result.tasks).toHaveLength(1);
-    expect(result.tasks[0].id).toBe(1);
-    expect(result.tasks[0].priority).toBe("high");
+    const firstTask = result.tasks[0];
+    expect(firstTask).toBeDefined();
+    expect(firstTask?.id).toBe(1);
+    expect(firstTask?.priority).toBe("high");
   });
 });

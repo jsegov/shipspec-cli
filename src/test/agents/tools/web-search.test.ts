@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createWebSearchTool } from "../../../agents/tools/web-search.js";
 
+interface DDGResult {
+  title: string;
+  url: string;
+  description: string;
+}
+
 // Mock Tavily
 vi.mock("@langchain/tavily", () => {
   const TavilySearch = vi.fn(function () {
@@ -37,14 +43,16 @@ describe("Web Search Tool", () => {
   it("should fallback to DuckDuckGo if Tavily API key is missing", async () => {
     const tool = createWebSearchTool({ provider: "tavily" });
     const result = await tool.invoke({ query: "test query" });
-    const parsed = JSON.parse(result);
-    expect(parsed[0].title).toBe("ddg title");
+    const parsed = JSON.parse(result) as DDGResult[];
+    const firstResult = parsed[0];
+    expect(firstResult?.title).toBe("ddg title");
   });
 
   it("should use DuckDuckGo if explicitly configured", async () => {
     const tool = createWebSearchTool({ provider: "duckduckgo" });
     const result = await tool.invoke({ query: "test query" });
-    const parsed = JSON.parse(result);
-    expect(parsed[0].title).toBe("ddg title");
+    const parsed = JSON.parse(result) as DDGResult[];
+    const firstResult = parsed[0];
+    expect(firstResult?.title).toBe("ddg title");
   });
 });

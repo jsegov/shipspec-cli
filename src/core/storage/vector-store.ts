@@ -45,22 +45,22 @@ export class LanceDBManager {
     ]);
   }
 
-  private tablePromises: Map<string, { promise: Promise<Table>; dimensions: number }> = new Map();
-  private tableSerializationChains: Map<string, Promise<any>> = new Map();
+  private tablePromises = new Map<string, { promise: Promise<Table>; dimensions: number }>();
+  private tableSerializationChains = new Map<string, Promise<unknown>>();
 
   getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
     const cached = this.tablePromises.get(tableName);
-    if (cached && cached.dimensions === dimensions) {
+    if (cached?.dimensions === dimensions) {
       return cached.promise;
     }
 
-    const previousChain = this.tableSerializationChains.get(tableName) || Promise.resolve();
+    const previousChain = this.tableSerializationChains.get(tableName) ?? Promise.resolve();
 
     // Create the promise and store it in caches immediately and synchronously.
     // This prevents any other call in the same or subsequent event loop ticks
     // from initiating a redundant or conflicting operation for the same table.
-    let resolveTable: (table: Table) => void;
-    let rejectTable: (err: any) => void;
+    let resolveTable!: (table: Table) => void;
+    let rejectTable!: (err: unknown) => void;
     const tablePromise = new Promise<Table>((res, rej) => {
       resolveTable = res;
       rejectTable = rej;
@@ -70,10 +70,10 @@ export class LanceDBManager {
     this.tableSerializationChains.set(tableName, tablePromise);
 
     // Start the async operation chain
-    (async () => {
+    void (async () => {
       try {
         // Always wait for the previous operation on this table to finish
-        await previousChain.catch(() => {});
+        await previousChain.catch(() => undefined);
 
         const db = await this.connect();
         const tableNames = await db.tableNames();
@@ -83,11 +83,11 @@ export class LanceDBManager {
           const schema = await table.schema();
           
           const vectorField = schema.fields.find((f) => f.name === "vector");
-          const existingDims = (vectorField?.type as arrow.FixedSizeList)?.listSize;
+          const existingDims = (vectorField?.type as arrow.FixedSizeList).listSize;
 
           if (existingDims !== dimensions) {
             logger.warn(
-              `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
+              `Dimension mismatch for table '${tableName}': recreating with ${String(dimensions)} dims.`
             );
             await db.dropTable(tableName);
             const newTable = await this.createTable(tableName, dimensions);

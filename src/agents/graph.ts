@@ -24,8 +24,8 @@ export async function createSpecGraph(
   const plannerNode = createPlannerNode(model);
 
   const tokenBudget: TokenBudget = {
-    maxContextTokens: config.llm.maxContextTokens ?? 16000,
-    reservedOutputTokens: config.llm.reservedOutputTokens ?? 4000,
+    maxContextTokens: config.llm.maxContextTokens,
+    reservedOutputTokens: config.llm.reservedOutputTokens,
   };
 
   const workerNode = createWorkerNode(model, retrieverTool, tokenBudget);
@@ -37,7 +37,7 @@ export async function createSpecGraph(
     .addNode("aggregator", aggregatorNode)
     .addEdge(START, "planner")
     .addConditionalEdges("planner", (state: AgentStateType) => {
-      if (!state.subtasks || state.subtasks.length === 0) {
+      if (state.subtasks.length === 0) {
         return "aggregator";
       }
       const sends = state.subtasks.map(

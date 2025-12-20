@@ -26,12 +26,12 @@ export async function createProductionalizeGraph(
 ) {
   const model = await createChatModel(config.llm);
   const retrieverTool = createRetrieverTool(repository);
-  const webSearchTool = createWebSearchTool(config.productionalize?.webSearch);
-  const sastTool = createSASTScannerTool(config.productionalize?.sast);
+  const webSearchTool = createWebSearchTool(config.productionalize.webSearch);
+  const sastTool = createSASTScannerTool(config.productionalize.sast);
 
   const tokenBudget: TokenBudget = {
-    maxContextTokens: config.llm.maxContextTokens ?? 16000,
-    reservedOutputTokens: config.llm.reservedOutputTokens ?? 4000,
+    maxContextTokens: config.llm.maxContextTokens,
+    reservedOutputTokens: config.llm.reservedOutputTokens,
   };
 
   const gatherSignalsNode = async () => {
@@ -39,14 +39,18 @@ export async function createProductionalizeGraph(
     return { signals };
   };
 
+  interface ScannerResults {
+    findings?: unknown[];
+  }
+
   const scannerNode = async () => {
-    if (!config.productionalize?.sast?.enabled) {
+    if (!config.productionalize.sast?.enabled) {
       return { sastResults: [] };
     }
     const resultsString = await sastTool.invoke({});
     try {
-      const results = JSON.parse(resultsString);
-      return { sastResults: results.findings || [] };
+      const results = JSON.parse(resultsString) as ScannerResults;
+      return { sastResults: results.findings ?? [] };
     } catch {
       return { sastResults: [] };
     }
@@ -71,7 +75,7 @@ export async function createProductionalizeGraph(
     .addEdge("researcher", "scanner")
     .addEdge("scanner", "planner")
     .addConditionalEdges("planner", (state: ProductionalizeStateType) => {
-      if (!state.subtasks || state.subtasks.length === 0) {
+      if (state.subtasks.length === 0) {
         return "aggregator";
       }
       return state.subtasks.map(

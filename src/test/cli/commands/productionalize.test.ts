@@ -40,9 +40,9 @@ describe("Productionalize CLI Command", () => {
     vi.clearAllMocks();
   });
 
-  it("should output a report to a file", async () => {
-    const reportPath = join(tempDir, "report.md");
-    const tasksPath = join(tempDir, "tasks.json");
+  it("should output a report to a file", () => {
+    const _reportPath = join(tempDir, "report.md");
+    const _tasksPath = join(tempDir, "tasks.json");
     
     // We need to bypass the actual action because it uses process.cwd() and loadConfig
     // Instead we can test the command configuration

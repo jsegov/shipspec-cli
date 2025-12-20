@@ -11,12 +11,12 @@ class MockEmbeddings extends Embeddings {
     super({});
   }
 
-  async embedDocuments(texts: string[]): Promise<number[][]> {
-    return texts.map(() => new Array(this.dimensions).fill(0.1));
+  embedDocuments(texts: string[]): Promise<number[][]> {
+    return Promise.resolve(texts.map(() => new Array<number>(this.dimensions).fill(0.1)));
   }
 
-  async embedQuery(text: string): Promise<number[]> {
-    return new Array(this.dimensions).fill(0.1);
+  embedQuery(_text: string): Promise<number[]> {
+    return Promise.resolve(new Array<number>(this.dimensions).fill(0.1));
   }
 }
 
@@ -53,7 +53,9 @@ describe("DocumentRepository", () => {
       const mockTable = {
         add: vi.fn().mockResolvedValue(undefined),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+      const getOrCreateTable = mockVectorStore.getOrCreateTable;
+      if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
+      vi.mocked(getOrCreateTable).mockResolvedValue(
         mockTable as unknown as Table
       );
 
@@ -123,7 +125,9 @@ describe("DocumentRepository", () => {
           }),
         }),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+      const getOrCreateTable = mockVectorStore.getOrCreateTable;
+      if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
+      vi.mocked(getOrCreateTable).mockResolvedValue(
         mockTable as unknown as Table
       );
 
@@ -156,7 +160,9 @@ describe("DocumentRepository", () => {
           }),
         }),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+      const getOrCreateTable = mockVectorStore.getOrCreateTable;
+      if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
+      vi.mocked(getOrCreateTable).mockResolvedValue(
         mockTable as unknown as Table
       );
 
@@ -174,7 +180,9 @@ describe("DocumentRepository", () => {
       const mockTable = {
         delete: vi.fn().mockResolvedValue(undefined),
       };
-      vi.mocked(mockVectorStore.getOrCreateTable!).mockResolvedValue(
+      const getOrCreateTable = mockVectorStore.getOrCreateTable;
+      if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
+      vi.mocked(getOrCreateTable).mockResolvedValue(
         mockTable as unknown as Table
       );
 
@@ -266,14 +274,14 @@ describe("DocumentRepository", () => {
 
     it("respects k parameter in search", async () => {
       const chunks: CodeChunk[] = Array.from({ length: 20 }, (_, i) => ({
-        id: `chunk-${i}`,
-        content: `function func${i}() { }`,
+        id: `chunk-${String(i)}`,
+        content: `function func${String(i)}() { }`,
         filepath: "test.ts",
         startLine: i,
         endLine: i + 1,
         language: "typescript",
         type: "function",
-        symbolName: `func${i}`,
+        symbolName: `func${String(i)}`,
       }));
 
       await repository.addDocuments(chunks);

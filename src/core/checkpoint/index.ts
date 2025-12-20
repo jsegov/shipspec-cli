@@ -4,10 +4,10 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 export type CheckpointerType = "memory" | "sqlite";
 
-export async function createCheckpointer(
+export function createCheckpointer(
   type: CheckpointerType,
   dbPath?: string
-): Promise<BaseCheckpointSaver> {
+): BaseCheckpointSaver {
   if (type === "sqlite") {
     if (!dbPath) {
       throw new Error("SQLite checkpointer requires a database path");

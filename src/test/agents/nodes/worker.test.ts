@@ -5,10 +5,23 @@ import type { DynamicStructuredTool } from "@langchain/core/tools";
 import type { Subtask, AgentStateType } from "../../../agents/state.js";
 import type { TokenBudget } from "../../../utils/tokens.js";
 
+interface Message {
+  content: string;
+}
+
 describe("WorkerNode", () => {
   let mockModel: Partial<BaseChatModel>;
   let mockRetrieverTool: Partial<DynamicStructuredTool>;
   let workerNode: ReturnType<typeof createWorkerNode>;
+
+  const getInvokeContent = (mock: unknown): string => {
+    const mocked = vi.mocked(mock as { invoke: (messages: Message[]) => unknown });
+    const calls = mocked.invoke.mock.calls;
+    const firstCall = calls[0];
+    if (!firstCall) return "";
+    const firstArg = firstCall[0];
+    return firstArg[0]?.content ?? "";
+  };
 
   beforeEach(() => {
     mockModel = {
@@ -67,9 +80,11 @@ describe("WorkerNode", () => {
     });
     expect(mockModel.invoke).toHaveBeenCalled();
     expect(result.subtasks).toHaveLength(1);
-    expect(result.subtasks[0].id).toBe("1");
-    expect(result.subtasks[0].status).toBe("complete");
-    expect(result.subtasks[0].result).toBe("Authentication is handled by the authenticate function");
+    const resultSubtask = result.subtasks[0];
+    expect(resultSubtask).toBeDefined();
+    expect(resultSubtask?.id).toBe("1");
+    expect(resultSubtask?.status).toBe("complete");
+    expect(resultSubtask?.result).toBe("Authentication is handled by the authenticate function");
   });
 
   it("should include tool result in summary prompt", async () => {
@@ -88,9 +103,9 @@ describe("WorkerNode", () => {
     const input = createMockState(subtask);
     await workerNode(input);
 
-    const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(invokeCall[0].content).toContain("What is the database schema?");
-    expect(invokeCall[0].content).toContain(mockToolResult);
+    const content = getInvokeContent(mockModel);
+    expect(content).toContain("What is the database schema?");
+    expect(content).toContain(mockToolResult);
   });
 
   it("should mark subtask as complete with result", async () => {
@@ -108,10 +123,12 @@ describe("WorkerNode", () => {
     const input = createMockState(subtask);
     const result = await workerNode(input);
 
-    expect(result.subtasks[0].status).toBe("complete");
-    expect(result.subtasks[0].result).toBe("Test summary");
-    expect(result.subtasks[0].id).toBe(subtask.id);
-    expect(result.subtasks[0].query).toBe(subtask.query);
+    const resultSubtask = result.subtasks[0];
+    expect(resultSubtask).toBeDefined();
+    expect(resultSubtask?.status).toBe("complete");
+    expect(resultSubtask?.result).toBe("Test summary");
+    expect(resultSubtask?.id).toBe(subtask.id);
+    expect(resultSubtask?.query).toBe(subtask.query);
   });
 
   describe("with token budget", () => {
@@ -151,14 +168,13 @@ describe("WorkerNode", () => {
       const input = createMockState(subtask);
       await workerNode(input);
 
-      const invokeCall = (mockModel.invoke as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const contextInPrompt = invokeCall[0].content;
+      const contextInPrompt = getInvokeContent(mockModel);
 
       // The context should have pruned some chunks
       // Parse the JSON from the prompt to verify pruning
-      const jsonMatch = contextInPrompt.match(/\[.*\]/s);
+      const jsonMatch = /\[.*\]/s.exec(contextInPrompt);
       if (jsonMatch) {
-        const parsedChunks = JSON.parse(jsonMatch[0]);
+        const parsedChunks = JSON.parse(jsonMatch[0]) as unknown[];
         expect(parsedChunks.length).toBeLessThan(mockChunks.length);
       }
     });
@@ -177,8 +193,10 @@ describe("WorkerNode", () => {
       const result = await workerNode(input);
 
       // Should still complete successfully, using original result
-      expect(result.subtasks[0].status).toBe("complete");
-      expect(result.subtasks[0].result).toBe("Summary");
+      const resultSubtask = result.subtasks[0];
+      expect(resultSubtask).toBeDefined();
+      expect(resultSubtask?.status).toBe("complete");
+      expect(resultSubtask?.result).toBe("Summary");
     });
   });
 });

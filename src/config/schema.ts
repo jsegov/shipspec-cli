@@ -16,7 +16,7 @@ export const LLMConfigSchema = z.object({
   provider: ModelProviderSchema.default("openai"),
   modelName: z.string().default("gpt-5.2-2025-12-11"),
   temperature: z.number().min(0).max(2).default(0),
-  baseUrl: z.string().url().optional(),
+  baseUrl: z.url().optional(),
   apiKey: z.string().optional(),
   maxRetries: z.number().int().min(0).max(10).default(3),
   timeout: z.number().int().positive().optional(),
@@ -28,7 +28,7 @@ export const EmbeddingConfigSchema = z.object({
   provider: ModelProviderSchema.default("openai"),
   modelName: z.string().default("text-embedding-3-large"),
   dimensions: z.number().int().positive().default(3072),
-  baseUrl: z.string().url().optional(),
+  baseUrl: z.url().optional(),
   apiKey: z.string().optional(),
   maxRetries: z.number().int().min(0).max(10).default(3),
 });

@@ -60,14 +60,14 @@ async function processFile(
 }
 
 async function ingestAction(options: IngestOptions): Promise<void> {
-  const config = options.resolvedConfig || (await loadConfig(process.cwd()));
+  const config = options.resolvedConfig ?? (await loadConfig(process.cwd()));
   const concurrency = parseInt(options.concurrency, 10);
   const batchSize = parseInt(options.batchSize, 10);
 
   const projectPath = resolve(config.projectPath);
 
   logger.info(`Starting ingestion for: ${projectPath}`);
-  logger.info(`Concurrency: ${concurrency}, Batch size: ${batchSize}`);
+  logger.info(`Concurrency: ${String(concurrency)}, Batch size: ${String(batchSize)}`);
 
   // Discover files
   logger.progress("Discovering files...");
@@ -78,20 +78,20 @@ async function ingestAction(options: IngestOptions): Promise<void> {
     return;
   }
 
-  logger.info(`Found ${files.length} source files`);
+  logger.info(`Found ${String(files.length)} source files`);
 
   // Dry run mode - just show what would be processed
   if (options.dryRun) {
     logger.info("Dry run mode - files that would be processed:");
-    files.forEach((f) => logger.plain(`  ${getRelativePath(f, projectPath)}`));
-    logger.info(`Total: ${files.length} files`);
+    files.forEach((f) => { logger.plain(`  ${getRelativePath(f, projectPath)}`); });
+    logger.info(`Total: ${String(files.length)} files`);
     return;
   }
 
   // Initialize storage
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
-  const embeddings = await createEmbeddingsModel(config.embedding);
+  const embeddings = createEmbeddingsModel(config.embedding);
   const repository = new DocumentRepository(
     vectorStore,
     embeddings,
@@ -149,7 +149,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
   }
 
   // Add chunks to repository in batches
-  logger.progress(`Adding ${allChunks.length} chunks to vector store...`);
+  logger.progress(`Adding ${String(allChunks.length)} chunks to vector store...`);
 
   const embeddingProgressBar = new cliProgress.SingleBar(
     {
@@ -174,7 +174,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
       embeddingProgressBar.update(successfulChunks);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to add batch ${Math.floor(i / batchSize) + 1}: ${errorMsg}`);
+      logger.error(`Failed to add batch ${String(Math.floor(i / batchSize) + 1)}: ${errorMsg}`);
     }
   }
 
@@ -182,10 +182,10 @@ async function ingestAction(options: IngestOptions): Promise<void> {
 
   // Summary
   logger.success(`Ingestion complete!`);
-  logger.info(`  Files processed: ${processedFiles - errors}/${files.length}`);
-  logger.info(`  Chunks created: ${totalChunks}`);
+  logger.info(`  Files processed: ${String(processedFiles - errors)}/${String(files.length)}`);
+  logger.info(`  Chunks created: ${String(totalChunks)}`);
   if (errors > 0) {
-    logger.warn(`  Files with errors: ${errors}`);
+    logger.warn(`  Files with errors: ${String(errors)}`);
   }
   logger.info(`  Vector store: ${config.vectorDbPath}`);
 }

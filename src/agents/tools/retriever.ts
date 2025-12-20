@@ -17,7 +17,7 @@ export function createRetrieverTool(repository: DocumentRepository) {
         content: c.content,
         type: c.type,
         symbolName: c.symbolName ?? null,
-        lines: `${c.startLine}-${c.endLine}`,
+        lines: `${String(c.startLine)}-${String(c.endLine)}`,
       })));
     },
   });

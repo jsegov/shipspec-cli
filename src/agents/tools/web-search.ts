@@ -13,8 +13,8 @@ export function createWebSearchTool(config?: WebSearchConfig) {
       maxResults: z.number().optional().default(5).describe("Maximum number of results to return"),
     }),
     func: async ({ query, maxResults }) => {
-      const apiKey = config?.apiKey || process.env.TAVILY_API_KEY;
-      const limit = maxResults ?? 5;
+      const apiKey = config?.apiKey ?? process.env.TAVILY_API_KEY;
+      const limit = maxResults;
 
       if (apiKey && config?.provider !== "duckduckgo") {
         try {
@@ -22,7 +22,7 @@ export function createWebSearchTool(config?: WebSearchConfig) {
             tavilyApiKey: apiKey,
             maxResults: limit,
           });
-          const results = await tavily.invoke({ query });
+          const results: unknown = await tavily.invoke({ query });
           return typeof results === "string" ? results : JSON.stringify(results);
         } catch (error) {
           console.error("Tavily search failed, falling back to DuckDuckGo:", error);

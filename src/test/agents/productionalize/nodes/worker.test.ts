@@ -3,7 +3,7 @@ import { createWorkerNode } from "../../../../agents/productionalize/nodes/worke
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
-import type { ProductionalizeStateType } from "../../../../agents/productionalize/state.js";
+import type { ProductionalizeStateType, ProductionalizeSubtask } from "../../../../agents/productionalize/state.js";
 
 describe("Worker Node", () => {
   it("should analyze code and return findings", async () => {
@@ -40,17 +40,28 @@ describe("Worker Node", () => {
     } as unknown as DynamicStructuredTool;
 
     const node = createWorkerNode(mockModel, mockRetrieverTool, mockWebSearchTool);
+    const subtask: ProductionalizeSubtask = { 
+      id: "1", 
+      category: "security", 
+      query: "audit auth", 
+      source: "code", 
+      status: "pending"
+    };
     const state = {
-      subtask: { id: "1", category: "security", query: "audit auth", source: "code", status: "pending" },
+      subtask,
       researchDigest: "test digest",
       sastResults: [],
       signals: {}
-    } as unknown as ProductionalizeStateType & { subtask: any };
+    } as unknown as ProductionalizeStateType & { subtask: ProductionalizeSubtask };
 
     const result = await node(state);
 
-    expect(result.subtasks[0].status).toBe("complete");
+    const firstSubtask = result.subtasks[0];
+    expect(firstSubtask).toBeDefined();
+    expect(firstSubtask?.status).toBe("complete");
     expect(result.findings).toHaveLength(1);
-    expect(result.findings[0].severity).toBe("high");
+    const firstFinding = result.findings[0];
+    expect(firstFinding).toBeDefined();
+    expect(firstFinding?.severity).toBe("high");
   });
 });

@@ -72,8 +72,9 @@ describe("SemanticChunker", () => {
       expect(addFunction).toBeDefined();
       expect(addFunction?.content).toContain("function add");
       expect(addFunction?.content).toContain("return a + b");
-      if (addFunction?.content.includes("/**") || addFunction?.content.includes("*")) {
-        expect(addFunction?.content).toContain("Adds two numbers");
+      const content = addFunction?.content ?? "";
+      if (content.includes("/**") || content.includes("*")) {
+        expect(content).toContain("Adds two numbers");
       }
     });
 

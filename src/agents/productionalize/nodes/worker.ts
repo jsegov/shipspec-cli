@@ -49,11 +49,12 @@ export function createWorkerNode(
       const toolResult = await retrieverTool.invoke({
         query: subtask.query,
         k: 10,
-      });
+      }) as string;
       
       if (tokenBudget) {
         try {
-          const chunks: CodeChunk[] = JSON.parse(toolResult);
+          const parsed: unknown = JSON.parse(toolResult);
+          const chunks = parsed as CodeChunk[];
           const availableBudget = getAvailableContextBudget(tokenBudget);
           const prunedChunks = pruneChunksByTokenBudget(chunks, Math.floor(availableBudget * 0.7));
           contextString = JSON.stringify(prunedChunks, null, 2);
@@ -65,9 +66,11 @@ export function createWorkerNode(
       }
       evidenceSource = "Codebase Analysis (RAG)";
     } else if (subtask.source === "web") {
-      contextString = await webSearchTool.invoke({ query: subtask.query });
+      const webResult = await webSearchTool.invoke({ query: subtask.query }) as string;
+      contextString = webResult;
       evidenceSource = "Web Research";
-    } else if (subtask.source === "scan") {
+    } else {
+      // subtask.source === "scan"
       const relevantScans = sastResults.filter(r => 
         r.rule.toLowerCase().includes(subtask.category.toLowerCase()) || 
         r.message.toLowerCase().includes(subtask.category.toLowerCase())

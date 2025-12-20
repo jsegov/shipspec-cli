@@ -3,6 +3,14 @@ import { createRetrieverTool } from "../../../agents/tools/retriever.js";
 import { DocumentRepository } from "../../../core/storage/repository.js";
 import { CodeChunk } from "../../../core/types/index.js";
 
+interface ParsedChunk {
+  filepath: string;
+  content: string;
+  type: string;
+  symbolName: string | null;
+  lines: string;
+}
+
 describe("createRetrieverTool", () => {
   let mockRepository: Partial<DocumentRepository>;
   let retrieverTool: ReturnType<typeof createRetrieverTool>;
@@ -49,11 +57,12 @@ describe("createRetrieverTool", () => {
 
     expect(mockRepository.hybridSearch).toHaveBeenCalledWith("test function", 5);
     expect(result).toBeDefined();
-    const parsed = JSON.parse(result);
+    const parsed = JSON.parse(result) as ParsedChunk[];
     expect(parsed).toHaveLength(1);
-    expect(parsed[0].filepath).toBe("test.ts");
-    expect(parsed[0].symbolName).toBe("test");
-    expect(parsed[0].lines).toBe("1-5");
+    const firstChunk = parsed[0];
+    expect(firstChunk?.filepath).toBe("test.ts");
+    expect(firstChunk?.symbolName).toBe("test");
+    expect(firstChunk?.lines).toBe("1-5");
   });
 
   it("should use default k value when not provided", async () => {
@@ -97,16 +106,17 @@ describe("createRetrieverTool", () => {
       k: 2,
     });
 
-    const parsed = JSON.parse(result);
+    const parsed = JSON.parse(result) as ParsedChunk[];
     expect(parsed).toHaveLength(2);
-    expect(parsed[0]).toEqual({
+    const [first, second] = parsed;
+    expect(first).toEqual({
       filepath: "file1.ts",
       content: "code1",
       type: "function",
       symbolName: "func1",
       lines: "10-20",
     });
-    expect(parsed[1]).toEqual({
+    expect(second).toEqual({
       filepath: "file2.ts",
       content: "code2",
       type: "class",

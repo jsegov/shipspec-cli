@@ -2,7 +2,6 @@ import { Embeddings } from "@langchain/core/embeddings";
 import { LanceDBManager } from "./vector-store.js";
 import { CodeChunk } from "../types/index.js";
 import { Table } from "@lancedb/lancedb";
-import { logger } from "../../utils/logger.js";
 
 export class DocumentRepository {
   private readonly tableName = "code_chunks";
@@ -28,7 +27,7 @@ export class DocumentRepository {
     await table.add(records);
   }
 
-  async similaritySearch(query: string, k: number = 10): Promise<CodeChunk[]> {
+  async similaritySearch(query: string, k = 10): Promise<CodeChunk[]> {
     const queryVector = await this.embeddings.embedQuery(query);
     const table = await this.getTable();
 
@@ -37,10 +36,10 @@ export class DocumentRepository {
       .limit(k)
       .toArray();
 
-    return results.map((record) => this.recordToCodeChunk(record));
+    return results.map((record) => this.recordToCodeChunk(record as Record<string, unknown>));
   }
 
-  async hybridSearch(query: string, k: number = 10): Promise<CodeChunk[]> {
+  async hybridSearch(query: string, k = 10): Promise<CodeChunk[]> {
     const table = await this.getTable();
     const queryVector = await this.embeddings.embedQuery(query);
 
@@ -63,7 +62,7 @@ export class DocumentRepository {
   }
 
   private recordToCodeChunk(record: Record<string, unknown>): CodeChunk {
-    const { vector, _distance, ...chunk } = record;
+    const { vector: _vector, _distance, ...chunk } = record;
     return chunk as unknown as CodeChunk;
   }
 }

@@ -7,7 +7,6 @@ import {
   type SupportedLanguage,
 } from "./language-registry.js";
 import { createParser } from "./tree-sitter.js";
-import { logger } from "../../utils/logger.js";
 
 export interface ChunkOptions {
   includeComments?: boolean;
@@ -30,9 +29,6 @@ export class SemanticChunker {
 
     const parser = await createParser(lang);
     const tree = parser.parse(content);
-    if (!tree) {
-      throw new Error(`Failed to parse file: ${filepath}`);
-    }
     const config = LANGUAGE_REGISTRY[lang];
 
     const chunks: CodeChunk[] = [];
@@ -44,11 +40,11 @@ export class SemanticChunker {
       ? parserLanguage.query(config.queries.interfaces)
       : null;
 
-    const captures: Array<{
+    const captures: {
       node: Parser.SyntaxNode;
       type: "function" | "class" | "interface" | "method";
       name?: string;
-    }> = [];
+    }[] = [];
 
     const funcMatches = functionQuery.matches(tree.rootNode);
     for (const match of funcMatches) {
@@ -182,7 +178,7 @@ export class SemanticChunker {
 
     // For Python, check for docstrings first
     if (language === "python") {
-      const lastLine = lines[lines.length - 1] || "";
+      const lastLine = lines[lines.length - 1] ?? "";
       const trimmed = lastLine.trim();
       if (
         trimmed.startsWith('"""') ||
@@ -206,7 +202,10 @@ export class SemanticChunker {
 
     const commentLines: string[] = [];
     for (let i = lines.length - 1; i >= 0; i--) {
-      const trimmed = lines[i].trim();
+      const line = lines[i];
+      if (line === undefined) continue;
+      
+      const trimmed = line.trim();
       const isEmpty = trimmed === "";
 
       if (
@@ -217,9 +216,9 @@ export class SemanticChunker {
         isEmpty
       ) {
         if (!isEmpty) {
-          commentLines.unshift(lines[i]);
+          commentLines.unshift(line);
         } else if (commentLines.length > 0) {
-          commentLines.unshift(lines[i]);
+          commentLines.unshift(line);
         }
       } else {
         break;

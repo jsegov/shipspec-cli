@@ -20,8 +20,9 @@ describe("parsing/index", () => {
       const chunks = await chunkSourceFile("test.json", JSON_FIXTURE);
 
       expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks[0].type).toBe("module");
-      expect(chunks[0].language).toBe("json");
+      const firstChunk = chunks[0];
+      expect(firstChunk?.type).toBe("module");
+      expect(firstChunk?.language).toBe("json");
     });
 
     it("routes .ts to SemanticChunker", async () => {
@@ -43,7 +44,8 @@ describe("parsing/index", () => {
 
       expect(Array.isArray(chunks)).toBe(true);
       if (chunks.length > 0) {
-        expect(chunks[0].type).toBe("module");
+        const firstChunk = chunks[0];
+        expect(firstChunk?.type).toBe("module");
       }
     });
 
@@ -62,7 +64,8 @@ describe("parsing/index", () => {
       const chunks = await chunkSourceFile("test.yaml", yamlContent);
 
       expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks[0].type).toBe("module");
+      const firstChunk = chunks[0];
+      expect(firstChunk?.type).toBe("module");
     });
 
     it("routes .md to fallback splitter", async () => {
@@ -70,7 +73,8 @@ describe("parsing/index", () => {
       const chunks = await chunkSourceFile("test.md", mdContent);
 
       expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks[0].type).toBe("module");
+      const firstChunk = chunks[0];
+      expect(firstChunk?.type).toBe("module");
     });
 
     it("routes .py to SemanticChunker", async () => {
