@@ -16,9 +16,16 @@ export class LanceDBManager {
     if (this.db) return this.db;
     if (this.connectionPromise) return this.connectionPromise;
 
-    this.connectionPromise = lancedb.connect(this.dbPath);
-    this.db = await this.connectionPromise;
-    return this.db;
+    const connPromise = lancedb.connect(this.dbPath);
+    this.connectionPromise = connPromise;
+
+    try {
+      this.db = await connPromise;
+      return this.db;
+    } catch (error) {
+      this.connectionPromise = null;
+      throw error;
+    }
   }
 
   private createCodeChunkSchema(dimensions: number): arrow.Schema {
@@ -46,31 +53,53 @@ export class LanceDBManager {
       return existing.promise;
     }
 
+    const previousPromise = existing?.promise;
+
     const tablePromise = (async () => {
-      const db = await this.connect();
-      const tableNames = await db.tableNames();
-
-      if (tableNames.includes(tableName)) {
-        const table = await db.openTable(tableName);
-        const schema = await table.schema();
-        
-        const vectorField = schema.fields.find((f) => f.name === "vector");
-        const existingDims = (vectorField?.type as arrow.FixedSizeList)?.listSize;
-
-        if (existingDims !== dimensions) {
-          logger.warn(
-            `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
-          );
-          await db.dropTable(tableName);
-          return this.createTable(tableName, dimensions);
+      // If dimensions changed, wait for the previous operation to complete
+      // to avoid concurrent modifications to the same table.
+      if (previousPromise) {
+        try {
+          await previousPromise;
+        } catch (error) {
+          // Ignore errors from previous operations when dimensions mismatch
         }
-
-        return table;
       }
 
-      return this.createTable(tableName, dimensions);
+      try {
+        const db = await this.connect();
+        const tableNames = await db.tableNames();
+
+        if (tableNames.includes(tableName)) {
+          const table = await db.openTable(tableName);
+          const schema = await table.schema();
+          
+          const vectorField = schema.fields.find((f) => f.name === "vector");
+          const existingDims = (vectorField?.type as arrow.FixedSizeList)?.listSize;
+
+          if (existingDims !== dimensions) {
+            logger.warn(
+              `Dimension mismatch for table '${tableName}': recreating with ${dimensions} dims.`
+            );
+            await db.dropTable(tableName);
+            return await this.createTable(tableName, dimensions);
+          }
+
+          return table;
+        }
+
+        return await this.createTable(tableName, dimensions);
+      } catch (error) {
+        // Clean up on failure to allow retries
+        if (this.tablePromises.get(tableName)?.promise === tablePromise) {
+          this.tablePromises.delete(tableName);
+        }
+        throw error;
+      }
     })();
 
+    // Store the promise immediately to ensure subsequent concurrent calls 
+    // find it in the cache before it has even started any async work.
     this.tablePromises.set(tableName, { promise: tablePromise, dimensions });
     return tablePromise;
   }
