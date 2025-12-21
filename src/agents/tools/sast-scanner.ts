@@ -160,9 +160,9 @@ export function createSASTScannerTool(config?: SASTConfig) {
 }
 
 async function checkToolInstalled(command: string, installInstructions: string): Promise<void> {
+  const toolName = command.split(" ")[0] ?? command;
   try {
     // Just try to resolve it
-    const toolName = command.split(" ")[0] ?? command;
     await execFileWithLimits(toolName, ["--version"], { timeoutSeconds: 5 });
   } catch (error) {
     if (error instanceof ToolMissingError) {
@@ -170,7 +170,7 @@ async function checkToolInstalled(command: string, installInstructions: string):
     }
     if (error instanceof TimeoutError) {
       throw new Error(
-        `${command} --version timed out. The tool may be misconfigured or unresponsive.`
+        `${toolName} --version timed out. The tool may be misconfigured or unresponsive.`
       );
     }
     // If it fails with ExecError (non-zero exit code), the tool exists but --version failed.
