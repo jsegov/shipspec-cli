@@ -3,6 +3,7 @@ import { z } from "zod";
 import { TavilySearch } from "@langchain/tavily";
 import { search, SafeSearchType } from "duck-duck-scrape";
 import type { WebSearchConfig } from "../../config/schema.js";
+import { logger } from "../../utils/logger.js";
 
 export function createWebSearchTool(config?: WebSearchConfig) {
   return new DynamicStructuredTool({
@@ -26,7 +27,9 @@ export function createWebSearchTool(config?: WebSearchConfig) {
           const results: unknown = await tavily.invoke({ query });
           return typeof results === "string" ? results : JSON.stringify(results);
         } catch (error) {
-          console.error("Tavily search failed, falling back to DuckDuckGo:", error);
+          logger.warn(
+            `Tavily search failed, falling back to DuckDuckGo: ${error instanceof Error ? error.message : String(error)}`
+          );
         }
       }
 

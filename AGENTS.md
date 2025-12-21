@@ -214,6 +214,23 @@ src/
 - **Provider abstraction** — Never import vendor SDKs directly in business logic; use factory functions.
 - **No Non-Null Assertions** — Avoid `!` operator. Use optional chaining (`?.`), nullish coalescing (`??`), or type guards instead.
 - **Template Literals** — When using non-string values (numbers, booleans) in template literals, wrap them in `String()` to satisfy strict linting.
+- **Sanitized Logging** — Always use the `logger` utility (`src/utils/logger.ts`) for CLI output. Never use `console.log` or `console.error` directly; the logger ensures secrets are redacted and errors are sanitized.
+
+### Secret Redaction
+
+The logger automatically redacts common secret patterns from all output to prevent accidental credential leakage:
+
+**Redacted Patterns:**
+- **API Keys**: OpenAI (`sk-...`), Anthropic (`sk-ant-...`), AWS (`AKIA...`)
+- **Tokens**: JWTs, Bearer tokens, Basic auth credentials
+- **Certificates**: PEM blocks (`-----BEGIN ... -----END`)
+- **Authorization Headers**: Any `Authorization:` header values
+- **High-Entropy Secrets**: Base64 strings (40+ chars), hex strings (64+ chars)
+- **URL Credentials**: Username/password in URLs (`user:pass@host`)
+
+**Recursive Redaction**: The `redactObject()` function recursively redacts secrets in nested objects and arrays, useful for sanitizing structured data before logging.
+
+**Extending Patterns**: To add new redaction patterns, update `SECRET_PATTERNS` in `src/utils/logger.ts`. Use specific patterns to avoid over-redaction of normal text.
 
 ### Type Safety & Linting
 
@@ -225,6 +242,7 @@ The project enforces a zero-warning ESLint policy with strict TypeScript rules. 
 4.  **Array Syntax**: Use `T[]` instead of `Array<T>` for consistency.
 5.  **Sync vs Async**: Remove `async` from functions that do not perform `await` operations.
 6.  **Floating Promises**: Always await promises or explicitly mark them as ignored using the `void` operator.
+7.  **No Direct Console Usage**: Direct use of `console.log` or `console.error` is prohibited. Use the centralized `logger` to prevent accidental credential leakage and ensure sanitized error reporting.
 
 ### Import Conventions
 
@@ -242,6 +260,7 @@ import { loadConfig } from "../config/loader";
 
 ```typescript
 import { z } from "zod";
+import { logger } from "../utils/logger.js";
 
 // ✅ Correct: Use Zod to validate external data
 const UserSchema = z.object({
@@ -253,7 +272,7 @@ type User = z.infer<typeof UserSchema>;
 
 function handleUserResponse(data: unknown) {
   const user = UserSchema.parse(data); // Returns typed User or throws
-  console.log(`Hello, ${user.name}`);
+  logger.plain(`Hello, ${user.name}`);
 }
 
 // ✅ Correct: Use specific interfaces for internal logic
@@ -268,7 +287,7 @@ function analyzeProject(config: ProjectConfig) {
 
 // ❌ Incorrect: Using any or unknown without validation
 function handleData(data: any) {
-  console.log(data.someProperty);
+  logger.plain(data.someProperty);
 }
 ```
 
@@ -282,19 +301,57 @@ function handleData(data: any) {
 
 ## Configuration
 
-The CLI supports multiple configuration sources (in priority order):
+The CLI supports multiple configuration sources in the following priority order:
 
-1. **Environment variables** — API keys via `.env`
-2. **Config files** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
-3. **Zod defaults** — Sensible defaults for all options
+1. **CLI Flags** — Highest priority (overrides everything)
+2. **Environment Variables** — System/process environment variables
+3. **Config Files** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
+4. **Defaults** — System-defined defaults
+
+### Dotenv Loading & Production Guidance
+
+- **Non-Production**: `.env` files are automatically loaded from the current working directory.
+- **Production** (`NODE_ENV=production`): `.env` loading is strictly controlled.
+- **Requirements**:
+  - Set `SHIPSPEC_LOAD_DOTENV=1` to opt-in.
+  - Set `SHIPSPEC_DOTENV_PATH` to an **absolute path** of the `.env` file.
+  - Set `SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND` if `SHIPSPEC_DOTENV_OVERRIDE=1` is used.
+
+> [!IMPORTANT]
+> In production environments, always prefer real environment variables or a managed secret provider over `.env` files. Implicit loading from CWD is disabled in production for security.
 
 ### Key Environment Variables
 
+**Provider API Keys:**
 ```bash
 OPENAI_API_KEY=         # For OpenAI embeddings/LLM
-ANTHROPIC_API_KEY=      # For Anthropic LLM
+ANTHROPIC_API_KEY=      # For Anthropic LLM (alternative)
+MISTRAL_API_KEY=        # For Mistral LLM (alternative)
+GOOGLE_API_KEY=         # For Google LLM/embeddings (alternative)
+TAVILY_API_KEY=         # For web search (Tavily provider)
 OLLAMA_BASE_URL=        # Default: http://localhost:11434
 ```
+
+**Configuration Control Flags:**
+```bash
+# Dotenv Loading (Production)
+SHIPSPEC_LOAD_DOTENV=1                    # Opt-in to .env loading in production
+SHIPSPEC_DOTENV_PATH=/absolute/path/.env  # Absolute path (required in prod if LOAD_DOTENV=1)
+SHIPSPEC_DOTENV_OVERRIDE=1                # Allow .env to override existing vars
+SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND # Required if OVERRIDE=1 in production
+
+# Configuration Validation
+SHIPSPEC_STRICT_CONFIG=1                  # Fail on malformed config (auto-enabled in production)
+
+# Development & Debugging
+SHIPSPEC_DEBUG_DIAGNOSTICS=1              # Enable verbose logging
+ALLOW_LOCALHOST_LLM=1                     # Allow localhost LLM URLs (dev only)
+SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK  # Required in production if ALLOW_LOCALHOST_LLM=1
+NODE_ENV=production                       # Environment mode
+```
+
+> [!CAUTION]
+> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. Only use in trusted development environments. In production, this flag requires explicit acknowledgement via `SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK`.
 
 ### Config Schema (src/config/schema.ts)
 

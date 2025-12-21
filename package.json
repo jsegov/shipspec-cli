@@ -7,8 +7,16 @@
   "bin": {
     "ship-spec": "./dist/cli/index.js"
   },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "!dist/**/*.map",
+    "!dist/**/*.d.ts.map",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch",
     "start": "node dist/cli/index.js",
     "lint": "eslint src",

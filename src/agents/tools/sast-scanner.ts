@@ -1,10 +1,8 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { execFileWithLimits, ToolMissingError, TimeoutError, ExecError } from "../../core/exec.js";
 import type { SASTConfig } from "../../config/schema.js";
-
-const execAsync = promisify(exec);
+import { redact, stripAnsi } from "../../utils/logger.js";
 
 export interface SASTFinding {
   tool: "semgrep" | "gitleaks" | "trivy";
@@ -16,7 +14,38 @@ export interface SASTFinding {
   endLine?: number;
   cweId?: string;
   cveId?: string;
+  diagnostics?: {
+    stderrPreview?: string;
+    stdoutPreview?: string;
+    exitCode?: number;
+    truncated?: boolean;
+  };
 }
+
+export const SASTFindingSchema = z.object({
+  tool: z.enum(["semgrep", "gitleaks", "trivy"]),
+  severity: z.enum(["critical", "high", "medium", "low", "info"]),
+  rule: z.string(),
+  message: z.string(),
+  filepath: z.string(),
+  startLine: z.number().optional(),
+  endLine: z.number().optional(),
+  cweId: z.string().optional(),
+  cveId: z.string().optional(),
+  diagnostics: z
+    .object({
+      stderrPreview: z.string().optional(),
+      stdoutPreview: z.string().optional(),
+      exitCode: z.number().optional(),
+      truncated: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+export const ScannerResultsSchema = z.object({
+  findings: z.array(SASTFindingSchema).optional(),
+  skipped: z.array(z.string()).optional(),
+});
 
 const SemgrepResultSchema = z.object({
   check_id: z.string(),
@@ -127,22 +156,79 @@ export function createSASTScannerTool(config?: SASTConfig) {
 }
 
 async function checkToolInstalled(command: string, installInstructions: string): Promise<void> {
+  const toolName = command.split(" ")[0] ?? command;
   try {
-    await execAsync(command);
-  } catch {
-    const toolName = command.split(" ")[0] ?? "tool";
-    throw new Error(`${toolName} not found. ${installInstructions}`);
+    // Just try to resolve it
+    await execFileWithLimits(toolName, ["--version"], { timeoutSeconds: 5 });
+  } catch (error) {
+    if (error instanceof ToolMissingError) {
+      throw new Error(`${error.message} ${installInstructions}`);
+    }
+    if (error instanceof TimeoutError) {
+      throw new Error(
+        `${toolName} --version timed out. The tool may be misconfigured or unresponsive.`
+      );
+    }
+    // If it fails with ExecError (non-zero exit code), the tool exists but --version failed.
+    // This is acceptable - some tools have quirky --version behavior.
   }
+}
+
+interface SanitizedResult {
+  value: string | undefined;
+  truncated: boolean;
+}
+
+function sanitizeDiagnostics(text: string | undefined): SanitizedResult {
+  if (!text) return { value: undefined, truncated: false };
+  const maxLength = 4096;
+  const sanitized = redact(stripAnsi(text));
+  if (sanitized.length > maxLength) {
+    return {
+      value: sanitized.substring(0, maxLength) + "... [truncated]",
+      truncated: true,
+    };
+  }
+  return { value: sanitized, truncated: false };
+}
+
+function getDiagnostics(stdout: string | undefined, stderr: string | undefined, exitCode?: number) {
+  const isDebug = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
+  if (!isDebug) return undefined;
+
+  const stdoutResult = sanitizeDiagnostics(stdout);
+  const stderrResult = sanitizeDiagnostics(stderr);
+
+  return {
+    stdoutPreview: stdoutResult.value,
+    stderrPreview: stderrResult.value,
+    exitCode,
+    truncated: stdoutResult.truncated || stderrResult.truncated,
+  };
 }
 
 async function runSemgrep(): Promise<SASTFinding[]> {
   await checkToolInstalled("semgrep --version", "Install it: pip install semgrep");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
+      if (!stdout.trim()) {
+        return [];
+      }
       const parsed: unknown = JSON.parse(stdout);
       const result = SemgrepOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "semgrep",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Semgrep output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: getDiagnostics(stdout, stderr),
+          },
+        ];
+      }
 
       const data = result.data;
       return (data.results ?? []).map((r) => {
@@ -158,22 +244,39 @@ async function runSemgrep(): Promise<SASTFinding[]> {
           cweId: Array.isArray(cweValue) ? cweValue[0] : cweValue,
         };
       });
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "semgrep",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Semgrep output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: getDiagnostics(stdout, stderr),
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync("semgrep scan --json --quiet");
-    return parseResults(stdout);
+    const { stdout, stderr } = await execFileWithLimits("semgrep", ["scan", "--json", "--quiet"]);
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "semgrep",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
     }
     throw error;
   }
@@ -190,11 +293,26 @@ function mapSemgrepSeverity(severity: string): SASTFinding["severity"] {
 async function runGitleaks(): Promise<SASTFinding[]> {
   await checkToolInstalled("gitleaks version", "Install it: https://github.com/gitleaks/gitleaks");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
-      const parsed: unknown = JSON.parse(stdout || "[]");
+      const trimmedStdout = stdout.trim();
+      if (!trimmedStdout || trimmedStdout === "[]" || trimmedStdout === "null") {
+        return [];
+      }
+      const parsed: unknown = JSON.parse(trimmedStdout);
       const result = GitleaksOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "gitleaks",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Gitleaks output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: getDiagnostics(stdout, stderr),
+          },
+        ];
+      }
 
       return result.data.map((r) => ({
         tool: "gitleaks" as const,
@@ -205,26 +323,50 @@ async function runGitleaks(): Promise<SASTFinding[]> {
         startLine: r.StartLine,
         endLine: r.EndLine,
       }));
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "gitleaks",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Gitleaks output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: getDiagnostics(stdout, stderr),
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync(
-      "gitleaks detect --no-git --report-format json --report-path -"
-    );
-    return parseResults(stdout);
+    const { stdout, stderr } = await execFileWithLimits("gitleaks", [
+      "detect",
+      "--no-git",
+      "--report-format",
+      "json",
+      "--report-path",
+      "-",
+    ]);
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
     }
-    if (error && typeof error === "object" && "code" in error && error.code === 1) return [];
+    if (error instanceof ExecError && error.exitCode === 1) {
+      return [];
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "gitleaks",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
+    }
     throw error;
   }
 }
@@ -232,11 +374,25 @@ async function runGitleaks(): Promise<SASTFinding[]> {
 async function runTrivy(): Promise<SASTFinding[]> {
   await checkToolInstalled("trivy --version", "Install it: https://trivy.dev/");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
+      if (!stdout.trim()) {
+        return [];
+      }
       const parsed: unknown = JSON.parse(stdout);
       const result = TrivyOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "trivy",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Trivy output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: getDiagnostics(stdout, stderr),
+          },
+        ];
+      }
 
       const findings: SASTFinding[] = [];
       const data = result.data;
@@ -265,22 +421,45 @@ async function runTrivy(): Promise<SASTFinding[]> {
         }
       }
       return findings;
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "trivy",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Trivy output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: getDiagnostics(stdout, stderr),
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync("trivy fs . --format json --quiet");
-    return parseResults(stdout);
+    const { stdout, stderr } = await execFileWithLimits("trivy", [
+      "fs",
+      ".",
+      "--format",
+      "json",
+      "--quiet",
+    ]);
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "trivy",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
     }
     throw error;
   }

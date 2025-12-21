@@ -7,7 +7,7 @@ import { createWorkerNode } from "./nodes/worker.js";
 import { createAggregatorNode } from "./nodes/aggregator.js";
 import { createTaskGeneratorNode } from "./nodes/task-generator.js";
 import { createWebSearchTool } from "../tools/web-search.js";
-import { createSASTScannerTool } from "../tools/sast-scanner.js";
+import { createSASTScannerTool, ScannerResultsSchema } from "../tools/sast-scanner.js";
 import { createRetrieverTool } from "../tools/retriever.js";
 import { createChatModel } from "../../core/models/llm.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
@@ -39,20 +39,27 @@ export async function createProductionalizeGraph(
     return { signals };
   };
 
-  interface ScannerResults {
-    findings?: unknown[];
-  }
-
   const scannerNode = async () => {
     if (!config.productionalize.sast?.enabled) {
       return { sastResults: [] };
     }
-    const resultsString = await sastTool.invoke({});
     try {
-      const results = JSON.parse(resultsString) as ScannerResults;
-      return { sastResults: results.findings ?? [] };
-    } catch {
-      return { sastResults: [] };
+      const resultsString = await sastTool.invoke({});
+      const validated = ScannerResultsSchema.parse(JSON.parse(resultsString));
+
+      const findings = validated.findings ?? [];
+      const scannerErrors = findings.filter((f) => f.rule === "scanner_error");
+      if (scannerErrors.length > 0) {
+        const errors = scannerErrors.map((e) => `[${e.tool}] ${e.message}`).join(", ");
+        throw new Error(`SAST scanner(s) failed: ${errors}`);
+      }
+
+      return { sastResults: findings };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("SAST scanner(s) failed")) throw error;
+      throw new Error(
+        `SAST scanning failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   };
 
