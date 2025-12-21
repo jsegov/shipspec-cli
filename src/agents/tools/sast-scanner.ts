@@ -15,8 +15,6 @@ export interface SASTFinding {
   cweId?: string;
   cveId?: string;
   diagnostics?: {
-    stderr?: string;
-    stdout?: string;
     stderrPreview?: string;
     stdoutPreview?: string;
     exitCode?: number;
@@ -36,8 +34,6 @@ export const SASTFindingSchema = z.object({
   cveId: z.string().optional(),
   diagnostics: z
     .object({
-      stderr: z.string().optional(),
-      stdout: z.string().optional(),
       stderrPreview: z.string().optional(),
       stdoutPreview: z.string().optional(),
       exitCode: z.number().optional(),
