@@ -1,10 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { exec } from "child_process";
-import { promisify } from "util";
+import { execFileWithLimits, ToolMissingError, TimeoutError, ExecError } from "../../core/exec.js";
 import type { SASTConfig } from "../../config/schema.js";
-
-const execAsync = promisify(exec);
 
 export interface SASTFinding {
   tool: "semgrep" | "gitleaks" | "trivy";
@@ -157,10 +154,14 @@ export function createSASTScannerTool(config?: SASTConfig) {
 
 async function checkToolInstalled(command: string, installInstructions: string): Promise<void> {
   try {
-    await execAsync(command);
-  } catch {
-    const toolName = command.split(" ")[0] ?? "tool";
-    throw new Error(`${toolName} not found. ${installInstructions}`);
+    // Just try to resolve it
+    const toolName = command.split(" ")[0] ?? command;
+    await execFileWithLimits(toolName, ["--version"], { timeoutSeconds: 5 });
+  } catch (error) {
+    if (error instanceof ToolMissingError) {
+      throw new Error(`${error.message} ${installInstructions}`);
+    }
+    // If it fails with another error but doesn't throw ToolMissingError, it's likely installed but --version failed
   }
 }
 
@@ -218,16 +219,22 @@ async function runSemgrep(): Promise<SASTFinding[]> {
   };
 
   try {
-    const { stdout, stderr } = await execAsync("semgrep scan --json --quiet");
+    const { stdout, stderr } = await execFileWithLimits("semgrep", ["scan", "--json", "--quiet"]);
     return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "semgrep",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
     }
     throw error;
   }
@@ -291,20 +298,33 @@ async function runGitleaks(): Promise<SASTFinding[]> {
   };
 
   try {
-    const { stdout, stderr } = await execAsync(
-      "gitleaks detect --no-git --report-format json --report-path -"
-    );
+    const { stdout, stderr } = await execFileWithLimits("gitleaks", [
+      "detect",
+      "--no-git",
+      "--report-format",
+      "json",
+      "--report-path",
+      "-",
+    ]);
     return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
     }
-    if (error && typeof error === "object" && "code" in error && error.code === 1) return [];
+    if (error instanceof ExecError && error.exitCode === 1) {
+      return [];
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "gitleaks",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
+    }
     throw error;
   }
 }
@@ -376,16 +396,28 @@ async function runTrivy(): Promise<SASTFinding[]> {
   };
 
   try {
-    const { stdout, stderr } = await execAsync("trivy fs . --format json --quiet");
+    const { stdout, stderr } = await execFileWithLimits("trivy", [
+      "fs",
+      ".",
+      "--format",
+      "json",
+      "--quiet",
+    ]);
     return parseResults(stdout, stderr);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "stdout" in error &&
-      typeof error.stdout === "string"
-    ) {
-      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
+    if (error instanceof ExecError && error.stdout) {
+      return parseResults(error.stdout, error.stderr);
+    }
+    if (error instanceof TimeoutError) {
+      return [
+        {
+          tool: "trivy",
+          severity: "high",
+          rule: "scanner_timeout",
+          message: error.message,
+          filepath: "(scanner)",
+        },
+      ];
     }
     throw error;
   }
