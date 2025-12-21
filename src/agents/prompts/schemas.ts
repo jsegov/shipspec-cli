@@ -5,17 +5,6 @@ export const ReasoningSchema = z.object({
   reasoning: z.string().describe("Chain-of-thought reasoning trace explaining the agent's logic"),
 });
 
-export const SpecSubtaskSchema = z.object({
-  id: z.string(),
-  query: z.string().describe("Specific question to investigate"),
-  reasoning: z.string().describe("Why this subtask is necessary and what it aims to discover"),
-});
-
-export const SpecPlanSchema = z.object({
-  reasoning: z.string().describe("Overall strategy for decomposing the user request"),
-  subtasks: z.array(SpecSubtaskSchema).nonempty().min(1),
-});
-
 export const ProductionalizeSubtaskSchema = z.object({
   id: z.string(),
   category: z.string().describe("The production-readiness category (e.g., security, soc2, testing)"),
@@ -46,13 +35,6 @@ export const FindingSchema = z.object({
     codeRefs: z.array(CodeRefSchema),
     links: z.array(z.string()),
   }),
-});
-
-export const SpecWorkerOutputSchema = z.object({
-  reasoning: z.string().describe("Detailed analysis of the provided context"),
-  summary: z.string().describe("Concise technical summary answering the query"),
-  confidenceLevel: z.enum(["high", "medium", "low"]).describe("Confidence in the analysis based on context quality"),
-  missingContext: z.array(z.string()).optional().describe("List of information that was missing or couldn't be analyzed"),
 });
 
 export const ProductionalizeWorkerOutputSchema = z.object({
