@@ -48,7 +48,14 @@ export const FindingSchema = z.object({
   }),
 });
 
-export const WorkerOutputSchema = z.object({
+export const SpecWorkerOutputSchema = z.object({
+  reasoning: z.string().describe("Detailed analysis of the provided context"),
+  summary: z.string().describe("Concise technical summary answering the query"),
+  confidenceLevel: z.enum(["high", "medium", "low"]).describe("Confidence in the analysis based on context quality"),
+  missingContext: z.array(z.string()).optional().describe("List of information that was missing or couldn't be analyzed"),
+});
+
+export const ProductionalizeWorkerOutputSchema = z.object({
   reasoning: z.string().describe("Detailed analysis of the provided context"),
   findings: z.array(FindingSchema),
   summary: z.string().describe("Concise technical summary of findings"),

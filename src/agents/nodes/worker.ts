@@ -8,14 +8,14 @@ import {
   getAvailableContextBudget,
 } from "../../utils/tokens.js";
 import type { CodeChunk } from "../../core/types/index.js";
-import { SPEC_WORKER_TEMPLATE, WorkerOutputSchema } from "../prompts/index.js";
+import { SPEC_WORKER_TEMPLATE, SpecWorkerOutputSchema } from "../prompts/index.js";
 
 export function createWorkerNode(
   model: BaseChatModel,
   retrieverTool: DynamicStructuredTool,
   tokenBudget?: TokenBudget
 ) {
-  const structuredModel = model.withStructuredOutput(WorkerOutputSchema);
+  const structuredModel = model.withStructuredOutput(SpecWorkerOutputSchema);
 
   return async (state: AgentStateType & { subtask: Subtask }) => {
     const { subtask } = state;

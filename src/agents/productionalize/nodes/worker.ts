@@ -9,7 +9,7 @@ import {
   getAvailableContextBudget,
 } from "../../../utils/tokens.js";
 import type { CodeChunk } from "../../../core/types/index.js";
-import { PRODUCTIONALIZE_WORKER_TEMPLATE, WorkerOutputSchema } from "../../prompts/index.js";
+import { PRODUCTIONALIZE_WORKER_TEMPLATE, ProductionalizeWorkerOutputSchema } from "../../prompts/index.js";
 
 export function createWorkerNode(
   model: BaseChatModel,
@@ -17,7 +17,7 @@ export function createWorkerNode(
   webSearchTool: DynamicStructuredTool,
   tokenBudget?: TokenBudget
 ) {
-  const structuredModel = model.withStructuredOutput(WorkerOutputSchema);
+  const structuredModel = model.withStructuredOutput(ProductionalizeWorkerOutputSchema);
 
   return async (state: ProductionalizeStateType & { subtask: ProductionalizeSubtask }) => {
     const { subtask, researchDigest, sastResults, signals } = state;
