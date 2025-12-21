@@ -3,6 +3,8 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { ShipSpecConfigSchema, type ShipSpecConfig } from "./schema.js";
+import { logger } from "../utils/logger.js";
+import { ZodError } from "zod";
 
 const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"];
 
@@ -16,9 +18,15 @@ type DeepPartial<T> = {
 
 export async function loadConfig(
   cwd: string = process.cwd(),
-  overrides: Partial<ShipSpecConfig> = {}
+  overrides: Partial<ShipSpecConfig> = {},
+  options: { strict?: boolean } = {}
 ): Promise<ShipSpecConfig> {
   loadDotenv({ path: join(cwd, ".env") });
+
+  const isStrict =
+    (options.strict ?? false) ||
+    process.env.SHIPSPEC_STRICT_CONFIG === "1" ||
+    process.env.NODE_ENV === "production";
 
   let fileConfig: DeepPartial<ShipSpecConfig> = {};
   for (const filename of CONFIG_FILES) {
@@ -26,16 +34,40 @@ export async function loadConfig(
     if (existsSync(filepath)) {
       try {
         const content = await readFile(filepath, "utf-8");
-        const parsed: unknown = JSON.parse(content);
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          const msg = `Malformed JSON in config file: ${filepath}`;
+          if (isStrict) {
+            throw new Error(msg);
+          }
+          logger.warn(msg);
+          continue;
+        }
+
         const result = ShipSpecConfigSchema.partial().safeParse(parsed);
         if (result.success) {
           fileConfig = result.data as DeepPartial<ShipSpecConfig>;
+          logger.debug(`Loaded config from ${filename}`, true);
+        } else {
+          const msg = `Invalid config in ${filepath}:\n${result.error.issues
+            .map((i) => `- ${i.path.join(".")}: ${i.message}`)
+            .join("\n")}`;
+          if (isStrict) {
+            throw new Error(msg);
+          }
+          logger.warn(msg);
         }
         break;
-      } catch {
-        // Silently skip malformed config files
+      } catch (err) {
+        if (isStrict) throw err;
       }
     }
+  }
+
+  if (Object.keys(fileConfig).length === 0) {
+    logger.debug("No config file found, using defaults and environment variables", true);
   }
 
   const envConfig: DeepPartial<ShipSpecConfig> = {
@@ -72,7 +104,17 @@ export async function loadConfig(
     embeddingConfig.modelName ??= "nomic-embed-text";
   }
 
-  return ShipSpecConfigSchema.parse(merged);
+  try {
+    return ShipSpecConfigSchema.parse(merged);
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const msg = `Final merged configuration is invalid:\n${err.issues
+        .map((i) => `- ${i.path.join(".")}: ${i.message}`)
+        .join("\n")}`;
+      throw new Error(msg);
+    }
+    throw err;
+  }
 }
 
 function isObject(item: unknown): item is Record<string, unknown> {

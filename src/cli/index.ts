@@ -21,9 +21,10 @@ program
   .version("0.1.0")
   .option("-v, --verbose", "Enable verbose logging")
   .option("-c, --config <path>", "Path to config file")
+  .option("--strict-config", "Fail on malformed or invalid config files")
   .hook("preAction", async (thisCommand, actionCommand) => {
-    const config = await loadConfig(process.cwd(), {});
-    // actionCommand is always defined in Commander.js hooks
+    const options = thisCommand.opts();
+    const config = await loadConfig(process.cwd(), {}, { strict: !!options.strictConfig });
     actionCommand.setOptionValue("resolvedConfig", config);
   });
 
