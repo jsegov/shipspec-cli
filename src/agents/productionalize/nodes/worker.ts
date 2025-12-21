@@ -88,12 +88,8 @@ ${subtask.query}`;
       const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
       const textMatch = /Text: "([\s\S]+?)"\. Error:/.exec(errMsg);
       if (!textMatch?.[1]) throw parseError;
-      try {
-        const parsed: unknown = JSON.parse(textMatch[1].trim());
-        output = ProductionalizeWorkerOutputSchema.parse(parsed);
-      } catch {
-        throw parseError;
-      }
+      const parsed: unknown = JSON.parse(textMatch[1].trim());
+      output = ProductionalizeWorkerOutputSchema.parse(parsed);
     }
 
     const finalFindings = output.findings.map((f) => {
