@@ -118,7 +118,8 @@ describe("SAST Scanner Tool", () => {
     expect(firstFinding?.diagnostics?.stdoutPreview).toBe("not json");
     expect(firstFinding?.diagnostics?.stderrPreview).toBe("Error with secret [REDACTED]");
     expect(firstFinding?.diagnostics?.stderrPreview).not.toContain("\x1b[");
-    expect(firstFinding?.diagnostics?.truncated).toBe(true);
+    // truncated should be false since output is under the 4096 character limit
+    expect(firstFinding?.diagnostics?.truncated).toBe(false);
   });
 
   it("should truncate long diagnostics", async () => {
@@ -140,6 +141,8 @@ describe("SAST Scanner Tool", () => {
     const diag = result.findings[0]?.diagnostics;
     expect(diag?.stdoutPreview).toHaveLength(4096 + "... [truncated]".length);
     expect(diag?.stdoutPreview).toContain("[truncated]");
+    // truncated should be true since stdout exceeded 4096 characters
+    expect(diag?.truncated).toBe(true);
   });
 
   it("should handle missing tools gracefully", async () => {

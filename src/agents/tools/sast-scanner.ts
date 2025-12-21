@@ -178,18 +178,27 @@ async function checkToolInstalled(command: string, installInstructions: string):
   }
 }
 
+interface SanitizedResult {
+  value: string | undefined;
+  truncated: boolean;
+}
+
 /**
  * Sanitizes and truncates external tool output for diagnostics.
  * Strips ANSI codes, redacts secrets, and limits length.
+ * Returns both the sanitized value and whether truncation occurred.
  */
-function sanitizeDiagnostics(text: string | undefined): string | undefined {
-  if (!text) return undefined;
+function sanitizeDiagnostics(text: string | undefined): SanitizedResult {
+  if (!text) return { value: undefined, truncated: false };
   const maxLength = 4096;
-  let sanitized = redact(stripAnsi(text));
+  const sanitized = redact(stripAnsi(text));
   if (sanitized.length > maxLength) {
-    sanitized = sanitized.substring(0, maxLength) + "... [truncated]";
+    return {
+      value: sanitized.substring(0, maxLength) + "... [truncated]",
+      truncated: true,
+    };
   }
-  return sanitized;
+  return { value: sanitized, truncated: false };
 }
 
 /**
@@ -199,11 +208,14 @@ function getDiagnostics(stdout: string | undefined, stderr: string | undefined, 
   const isDebug = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
   if (!isDebug) return undefined;
 
+  const stdoutResult = sanitizeDiagnostics(stdout);
+  const stderrResult = sanitizeDiagnostics(stderr);
+
   return {
-    stdoutPreview: sanitizeDiagnostics(stdout),
-    stderrPreview: sanitizeDiagnostics(stderr),
+    stdoutPreview: stdoutResult.value,
+    stderrPreview: stderrResult.value,
     exitCode,
-    truncated: true,
+    truncated: stdoutResult.truncated || stderrResult.truncated,
   };
 }
 
