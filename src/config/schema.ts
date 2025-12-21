@@ -52,62 +52,50 @@ const BaseUrlSchema = z
     return val.endsWith("/") ? val.slice(0, -1) : val;
   });
 
-export const LLMConfigSchema = z
-  .object({
-    provider: ModelProviderSchema.default("openai"),
-    modelName: z.string().default("gpt-5.2-2025-12-11"),
-    temperature: z.number().min(0).max(2).default(0),
-    baseUrl: BaseUrlSchema.optional(),
-    apiKey: z.string().optional(),
-    maxRetries: z.number().int().min(0).max(10).default(3),
-    timeout: z.number().int().positive().optional(),
-    maxContextTokens: z.number().int().positive().default(16000),
-    reservedOutputTokens: z.number().int().positive().default(4000),
-  })
-  .strict();
+export const LLMConfigSchema = z.object({
+  provider: ModelProviderSchema.default("openai"),
+  modelName: z.string().default("gpt-5.2-2025-12-11"),
+  temperature: z.number().min(0).max(2).default(0),
+  baseUrl: BaseUrlSchema.optional(),
+  apiKey: z.string().optional(),
+  maxRetries: z.number().int().min(0).max(10).default(3),
+  timeout: z.number().int().positive().optional(),
+  maxContextTokens: z.number().int().positive().default(16000),
+  reservedOutputTokens: z.number().int().positive().default(4000),
+});
 
-export const EmbeddingConfigSchema = z
-  .object({
-    provider: ModelProviderSchema.default("openai"),
-    modelName: z.string().default("text-embedding-3-large"),
-    dimensions: z.number().int().positive().default(3072),
-    baseUrl: BaseUrlSchema.optional(),
-    apiKey: z.string().optional(),
-    maxRetries: z.number().int().min(0).max(10).default(3),
-  })
-  .strict();
+export const EmbeddingConfigSchema = z.object({
+  provider: ModelProviderSchema.default("openai"),
+  modelName: z.string().default("text-embedding-3-large"),
+  dimensions: z.number().int().positive().default(3072),
+  baseUrl: BaseUrlSchema.optional(),
+  apiKey: z.string().optional(),
+  maxRetries: z.number().int().min(0).max(10).default(3),
+});
 
-export const CheckpointConfigSchema = z
-  .object({
-    enabled: z.boolean().default(false),
-    type: z.enum(["memory", "sqlite"]).default("memory"),
-    sqlitePath: z.string().optional(),
-  })
-  .strict();
+export const CheckpointConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  type: z.enum(["memory", "sqlite"]).default("memory"),
+  sqlitePath: z.string().optional(),
+});
 
-export const WebSearchConfigSchema = z
-  .object({
-    provider: z.enum(["tavily", "duckduckgo"]).default("tavily"),
-    apiKey: z.string().optional(),
-  })
-  .strict();
+export const WebSearchConfigSchema = z.object({
+  provider: z.enum(["tavily", "duckduckgo"]).default("tavily"),
+  apiKey: z.string().optional(),
+});
 
-export const SASTConfigSchema = z
-  .object({
-    enabled: z.boolean().default(false),
-    tools: z.array(z.enum(["semgrep", "gitleaks", "trivy"])).default([]),
-  })
-  .strict();
+export const SASTConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  tools: z.array(z.enum(["semgrep", "gitleaks", "trivy"])).default([]),
+});
 
-export const ProductionalizeConfigSchema = z
-  .object({
-    webSearch: WebSearchConfigSchema.optional(),
-    sast: SASTConfigSchema.optional(),
-    coreCategories: z
-      .array(z.string())
-      .default(["security", "soc2", "code-quality", "dependencies", "testing", "configuration"]),
-  })
-  .strict();
+export const ProductionalizeConfigSchema = z.object({
+  webSearch: WebSearchConfigSchema.optional(),
+  sast: SASTConfigSchema.optional(),
+  coreCategories: z
+    .array(z.string())
+    .default(["security", "soc2", "code-quality", "dependencies", "testing", "configuration"]),
+});
 
 export const ShipSpecConfigSchema = z
   .object({

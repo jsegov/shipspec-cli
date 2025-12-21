@@ -113,4 +113,62 @@ describe("Config Loader", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
     expect(logger.debug).toHaveBeenCalledWith("Loaded config from .shipspecrc", true);
   });
+
+  it("should strip unknown keys in nested config objects instead of rejecting", async () => {
+    // Regression test: config files with extra nested fields should work
+    // (keys are stripped, not rejected)
+    const configPath = join(tempDir, "shipspec.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        projectPath: "./custom",
+        llm: {
+          provider: "openai",
+          customOption: "should-be-stripped", // Unknown nested key
+          anotherUnknown: 123,
+        },
+        embedding: {
+          provider: "openai",
+          futureFeature: true, // Unknown nested key
+        },
+      })
+    );
+
+    const config = await loadConfig(tempDir);
+
+    // Config should load successfully
+    expect(config.projectPath).toBe("./custom");
+    expect(config.llm.provider).toBe("openai");
+    expect(config.embedding.provider).toBe("openai");
+
+    // Unknown keys should be stripped (not present in result)
+    expect("customOption" in config.llm).toBe(false);
+    expect("anotherUnknown" in config.llm).toBe(false);
+    expect("futureFeature" in config.embedding).toBe(false);
+
+    // Should NOT have warned about invalid config (it's valid, just with extra keys)
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith("Loaded config from shipspec.json", true);
+  });
+
+  it("should still reject unknown top-level keys", async () => {
+    // Top-level unknown keys should still be rejected to catch typos
+    const configPath = join(tempDir, "shipspec.json");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        projectPath: "./custom",
+        lm: { provider: "openai" }, // Typo: "lm" instead of "llm"
+      })
+    );
+
+    const config = await loadConfig(tempDir);
+
+    // In non-strict mode, the invalid config file is skipped with a warning
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Unrecognized key"));
+
+    // Falls back to defaults
+    expect(config.projectPath).toBe(".");
+  });
 });
