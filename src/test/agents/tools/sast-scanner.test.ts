@@ -13,7 +13,13 @@ type ExecCallback = (
 ) => void;
 
 interface ScannerResult {
-  findings: { tool: string; severity: string }[];
+  findings: {
+    tool: string;
+    severity: string;
+    rule: string;
+    message: string;
+    diagnostics?: { stdout?: string; stderr?: string; exitCode?: number };
+  }[];
   skipped: string[];
 }
 
@@ -50,12 +56,55 @@ describe("SAST Scanner Tool", () => {
     const firstFinding = result.findings[0];
     expect(firstFinding?.tool).toBe("semgrep");
     expect(firstFinding?.severity).toBe("high");
+    expect(firstFinding?.rule).toBe("test-rule");
+  });
+
+  it("should return scanner_error finding on malformed JSON", async () => {
+    vi.mocked(exec).mockImplementation((cmd: string, callback: unknown) => {
+      const cb = callback as ExecCallback;
+      if (cmd.includes("--version")) cb(null, { stdout: "1.0.0" });
+      else if (cmd.includes("semgrep scan")) cb(null, { stdout: "not json", stderr: "some error" });
+      return {} as ReturnType<typeof exec>;
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    const firstFinding = result.findings[0];
+    expect(firstFinding?.rule).toBe("scanner_error");
+    expect(firstFinding?.message).toContain("Failed to parse Semgrep output");
+    expect(firstFinding?.diagnostics?.stdout).toBe("not json");
+    expect(firstFinding?.diagnostics?.stderr).toBe("some error");
+  });
+
+  it("should return scanner_error finding on schema validation failure", async () => {
+    const invalidSchemaOutput = JSON.stringify({
+      results: [{ wrong_field: "value" }], // Missing check_id, path, etc.
+    });
+
+    vi.mocked(exec).mockImplementation((cmd: string, callback: unknown) => {
+      const cb = callback as ExecCallback;
+      if (cmd.includes("--version")) cb(null, { stdout: "1.0.0" });
+      else if (cmd.includes("semgrep scan")) cb(null, { stdout: invalidSchemaOutput });
+      return {} as ReturnType<typeof exec>;
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    const firstFinding = result.findings[0];
+    expect(firstFinding?.rule).toBe("scanner_error");
+    expect(firstFinding?.message).toContain("Semgrep output schema validation failed");
   });
 
   it("should handle missing tools gracefully", async () => {
     vi.mocked(exec).mockImplementation((_cmd: string, callback: unknown) => {
       const cb = callback as ExecCallback;
-      cb({ name: "Error", message: "command not found" }, { stdout: "" });
+      cb({ name: "Error", message: "command not found" } as ExecException, { stdout: "" });
       return {} as ReturnType<typeof exec>;
     });
 

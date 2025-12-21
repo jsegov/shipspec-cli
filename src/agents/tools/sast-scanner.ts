@@ -16,6 +16,11 @@ export interface SASTFinding {
   endLine?: number;
   cweId?: string;
   cveId?: string;
+  diagnostics?: {
+    stderr?: string;
+    stdout?: string;
+    exitCode?: number;
+  };
 }
 
 export const SASTFindingSchema = z.object({
@@ -28,6 +33,13 @@ export const SASTFindingSchema = z.object({
   endLine: z.number().optional(),
   cweId: z.string().optional(),
   cveId: z.string().optional(),
+  diagnostics: z
+    .object({
+      stderr: z.string().optional(),
+      stdout: z.string().optional(),
+      exitCode: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const ScannerResultsSchema = z.object({
@@ -155,11 +167,25 @@ async function checkToolInstalled(command: string, installInstructions: string):
 async function runSemgrep(): Promise<SASTFinding[]> {
   await checkToolInstalled("semgrep --version", "Install it: pip install semgrep");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
+      if (!stdout.trim()) {
+        return [];
+      }
       const parsed: unknown = JSON.parse(stdout);
       const result = SemgrepOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "semgrep",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Semgrep output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: { stdout, stderr },
+          },
+        ];
+      }
 
       const data = result.data;
       return (data.results ?? []).map((r) => {
@@ -175,14 +201,25 @@ async function runSemgrep(): Promise<SASTFinding[]> {
           cweId: Array.isArray(cweValue) ? cweValue[0] : cweValue,
         };
       });
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "semgrep",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Semgrep output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: { stdout, stderr },
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync("semgrep scan --json --quiet");
-    return parseResults(stdout);
+    const { stdout, stderr } = await execAsync("semgrep scan --json --quiet");
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
     if (
       error &&
@@ -190,7 +227,7 @@ async function runSemgrep(): Promise<SASTFinding[]> {
       "stdout" in error &&
       typeof error.stdout === "string"
     ) {
-      return parseResults(error.stdout);
+      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
     }
     throw error;
   }
@@ -207,11 +244,26 @@ function mapSemgrepSeverity(severity: string): SASTFinding["severity"] {
 async function runGitleaks(): Promise<SASTFinding[]> {
   await checkToolInstalled("gitleaks version", "Install it: https://github.com/gitleaks/gitleaks");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
-      const parsed: unknown = JSON.parse(stdout || "[]");
+      const trimmedStdout = stdout.trim();
+      if (!trimmedStdout || trimmedStdout === "[]" || trimmedStdout === "null") {
+        return [];
+      }
+      const parsed: unknown = JSON.parse(trimmedStdout);
       const result = GitleaksOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "gitleaks",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Gitleaks output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: { stdout, stderr },
+          },
+        ];
+      }
 
       return result.data.map((r) => ({
         tool: "gitleaks" as const,
@@ -222,16 +274,27 @@ async function runGitleaks(): Promise<SASTFinding[]> {
         startLine: r.StartLine,
         endLine: r.EndLine,
       }));
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "gitleaks",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Gitleaks output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: { stdout, stderr },
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync(
+    const { stdout, stderr } = await execAsync(
       "gitleaks detect --no-git --report-format json --report-path -"
     );
-    return parseResults(stdout);
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
     if (
       error &&
@@ -239,7 +302,7 @@ async function runGitleaks(): Promise<SASTFinding[]> {
       "stdout" in error &&
       typeof error.stdout === "string"
     ) {
-      return parseResults(error.stdout);
+      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
     }
     if (error && typeof error === "object" && "code" in error && error.code === 1) return [];
     throw error;
@@ -249,11 +312,25 @@ async function runGitleaks(): Promise<SASTFinding[]> {
 async function runTrivy(): Promise<SASTFinding[]> {
   await checkToolInstalled("trivy --version", "Install it: https://trivy.dev/");
 
-  const parseResults = (stdout: string): SASTFinding[] => {
+  const parseResults = (stdout: string, stderr?: string): SASTFinding[] => {
     try {
+      if (!stdout.trim()) {
+        return [];
+      }
       const parsed: unknown = JSON.parse(stdout);
       const result = TrivyOutputSchema.safeParse(parsed);
-      if (!result.success) return [];
+      if (!result.success) {
+        return [
+          {
+            tool: "trivy",
+            severity: "high",
+            rule: "scanner_error",
+            message: `Trivy output schema validation failed: ${result.error.message}`,
+            filepath: "(scanner)",
+            diagnostics: { stdout, stderr },
+          },
+        ];
+      }
 
       const findings: SASTFinding[] = [];
       const data = result.data;
@@ -282,14 +359,25 @@ async function runTrivy(): Promise<SASTFinding[]> {
         }
       }
       return findings;
-    } catch {
-      return [];
+    } catch (parseError) {
+      return [
+        {
+          tool: "trivy",
+          severity: "high",
+          rule: "scanner_error",
+          message: `Failed to parse Trivy output: ${
+            parseError instanceof Error ? parseError.message : String(parseError)
+          }`,
+          filepath: "(scanner)",
+          diagnostics: { stdout, stderr },
+        },
+      ];
     }
   };
 
   try {
-    const { stdout } = await execAsync("trivy fs . --format json --quiet");
-    return parseResults(stdout);
+    const { stdout, stderr } = await execAsync("trivy fs . --format json --quiet");
+    return parseResults(stdout, stderr);
   } catch (error: unknown) {
     if (
       error &&
@@ -297,7 +385,7 @@ async function runTrivy(): Promise<SASTFinding[]> {
       "stdout" in error &&
       typeof error.stdout === "string"
     ) {
-      return parseResults(error.stdout);
+      return parseResults(error.stdout, (error as { stderr?: string }).stderr);
     }
     throw error;
   }

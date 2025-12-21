@@ -45,10 +45,31 @@ export async function createProductionalizeGraph(
     }
     try {
       const resultsString = await sastTool.invoke({});
-      const validated = ScannerResultsSchema.safeParse(JSON.parse(resultsString));
-      return { sastResults: validated.success ? (validated.data.findings ?? []) : [] };
-    } catch {
-      return { sastResults: [] };
+      const parsed: unknown = JSON.parse(resultsString);
+      const validated = ScannerResultsSchema.safeParse(parsed);
+
+      if (!validated.success) {
+        throw new Error(`Failed to validate scanner results schema: ${validated.error.message}`);
+      }
+
+      const findings = validated.data.findings ?? [];
+      const scannerErrors = findings.filter((f) => f.rule === "scanner_error");
+
+      if (scannerErrors.length > 0) {
+        const errorMessages = scannerErrors.map((e) => `[${e.tool}] ${e.message}`).join(", ");
+        throw new Error(`SAST scanner(s) failed: ${errorMessages}`);
+      }
+
+      return { sastResults: findings };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("SAST scanner(s) failed")) {
+        throw error;
+      }
+      throw new Error(
+        `SAST scanning failed unexpectedly: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   };
 

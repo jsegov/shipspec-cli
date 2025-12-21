@@ -81,7 +81,7 @@ describe("Productionalize Graph", () => {
     expect(result.sastResults[0]?.tool).toBe("semgrep");
   });
 
-  it("should handle malformed JSON from scanner", async () => {
+  it("should fail on malformed JSON from scanner", async () => {
     const mockTool = {
       invoke: vi.fn().mockResolvedValue("invalid json"),
     };
@@ -91,17 +91,17 @@ describe("Productionalize Graph", () => {
 
     const graph = await createProductionalizeGraph(mockConfig, mockRepository);
 
-    const result = await graph.invoke({
-      userQuery: "test query",
-      messages: [],
-    });
-
-    expect(result.sastResults).toEqual([]);
+    await expect(
+      graph.invoke({
+        userQuery: "test query",
+        messages: [],
+      })
+    ).rejects.toThrow("SAST scanning failed unexpectedly");
   });
 
-  it("should handle invalid schema from scanner", async () => {
+  it("should fail on invalid schema from scanner", async () => {
     const mockTool = {
-      invoke: vi.fn().mockResolvedValue(JSON.stringify({ wrong: "data" })),
+      invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings: "not an array" })),
     };
     vi.mocked(createSASTScannerTool).mockReturnValue(
       mockTool as unknown as ReturnType<typeof createSASTScannerTool>
@@ -109,11 +109,38 @@ describe("Productionalize Graph", () => {
 
     const graph = await createProductionalizeGraph(mockConfig, mockRepository);
 
-    const result = await graph.invoke({
-      userQuery: "test query",
-      messages: [],
-    });
+    await expect(
+      graph.invoke({
+        userQuery: "test query",
+        messages: [],
+      })
+    ).rejects.toThrow("Failed to validate scanner results schema");
+  });
 
-    expect(result.sastResults).toEqual([]);
+  it("should fail when scanner returns error findings", async () => {
+    const findings = [
+      {
+        tool: "semgrep",
+        severity: "high",
+        rule: "scanner_error",
+        message: "Failed to parse Semgrep output",
+        filepath: "(scanner)",
+      },
+    ];
+    const mockTool = {
+      invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings })),
+    };
+    vi.mocked(createSASTScannerTool).mockReturnValue(
+      mockTool as unknown as ReturnType<typeof createSASTScannerTool>
+    );
+
+    const graph = await createProductionalizeGraph(mockConfig, mockRepository);
+
+    await expect(
+      graph.invoke({
+        userQuery: "test query",
+        messages: [],
+      })
+    ).rejects.toThrow("SAST scanner(s) failed: [semgrep] Failed to parse Semgrep output");
   });
 });
