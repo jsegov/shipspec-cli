@@ -156,9 +156,11 @@ async function getGitChanges(
       } else if (status === "D") {
         if (!removed.includes(file)) removed.push(file);
       } else if (status.startsWith("R")) {
-        const newFile = file;
-        const oldFile = statusParts[++i];
-        if (oldFile) {
+        const nextEntry = statusParts[i + 1];
+        if (nextEntry && !nextEntry.startsWith(" ")) {
+          const newFile = file;
+          const oldFile = nextEntry;
+          i++;
           if (!removed.includes(oldFile)) removed.push(oldFile);
           if (!added.includes(newFile)) added.push(newFile);
         }
@@ -307,7 +309,14 @@ async function runIndexing(
     limit(async () => {
       try {
         const chunks = await processFile(file, projectPath);
-        await repository.deleteByFilepath(getRelativePath(file, projectPath));
+        const relPath = getRelativePath(file, projectPath);
+        
+        try {
+          await repository.deleteByFilepath(relPath);
+        } catch (deleteError) {
+          logger.debug(`Failed to delete old chunks for ${relPath}: ${String(deleteError)}`, true);
+        }
+        
         allChunks.push(...chunks);
       } catch (error) {
         logger.debug(`Failed to process ${file}: ${String(error)}`, true);
