@@ -94,15 +94,17 @@ export const logger = {
   warn: (msg: string) => {
     console.error(chalk.yellow(`[WARN] ${redact(msg)}`));
   },
-  error: (msg: string | Error, verbose = process.argv.includes("--verbose")) => {
+  error: (msg: string | Error, verbose?: boolean) => {
+    const isVerbose = verbose ?? process.argv.includes("--verbose");
     if (msg instanceof Error) {
-      console.error(chalk.red(`[ERROR] ${sanitizeError(msg, verbose)}`));
+      console.error(chalk.red(`[ERROR] ${sanitizeError(msg, isVerbose)}`));
     } else {
       console.error(chalk.red(`[ERROR] ${redact(msg)}`));
     }
   },
-  debug: (msg: string, verbose = process.argv.includes("--verbose")) => {
-    if (verbose) console.error(chalk.gray(`[DEBUG] ${redact(msg)}`));
+  debug: (msg: string, verbose?: boolean) => {
+    const isVerbose = verbose ?? process.argv.includes("--verbose");
+    if (isVerbose) console.error(chalk.gray(`[DEBUG] ${redact(msg)}`));
   },
   success: (msg: string) => {
     console.error(chalk.green(`[SUCCESS] ${redact(msg)}`));
