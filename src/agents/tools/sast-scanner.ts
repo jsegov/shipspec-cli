@@ -183,11 +183,6 @@ interface SanitizedResult {
   truncated: boolean;
 }
 
-/**
- * Sanitizes and truncates external tool output for diagnostics.
- * Strips ANSI codes, redacts secrets, and limits length.
- * Returns both the sanitized value and whether truncation occurred.
- */
 function sanitizeDiagnostics(text: string | undefined): SanitizedResult {
   if (!text) return { value: undefined, truncated: false };
   const maxLength = 4096;
@@ -201,9 +196,6 @@ function sanitizeDiagnostics(text: string | undefined): SanitizedResult {
   return { value: sanitized, truncated: false };
 }
 
-/**
- * Helper to wrap diagnostics based on debug mode.
- */
 function getDiagnostics(stdout: string | undefined, stderr: string | undefined, exitCode?: number) {
   const isDebug = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
   if (!isDebug) return undefined;

@@ -35,14 +35,9 @@ async function main() {
     await program.parseAsync(process.argv);
   } catch (error) {
     const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbose");
-
-    if (error instanceof CliError) {
-      logger.error(error, isVerbose);
-    } else {
-      logger.error("An unexpected error occurred.");
-      if (isVerbose) {
-        logger.error(error as Error, true);
-      }
+    logger.error(error instanceof CliError ? error : "An unexpected error occurred.");
+    if (isVerbose && !(error instanceof CliError)) {
+      logger.error(error as Error, true);
     }
     process.exitCode = 1;
   }

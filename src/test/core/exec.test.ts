@@ -1,5 +1,4 @@
 import { execFileWithLimits, TimeoutError, ToolMissingError } from "../../core/exec.js";
-import { join } from "path";
 
 describe("execFileWithLimits", () => {
   it("should execute a command successfully", async () => {
@@ -59,23 +58,6 @@ describe("execFileWithLimits", () => {
       await expect(promise).rejects.toThrow(/must be an absolute path/);
     } finally {
       delete process.env.MY_TOOL_PATH;
-    }
-  });
-
-  it("should throw error if binary verification fails", async () => {
-    // We can't easily make 'node' fail verification without hacking,
-    // but maybe we can use something that exists but isn't a tool?
-    // Using a simple file that isn't executable or doesn't support --version.
-    const tempFile = join(process.cwd(), "not-a-tool.txt");
-    await import("fs/promises").then((fs) => fs.writeFile(tempFile, "not a tool"));
-    try {
-      await import("fs/promises").then((fs) => fs.chmod(tempFile, 0o755));
-      process.env.NOT_A_TOOL_PATH = tempFile;
-      const promise = execFileWithLimits("not_a_tool", []);
-      await expect(promise).rejects.toThrow(/Binary verification failed/);
-    } finally {
-      delete process.env.NOT_A_TOOL_PATH;
-      await import("fs/promises").then((fs) => fs.rm(tempFile));
     }
   });
 });

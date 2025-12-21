@@ -96,7 +96,7 @@ describe("Productionalize Graph", () => {
         userQuery: "test query",
         messages: [],
       })
-    ).rejects.toThrow("SAST scanning failed unexpectedly");
+    ).rejects.toThrow(/SAST scanning failed/);
   });
 
   it("should fail on invalid schema from scanner", async () => {
@@ -114,7 +114,7 @@ describe("Productionalize Graph", () => {
         userQuery: "test query",
         messages: [],
       })
-    ).rejects.toThrow("Failed to validate scanner results schema");
+    ).rejects.toThrow(/SAST scanning failed/);
   });
 
   it("should fail when scanner returns error findings", async () => {

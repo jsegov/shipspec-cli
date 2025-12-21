@@ -18,19 +18,9 @@ const BaseUrlSchema = z
     (val) => {
       try {
         const url = new URL(val);
-        // Allow only http: and https:
-        if (url.protocol !== "http:" && url.protocol !== "https:") {
-          return false;
-        }
-        // Disallow credentials
-        if (url.username || url.password) {
-          return false;
-        }
-        // Deny metadata IP
-        if (url.hostname === "169.254.169.254") {
-          return false;
-        }
-        // Deny localhost unless explicitly opted-in
+        if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+        if (url.username || url.password) return false;
+        if (url.hostname === "169.254.169.254") return false;
         if (
           (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
           process.env.ALLOW_LOCALHOST_LLM !== "1"
@@ -47,10 +37,7 @@ const BaseUrlSchema = z
         "Invalid baseUrl. Must be http/https, no credentials, not a restricted IP, and localhost requires ALLOW_LOCALHOST_LLM=1",
     }
   )
-  .transform((val) => {
-    // Normalize: remove trailing slash
-    return val.endsWith("/") ? val.slice(0, -1) : val;
-  });
+  .transform((val) => (val.endsWith("/") ? val.slice(0, -1) : val));
 
 export const LLMConfigSchema = z.object({
   provider: ModelProviderSchema.default("openai"),
