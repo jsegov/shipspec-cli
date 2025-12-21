@@ -12,12 +12,52 @@ export const ModelProviderSchema = z.enum([
 
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 
+const BaseUrlSchema = z
+  .url()
+  .refine(
+    (val) => {
+      try {
+        const url = new URL(val);
+        // Allow only http: and https:
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+          return false;
+        }
+        // Disallow credentials
+        if (url.username || url.password) {
+          return false;
+        }
+        // Deny metadata IP
+        if (url.hostname === "169.254.169.254") {
+          return false;
+        }
+        // Deny localhost unless explicitly opted-in
+        if (
+          (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+          process.env.ALLOW_LOCALHOST_LLM !== "1"
+        ) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    {
+      message:
+        "Invalid baseUrl. Must be http/https, no credentials, not a restricted IP, and localhost requires ALLOW_LOCALHOST_LLM=1",
+    }
+  )
+  .transform((val) => {
+    // Normalize: remove trailing slash
+    return val.endsWith("/") ? val.slice(0, -1) : val;
+  });
+
 export const LLMConfigSchema = z
   .object({
     provider: ModelProviderSchema.default("openai"),
     modelName: z.string().default("gpt-5.2-2025-12-11"),
     temperature: z.number().min(0).max(2).default(0),
-    baseUrl: z.url().optional(),
+    baseUrl: BaseUrlSchema.optional(),
     apiKey: z.string().optional(),
     maxRetries: z.number().int().min(0).max(10).default(3),
     timeout: z.number().int().positive().optional(),
@@ -31,7 +71,7 @@ export const EmbeddingConfigSchema = z
     provider: ModelProviderSchema.default("openai"),
     modelName: z.string().default("text-embedding-3-large"),
     dimensions: z.number().int().positive().default(3072),
-    baseUrl: z.url().optional(),
+    baseUrl: BaseUrlSchema.optional(),
     apiKey: z.string().optional(),
     maxRetries: z.number().int().min(0).max(10).default(3),
   })
