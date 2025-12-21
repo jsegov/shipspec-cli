@@ -158,8 +158,8 @@ async function getGitChanges(
       } else if (status.startsWith("R")) {
         const nextEntry = statusParts[i + 1];
         if (nextEntry && !nextEntry.startsWith(" ")) {
-          const newFile = file;
-          const oldFile = nextEntry;
+          const oldFile = file;
+          const newFile = nextEntry;
           i++;
           if (!removed.includes(oldFile)) removed.push(oldFile);
           if (!added.includes(newFile)) added.push(newFile);
@@ -207,13 +207,16 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
 
     const files = await discoverFiles(projectPath, config.ignorePatterns);
     const successfulFiles = await runIndexing(projectPath, files, repository);
+    const successfulAbsolutePaths = files.filter((f) =>
+      successfulFiles.has(getRelativePath(f, projectPath))
+    );
 
     await saveManifest(manifestPath, {
       schemaVersion: 1,
       projectRoot: projectPath,
       lastIndexedCommit: await getGitHead(projectPath),
       embeddingSignature: currentSignature,
-      files: await getFileStats(projectPath, files),
+      files: await getFileStats(projectPath, successfulAbsolutePaths),
       updatedAt: new Date().toISOString(),
     });
 
@@ -273,13 +276,31 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     repository
   );
 
-  const allFiles = await discoverFiles(projectPath, config.ignorePatterns);
+  const removedSet = new Set(toRemove);
+  const updatedFiles: Record<string, { mtimeMs: number; size: number }> = {};
+
+  for (const [path, stats] of Object.entries(manifest.files)) {
+    if (!removedSet.has(path)) {
+      updatedFiles[path] = stats;
+    }
+  }
+
+  for (const relPath of successfulFiles) {
+    try {
+      const absPath = resolve(projectPath, relPath);
+      const s = await stat(absPath);
+      updatedFiles[relPath] = { mtimeMs: s.mtimeMs, size: s.size };
+    } catch {
+      // File might have been deleted since processing
+    }
+  }
+
   await saveManifest(manifestPath, {
     schemaVersion: 1,
     projectRoot: manifest.projectRoot,
     embeddingSignature: currentSignature,
     lastIndexedCommit: await getGitHead(projectPath),
-    files: await getFileStats(projectPath, allFiles),
+    files: updatedFiles,
     updatedAt: new Date().toISOString(),
   });
 
