@@ -82,9 +82,11 @@ export class LanceDBManager {
         if (tableNames.includes(tableName)) {
           const table = await db.openTable(tableName);
           const schema = await table.schema();
-          
+
           const vectorField = schema.fields.find((f) => f.name === "vector");
-          const existingDims = vectorField?.type ? (vectorField.type as unknown as { listSize?: number }).listSize : undefined;
+          const existingDims = vectorField?.type
+            ? (vectorField.type as unknown as { listSize?: number }).listSize
+            : undefined;
 
           if (existingDims !== dimensions) {
             logger.warn(
@@ -119,9 +121,9 @@ export class LanceDBManager {
     const db = await this.connect();
     const schema = this.createCodeChunkSchema(dimensions);
     const table = await db.createTable(tableName, [], { schema });
-    
+
     await table.createIndex("content", { config: Index.fts() });
-    
+
     return table;
   }
 }

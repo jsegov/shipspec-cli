@@ -15,8 +15,8 @@ describe("Productionalize Graph", () => {
       productionalize: {
         webSearch: { provider: "tavily" },
         sast: { enabled: true, tools: ["semgrep"] },
-        coreCategories: ["security"]
-      }
+        coreCategories: ["security"],
+      },
     } as unknown as ShipSpecConfig;
     const mockRepository = {} as DocumentRepository;
 

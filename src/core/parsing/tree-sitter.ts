@@ -14,21 +14,15 @@ export async function initTreeSitter(): Promise<void> {
   parserInitialized = true;
 }
 
-export async function loadLanguage(
-  language: SupportedLanguage
-): Promise<Parser.Language> {
+export async function loadLanguage(language: SupportedLanguage): Promise<Parser.Language> {
   await initTreeSitter();
 
-  const wasmPath = require.resolve(
-    `tree-sitter-wasms/out/tree-sitter-${language}.wasm`
-  );
+  const wasmPath = require.resolve(`tree-sitter-wasms/out/tree-sitter-${language}.wasm`);
   const langBuffer = await readFile(wasmPath);
   return Parser.Language.load(langBuffer);
 }
 
-export async function createParser(
-  language: SupportedLanguage
-): Promise<Parser> {
+export async function createParser(language: SupportedLanguage): Promise<Parser> {
   await initTreeSitter();
 
   const parser = new Parser();

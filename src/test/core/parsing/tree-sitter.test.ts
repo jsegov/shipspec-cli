@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import {
-  initTreeSitter,
-  loadLanguage,
-  createParser,
-} from "../../../core/parsing/tree-sitter.js";
+import { initTreeSitter, loadLanguage, createParser } from "../../../core/parsing/tree-sitter.js";
 
 describe("tree-sitter", () => {
   describe("initTreeSitter", () => {

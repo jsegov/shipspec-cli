@@ -4,23 +4,11 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { CodeChunk } from "../types/index.js";
 import { getLanguageFromExtension } from "./language-registry.js";
 
-const FALLBACK_EXTENSIONS = [
-  ".yaml",
-  ".yml",
-  ".json",
-  ".md",
-  ".sql",
-  ".toml",
-  ".txt",
-  ".csv",
-];
+const FALLBACK_EXTENSIONS = [".yaml", ".yml", ".json", ".md", ".sql", ".toml", ".txt", ".csv"];
 
 export function isFallbackRequired(filepath: string): boolean {
   const ext = extname(filepath).toLowerCase();
-  return (
-    FALLBACK_EXTENSIONS.includes(ext) ||
-    getLanguageFromExtension(filepath) === null
-  );
+  return FALLBACK_EXTENSIONS.includes(ext) || getLanguageFromExtension(filepath) === null;
 }
 
 export async function splitWithFallback(
@@ -45,7 +33,7 @@ export async function splitWithFallback(
   return docs.map((doc) => {
     const chunkContent = doc.pageContent;
     const startIndex = content.indexOf(chunkContent, lastSearchIndex);
-    
+
     const effectiveIndex = startIndex === -1 ? content.indexOf(chunkContent) : startIndex;
     if (effectiveIndex !== -1) {
       lastSearchIndex = effectiveIndex;

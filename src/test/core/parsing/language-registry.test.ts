@@ -119,9 +119,7 @@ describe("language-registry", () => {
 
     it("has interfaces query for TypeScript", () => {
       expect(LANGUAGE_REGISTRY.typescript.queries.interfaces).toBeDefined();
-      expect(typeof LANGUAGE_REGISTRY.typescript.queries.interfaces).toBe(
-        "string"
-      );
+      expect(typeof LANGUAGE_REGISTRY.typescript.queries.interfaces).toBe("string");
     });
 
     it("has valid commentPrefix for each language", () => {

@@ -52,27 +52,24 @@ export const SASTConfigSchema = z.object({
 export const ProductionalizeConfigSchema = z.object({
   webSearch: WebSearchConfigSchema.optional(),
   sast: SASTConfigSchema.optional(),
-  coreCategories: z.array(z.string()).default([
-    "security",
-    "soc2",
-    "code-quality",
-    "dependencies",
-    "testing",
-    "configuration",
-  ]),
+  coreCategories: z
+    .array(z.string())
+    .default(["security", "soc2", "code-quality", "dependencies", "testing", "configuration"]),
 });
 
 export const ShipSpecConfigSchema = z.object({
   projectPath: z.string().default("."),
   vectorDbPath: z.string().default(".ship-spec/lancedb"),
-  ignorePatterns: z.array(z.string()).default([
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/dist/**",
-    "**/*.lock",
-    "**/build/**",
-    "**/.ship-spec/**",
-  ]),
+  ignorePatterns: z
+    .array(z.string())
+    .default([
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/*.lock",
+      "**/build/**",
+      "**/.ship-spec/**",
+    ]),
   llm: LLMConfigSchema.default({
     provider: "openai",
     modelName: "gpt-5.2-2025-12-11",

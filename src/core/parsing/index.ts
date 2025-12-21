@@ -5,7 +5,11 @@ import { logger } from "../../utils/logger.js";
 
 export type { ChunkOptions } from "./chunker.js";
 export { SemanticChunker } from "./chunker.js";
-export { getLanguageFromExtension, LANGUAGE_REGISTRY, type SupportedLanguage } from "./language-registry.js";
+export {
+  getLanguageFromExtension,
+  LANGUAGE_REGISTRY,
+  type SupportedLanguage,
+} from "./language-registry.js";
 export { createParser, initTreeSitter, loadLanguage } from "./tree-sitter.js";
 export { isFallbackRequired, splitWithFallback } from "./fallback-splitter.js";
 

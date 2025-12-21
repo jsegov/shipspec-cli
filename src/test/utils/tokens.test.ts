@@ -148,7 +148,8 @@ describe("Token Utilities", () => {
     });
 
     it("tries to break at newline", () => {
-      const text = "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line\nSeventh line";
+      const text =
+        "First line\nSecond line\nThird line\nFourth line\nFifth line\nSixth line\nSeventh line";
 
       const result = truncateTextByTokenBudget(text, 10); // ~40 chars
 
@@ -194,4 +195,3 @@ describe("Token Utilities", () => {
     });
   });
 });
-

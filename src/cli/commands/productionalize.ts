@@ -24,7 +24,10 @@ interface ProductionalizeOptions {
   resolvedConfig?: ShipSpecConfig;
 }
 
-async function productionalizeAction(context: string | undefined, options: ProductionalizeOptions): Promise<void> {
+async function productionalizeAction(
+  context: string | undefined,
+  options: ProductionalizeOptions
+): Promise<void> {
   const config = options.resolvedConfig ?? (await loadConfig(process.cwd()));
 
   // Override config with CLI options
@@ -35,9 +38,9 @@ async function productionalizeAction(context: string | undefined, options: Produ
       config.productionalize.sast.tools = ["semgrep", "gitleaks", "trivy"];
     }
   }
-  
+
   if (options.categories) {
-    config.productionalize.coreCategories = options.categories.split(",").map(c => c.trim());
+    config.productionalize.coreCategories = options.categories.split(",").map((c) => c.trim());
   }
 
   const checkpointEnabled = options.checkpoint || config.checkpoint.enabled;
@@ -47,25 +50,20 @@ async function productionalizeAction(context: string | undefined, options: Produ
     process.exit(1);
   }
 
-  logger.progress(`Starting production-readiness analysis...${context ? ` (Context: ${context})` : ""}`);
+  logger.progress(
+    `Starting production-readiness analysis...${context ? ` (Context: ${context})` : ""}`
+  );
 
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
   const embeddings = createEmbeddingsModel(config.embedding);
-  const repository = new DocumentRepository(
-    vectorStore,
-    embeddings,
-    config.embedding.dimensions
-  );
+  const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
 
   let checkpointer;
   if (checkpointEnabled) {
     try {
       logger.progress("Initializing checkpointer...");
-      checkpointer = createCheckpointer(
-        config.checkpoint.type,
-        config.checkpoint.sqlitePath
-      );
+      checkpointer = createCheckpointer(config.checkpoint.type, config.checkpoint.sqlitePath);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       logger.error(`Failed to initialize checkpointer: ${errorMsg}`);
@@ -108,9 +106,13 @@ async function productionalizeAction(context: string | undefined, options: Produ
         }
         if (event.planner) {
           const subtasks = event.planner.subtasks as ProductionalizeSubtask[];
-          console.error(chalk.cyan(`[Planner] Generated ${String(subtasks.length)} analysis subtasks:`));
+          console.error(
+            chalk.cyan(`[Planner] Generated ${String(subtasks.length)} analysis subtasks:`)
+          );
           subtasks.forEach((task, i: number) => {
-            console.error(chalk.cyan(`  ${String(i + 1)}. [${task.source}] ${task.category}: ${task.query}`));
+            console.error(
+              chalk.cyan(`  ${String(i + 1)}. [${task.source}] ${task.category}: ${task.query}`)
+            );
           });
           console.error();
         }

@@ -7,7 +7,10 @@ vi.mock("child_process", () => ({
   exec: vi.fn(),
 }));
 
-type ExecCallback = (error: ExecException | null, result: { stdout: string; stderr?: string }) => void;
+type ExecCallback = (
+  error: ExecException | null,
+  result: { stdout: string; stderr?: string }
+) => void;
 
 interface ScannerResult {
   findings: { tool: string; severity: string }[];
@@ -21,13 +24,15 @@ describe("SAST Scanner Tool", () => {
 
   it("should return findings from Semgrep", async () => {
     const mockSemgrepOutput = JSON.stringify({
-      results: [{
-        check_id: "test-rule",
-        path: "src/app.ts",
-        start: { line: 10 },
-        end: { line: 11 },
-        extra: { severity: "ERROR", message: "security risk" }
-      }]
+      results: [
+        {
+          check_id: "test-rule",
+          path: "src/app.ts",
+          start: { line: 10 },
+          end: { line: 11 },
+          extra: { severity: "ERROR", message: "security risk" },
+        },
+      ],
     });
 
     vi.mocked(exec).mockImplementation((cmd: string, callback: unknown) => {

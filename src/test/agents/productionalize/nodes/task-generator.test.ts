@@ -8,31 +8,31 @@ describe("Task Generator Node", () => {
   it("should generate a list of tasks", async () => {
     const mockOutput = {
       tasks: [
-        { 
-          id: 1, 
-          title: "Fix vulnerability", 
-          description: "desc", 
-          status: "pending", 
-          priority: "high", 
-          dependencies: [], 
-          details: "steps", 
+        {
+          id: 1,
+          title: "Fix vulnerability",
+          description: "desc",
+          status: "pending",
+          priority: "high",
+          dependencies: [],
+          details: "steps",
           effort: "1-2h",
           acceptanceCriteria: ["criterion 1"],
           testStrategy: "verify",
-          subtasks: []
-        }
-      ]
+          subtasks: [],
+        },
+      ],
     };
     const mockModel = {
       withStructuredOutput: vi.fn().mockReturnValue({
-        invoke: vi.fn().mockResolvedValue(mockOutput)
-      })
+        invoke: vi.fn().mockResolvedValue(mockOutput),
+      }),
     } as unknown as BaseChatModel;
 
     const node = createTaskGeneratorNode(mockModel);
     const state = {
       findings: [],
-      signals: {}
+      signals: {},
     } as unknown as ProductionalizeStateType;
 
     const result = await node(state);

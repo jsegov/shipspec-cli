@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  isFallbackRequired,
-  splitWithFallback,
-} from "../../../core/parsing/fallback-splitter.js";
+import { isFallbackRequired, splitWithFallback } from "../../../core/parsing/fallback-splitter.js";
 import { JSON_FIXTURE, YAML_FIXTURE, MARKDOWN_FIXTURE } from "../../fixtures.js";
 
 describe("fallback-splitter", () => {
@@ -99,8 +96,7 @@ describe("fallback-splitter", () => {
         const secondChunk = chunks[1]?.content ?? "";
         // There should be some overlap between chunks
         expect(
-          firstChunk.includes(secondChunk.slice(0, 5)) ||
-            secondChunk.includes(firstChunk.slice(-5))
+          firstChunk.includes(secondChunk.slice(0, 5)) || secondChunk.includes(firstChunk.slice(-5))
         ).toBe(true);
       }
     });

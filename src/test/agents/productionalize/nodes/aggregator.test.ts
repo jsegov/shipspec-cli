@@ -15,7 +15,7 @@ describe("Aggregator Node", () => {
     const state = {
       findings: [],
       signals: {},
-      researchDigest: "test digest"
+      researchDigest: "test digest",
     } as unknown as ProductionalizeStateType;
 
     const result = await node(state);

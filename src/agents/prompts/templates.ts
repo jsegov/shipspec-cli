@@ -94,4 +94,3 @@ Guidelines:
 
 Ground your tasks in the actual file paths and evidence from the findings.
 `;
-

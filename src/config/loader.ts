@@ -10,8 +10,8 @@ type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
     ? DeepPartial<U>[]
     : T[P] extends object | undefined | null
-    ? DeepPartial<NonNullable<T[P]>>
-    : T[P];
+      ? DeepPartial<NonNullable<T[P]>>
+      : T[P];
 };
 
 export async function loadConfig(
@@ -40,10 +40,11 @@ export async function loadConfig(
 
   const envConfig: DeepPartial<ShipSpecConfig> = {
     llm: {
-      apiKey: process.env.OPENAI_API_KEY 
-           ?? process.env.ANTHROPIC_API_KEY 
-           ?? process.env.MISTRAL_API_KEY 
-           ?? process.env.GOOGLE_API_KEY,
+      apiKey:
+        process.env.OPENAI_API_KEY ??
+        process.env.ANTHROPIC_API_KEY ??
+        process.env.MISTRAL_API_KEY ??
+        process.env.GOOGLE_API_KEY,
       baseUrl: process.env.OLLAMA_BASE_URL,
     },
     embedding: {
@@ -58,8 +59,8 @@ export async function loadConfig(
   };
 
   const merged = deepMerge(
-    fileConfig as Record<string, unknown>, 
-    envConfig as Record<string, unknown>, 
+    fileConfig as Record<string, unknown>,
+    envConfig as Record<string, unknown>,
     overrides as Record<string, unknown>
   );
 
@@ -75,10 +76,13 @@ export async function loadConfig(
 }
 
 function isObject(item: unknown): item is Record<string, unknown> {
-  return !!item && typeof item === 'object' && !Array.isArray(item);
+  return !!item && typeof item === "object" && !Array.isArray(item);
 }
 
-function deepMerge(target: Record<string, unknown>, ...sources: Record<string, unknown>[]): Record<string, unknown> {
+function deepMerge(
+  target: Record<string, unknown>,
+  ...sources: Record<string, unknown>[]
+): Record<string, unknown> {
   const result = { ...target };
 
   for (const source of sources) {

@@ -7,14 +7,12 @@ import type { ProductionalizeStateType } from "../../../../agents/productionaliz
 describe("Planner Node", () => {
   it("should generate analysis subtasks", async () => {
     const mockPlan = {
-      subtasks: [
-        { id: "1", category: "security", query: "audit auth", source: "code" }
-      ]
+      subtasks: [{ id: "1", category: "security", query: "audit auth", source: "code" }],
     };
     const mockModel = {
       withStructuredOutput: vi.fn().mockReturnValue({
-        invoke: vi.fn().mockResolvedValue(mockPlan)
-      })
+        invoke: vi.fn().mockResolvedValue(mockPlan),
+      }),
     } as unknown as BaseChatModel;
 
     const node = createPlannerNode(mockModel);
@@ -22,7 +20,7 @@ describe("Planner Node", () => {
       userQuery: "test query",
       signals: {},
       researchDigest: "test digest",
-      sastResults: []
+      sastResults: [],
     } as unknown as ProductionalizeStateType;
 
     const result = await node(state);

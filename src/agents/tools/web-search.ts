@@ -7,7 +7,8 @@ import type { WebSearchConfig } from "../../config/schema.js";
 export function createWebSearchTool(config?: WebSearchConfig) {
   return new DynamicStructuredTool({
     name: "web_search",
-    description: "Search the web for security standards, compliance requirements, or best practices",
+    description:
+      "Search the web for security standards, compliance requirements, or best practices",
     schema: z.object({
       query: z.string().describe("The search query"),
       maxResults: z.number().optional().default(5).describe("Maximum number of results to return"),

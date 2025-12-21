@@ -18,9 +18,7 @@ export function createResearcherNode(model: BaseChatModel, webSearchTool: Dynami
       "Google SRE production readiness launch checklist summary",
       ...(signals.hasDocker ? ["Container security hardening best practices 2024"] : []),
       ...(signals.testFramework
-        ? [
-            `Production readiness checklist for ${signals.testFramework} 2024`,
-          ]
+        ? [`Production readiness checklist for ${signals.testFramework} 2024`]
         : []),
     ];
 
