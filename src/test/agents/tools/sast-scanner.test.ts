@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createSASTScannerTool } from "../../../agents/tools/sast-scanner.js";
 import { execFileWithLimits, ToolMissingError, TimeoutError } from "../../../core/exec.js";
 
@@ -37,7 +37,7 @@ describe("SAST Scanner Tool", () => {
     process.env = { ...originalEnv };
   });
 
-  afterAll(() => {
+  afterEach(() => {
     process.env = originalEnv;
   });
 

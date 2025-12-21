@@ -57,7 +57,9 @@ export async function createProductionalizeGraph(
       return { sastResults: findings };
     } catch (error) {
       if (error instanceof Error && error.message.includes("SAST scanner(s) failed")) throw error;
-      throw new Error(`SAST scanning failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `SAST scanning failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   };
 
