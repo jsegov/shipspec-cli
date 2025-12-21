@@ -48,6 +48,44 @@ export class LanceDBManager {
   private tablePromises = new Map<string, { promise: Promise<Table>; dimensions: number }>();
   private tableSerializationChains = new Map<string, Promise<unknown>>();
 
+  async dropTable(tableName: string): Promise<void> {
+    const previousChain = this.tableSerializationChains.get(tableName) ?? Promise.resolve();
+
+    let resolveDrop!: () => void;
+    let rejectDrop!: (err: unknown) => void;
+    const dropPromise = new Promise<void>((res, rej) => {
+      resolveDrop = res;
+      rejectDrop = rej;
+    });
+
+    this.tableSerializationChains.set(tableName, dropPromise);
+
+    void (async () => {
+      try {
+        await previousChain.catch(() => {
+          // Ignore errors from previous operations in the chain
+        });
+        const db = await this.connect();
+        const tableNames = await db.tableNames();
+        if (tableNames.includes(tableName)) {
+          await db.dropTable(tableName);
+        }
+
+        for (const key of this.tablePromises.keys()) {
+          if (key.startsWith(`${tableName}:`)) {
+            this.tablePromises.delete(key);
+          }
+        }
+        this.tableSerializationChains.delete(tableName);
+        resolveDrop();
+      } catch (error) {
+        rejectDrop(error);
+      }
+    })();
+
+    return dropPromise;
+  }
+
   getOrCreateTable(tableName: string, dimensions: number): Promise<Table> {
     const cacheKey = `${tableName}:${String(dimensions)}`;
     const cached = this.tablePromises.get(cacheKey);

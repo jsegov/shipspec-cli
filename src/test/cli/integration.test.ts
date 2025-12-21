@@ -8,7 +8,9 @@ import { chunkSourceFile } from "../../core/parsing/index.js";
 import { readSourceFile, isSourceFile, getRelativePath } from "../../utils/fs.js";
 import { LanceDBManager } from "../../core/storage/vector-store.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
+import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { Embeddings } from "@langchain/core/embeddings";
+import type { ShipSpecConfig } from "../../config/schema.js";
 import type { CodeChunk } from "../../core/types/index.js";
 
 /**
@@ -29,7 +31,7 @@ class MockEmbeddings extends Embeddings {
 }
 
 describe("CLI Integration Tests", () => {
-  describe("Ingest Pipeline Integration", () => {
+  describe("Indexing Pipeline Integration", () => {
     let tempDir: string;
     let projectDir: string;
     let dbDir: string;
@@ -45,59 +47,87 @@ describe("CLI Integration Tests", () => {
       await cleanupTempDir(tempDir);
     });
 
-    it("full ingest flow: discover -> chunk -> store", async () => {
+    it("full indexing flow using ensureIndex", async () => {
       // Setup: Create source files
       await mkdir(join(projectDir, "src"), { recursive: true });
       await writeFile(join(projectDir, "src", "math.ts"), TS_FIXTURE);
       await writeFile(join(projectDir, "src", "utils.py"), PYTHON_FIXTURE);
       await writeFile(join(projectDir, "config.json"), '{"name": "test"}');
 
-      // Step 1: Discover files
-      const files = await fg("**/*", {
-        cwd: projectDir,
-        ignore: ["**/node_modules/**", "**/.git/**"],
-        onlyFiles: true,
-        absolute: true,
-        dot: false,
-      });
+      const config = {
+        projectPath: projectDir,
+        vectorDbPath: dbDir,
+        ignorePatterns: ["**/node_modules/**"],
+        embedding: {
+          provider: "openai",
+          modelName: "text-embedding-3-large",
+          dimensions: 3072,
+          maxRetries: 3,
+        },
+      } as unknown as ShipSpecConfig;
 
-      const sourceFiles = files.filter(isSourceFile);
-      expect(sourceFiles.length).toBe(3);
-
-      // Step 2: Chunk files
-      const allChunks: CodeChunk[] = [];
-      for (const file of sourceFiles) {
-        const content = await readSourceFile(file);
-        const relativePath = getRelativePath(file, projectDir);
-        const chunks = await chunkSourceFile(relativePath, content);
-
-        // Add IDs to chunks
-        const chunksWithIds = chunks.map((chunk, i) => ({
-          ...chunk,
-          id: `${relativePath}-${String(i)}`,
-          filepath: relativePath,
-        }));
-
-        allChunks.push(...chunksWithIds);
-      }
-
-      expect(allChunks.length).toBeGreaterThan(0);
-
-      // Verify TypeScript chunks include functions and classes
-      const tsChunks = allChunks.filter((c) => c.language === "typescript");
-      expect(tsChunks.some((c) => c.type === "function")).toBe(true);
-      expect(tsChunks.some((c) => c.type === "class")).toBe(true);
-
-      // Step 3: Store in vector database
       const vectorStore = new LanceDBManager(dbDir);
       const embeddings = new MockEmbeddings(3072);
       const repository = new DocumentRepository(vectorStore, embeddings, 3072);
+      const manifestPath = join(dbDir, "index-manifest");
 
-      await repository.addDocuments(allChunks);
+      // Step 1: Initial Indexing
+      const result1 = await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
 
-      // Step 4: Verify retrieval works
+      expect(result1.added).toBe(3);
+
+      // Step 2: Verify retrieval works
       const searchResults = await repository.similaritySearch("add function", 5);
       expect(searchResults.length).toBeGreaterThan(0);
+
+      // Step 3: Incremental indexing (no changes)
+      const result2 = await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+      expect(result2.added).toBe(0);
+      expect(result2.modified).toBe(0);
+      expect(result2.removed).toBe(0);
+    });
+
+    it("handles file modifications incrementally", async () => {
+      await writeFile(join(projectDir, "test.ts"), "export const x = 1;");
+
+      const config = {
+        projectPath: projectDir,
+        vectorDbPath: dbDir,
+        ignorePatterns: [],
+        embedding: {
+          provider: "openai",
+          modelName: "text-embedding-3-large",
+          dimensions: 3072,
+        },
+      } as unknown as ShipSpecConfig;
+
+      const vectorStore = new LanceDBManager(dbDir);
+      const repository = new DocumentRepository(
+        vectorStore,
+        new MockEmbeddings() as unknown as Embeddings,
+        3072
+      );
+      const manifestPath = join(dbDir, "index-manifest");
+
+      await ensureIndex({ config, repository, vectorStore, manifestPath });
+
+      // Modify file
+      await new Promise((r) => setTimeout(r, 100)); // Ensure mtime change
+      await writeFile(join(projectDir, "test.ts"), "export const x = 2;");
+
+      const result = await ensureIndex({ config, repository, vectorStore, manifestPath });
+      // Since it's mtime fallback (no git), it will be detected as modified
+      expect(result.added + result.modified).toBeGreaterThan(0);
     });
 
     it("handles empty directories gracefully", async () => {

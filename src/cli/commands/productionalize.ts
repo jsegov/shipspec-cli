@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import { writeFile } from "fs/promises";
-import { resolve } from "path";
+import { resolve, join } from "path";
 import chalk from "chalk";
 
 import { loadConfig } from "../../config/loader.js";
@@ -8,6 +8,7 @@ import type { ShipSpecConfig } from "../../config/schema.js";
 import { LanceDBManager } from "../../core/storage/vector-store.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
 import { createEmbeddingsModel } from "../../core/models/embeddings.js";
+import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { createProductionalizeGraph } from "../../agents/productionalize/graph.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
@@ -21,6 +22,7 @@ interface ProductionalizeOptions {
   stream: boolean;
   checkpoint: boolean;
   threadId?: string;
+  reindex: boolean;
   resolvedConfig?: ShipSpecConfig;
 }
 
@@ -58,6 +60,32 @@ async function productionalizeAction(
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
   const embeddings = createEmbeddingsModel(config.embedding);
   const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
+
+  const manifestPath = join(resolve(config.vectorDbPath), "index-manifest");
+  logger.progress("Checking codebase index freshness...");
+  try {
+    const indexResult = await ensureIndex({
+      config,
+      repository,
+      vectorStore,
+      manifestPath,
+      forceReindex: options.reindex,
+    });
+
+    if (indexResult.added > 0 || indexResult.modified > 0 || indexResult.removed > 0) {
+      logger.info(
+        `Index updated: ${String(indexResult.added)} added, ${String(
+          indexResult.modified
+        )} modified, ${String(indexResult.removed)} removed`
+      );
+    } else {
+      logger.info("Index is up to date.");
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`Indexing failed: ${errorMsg}`);
+    process.exit(1);
+  }
 
   let checkpointer;
   if (checkpointEnabled) {
@@ -183,6 +211,7 @@ export const productionalizeCommand = new Command("productionalize")
   .option("--enable-scans", "Run SAST scanners if available")
   .option("--categories <list>", "Filter to specific categories (comma-separated)")
   .option("--no-stream", "Disable streaming progress output")
+  .option("--reindex", "Force full re-index of the codebase")
   .option("--checkpoint", "Enable checkpointing for state persistence")
   .option("--thread-id <id>", "Thread ID for resuming a session")
   .addOption(new Option("--resolved-config").hideHelp())

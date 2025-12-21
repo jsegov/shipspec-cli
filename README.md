@@ -31,14 +31,11 @@
 Understanding a codebase's production readiness is hard. Manual security and reliability audits are tedious. **Ship Spec** bridges the gap by using AI to analyze your code semantically and generate comprehensive production reports on demand.
 
 ```bash
-# Index your codebase
-ship-spec ingest
-
 # Analyze production readiness
 ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
 ```
 
-That's it. Ship Spec handles the rest—parsing your code into semantic chunks, building a searchable vector index, and orchestrating AI agents to evaluate your project against industry standards.
+That's it. Ship Spec handles the rest—parsing your code into semantic chunks, automatically building a searchable vector index, and orchestrating AI agents to evaluate your project against industry standards.
 
 ---
 
@@ -79,18 +76,14 @@ echo "ANTHROPIC_API_KEY=sk-ant-your-key-here" > .env
 echo "OLLAMA_BASE_URL=http://localhost:11434" > .env
 ```
 
-### 3. Index your codebase
+### 3. Analyze production readiness
 
 ```bash
 cd your-project
-ship-spec ingest
-```
-
-### 4. Analyze production readiness
-
-```bash
 ship-spec productionalize
 ```
+
+The tool will automatically index your codebase on the first run and incrementally update it whenever you make changes.
 
 ---
 
@@ -123,32 +116,9 @@ npm link
 
 ## 📖 Usage
 
-### `ship-spec ingest`
-
-Index your codebase into the vector store. This creates semantic embeddings of your code for intelligent retrieval.
-
-```bash
-# Basic usage - index current directory
-ship-spec ingest
-
-# With custom concurrency
-ship-spec ingest --concurrency 20 --batch-size 100
-
-# Preview what would be indexed
-ship-spec ingest --dry-run
-```
-
-**Options:**
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--concurrency <n>` | Parallel file processors | `10` |
-| `--batch-size <n>` | Documents per embedding batch | `50` |
-| `--dry-run` | Preview files without indexing | `false` |
-
 ### `ship-spec productionalize [context]`
 
-Analyze your codebase for production readiness. This command combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and a Taskmaster-compatible task list.
+Analyze your codebase for production readiness. This command automatically indexes your codebase, then combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and a Taskmaster-compatible task list.
 
 ```bash
 # Basic usage
@@ -156,6 +126,9 @@ ship-spec productionalize
 
 # With specific context
 ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
+
+# Force full re-indexing
+ship-spec productionalize --reindex
 
 # Enable SAST scans (Semgrep, Gitleaks, Trivy)
 ship-spec productionalize --enable-scans
@@ -170,6 +143,7 @@ ship-spec productionalize -o report.md --tasks-output tasks.json
 |--------|-------------|---------|
 | `-o, --output <file>` | Write report to file | `stdout` |
 | `--tasks-output <file>` | Write tasks JSON to file | `stdout` |
+| `--reindex` | Force full re-index of the codebase | `false` |
 | `--enable-scans` | Run SAST scanners (requires binaries) | `false` |
 | `--categories <list>` | Filter to specific categories (csv) | `all` |
 | `--no-stream` | Disable real-time progress output | `false` |
