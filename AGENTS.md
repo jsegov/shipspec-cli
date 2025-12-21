@@ -294,12 +294,14 @@ The CLI supports multiple configuration sources in the following priority order:
 ### Dotenv Loading & Production Guidance
 
 - **Non-Production**: `.env` files are automatically loaded from the current working directory.
-- **Production** (`NODE_ENV=production`): `.env` loading is **disabled** by default for security and deterministic behavior.
-- **Opt-in**: Use `SHIPSPEC_LOAD_DOTENV=1` to force loading `.env` in production.
-- **Override**: Use `SHIPSPEC_DOTENV_OVERRIDE=1` to allow `.env` to overwrite existing process environment variables (default: `false`).
+- **Production** (`NODE_ENV=production`): `.env` loading is strictly controlled.
+- **Requirements**:
+  - Set `SHIPSPEC_LOAD_DOTENV=1` to opt-in.
+  - Set `SHIPSPEC_DOTENV_PATH` to an **absolute path** of the `.env` file.
+  - Set `SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND` if `SHIPSPEC_DOTENV_OVERRIDE=1` is used.
 
 > [!IMPORTANT]
-> In production environments, always prefer real environment variables or a managed secret provider over `.env` files.
+> In production environments, always prefer real environment variables or a managed secret provider over `.env` files. Implicit loading from CWD is disabled in production for security.
 
 ### Key Environment Variables
 

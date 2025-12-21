@@ -2,6 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { execFileWithLimits, ToolMissingError, TimeoutError, ExecError } from "../../core/exec.js";
 import type { SASTConfig } from "../../config/schema.js";
+import { redact, stripAnsi } from "../../utils/logger.js";
 
 export interface SASTFinding {
   tool: "semgrep" | "gitleaks" | "trivy";
@@ -16,7 +17,10 @@ export interface SASTFinding {
   diagnostics?: {
     stderr?: string;
     stdout?: string;
+    stderrPreview?: string;
+    stdoutPreview?: string;
     exitCode?: number;
+    truncated?: boolean;
   };
 }
 
@@ -34,7 +38,10 @@ export const SASTFindingSchema = z.object({
     .object({
       stderr: z.string().optional(),
       stdout: z.string().optional(),
+      stderrPreview: z.string().optional(),
+      stdoutPreview: z.string().optional(),
       exitCode: z.number().optional(),
+      truncated: z.boolean().optional(),
     })
     .optional(),
 });
@@ -171,6 +178,35 @@ async function checkToolInstalled(command: string, installInstructions: string):
   }
 }
 
+/**
+ * Sanitizes and truncates external tool output for diagnostics.
+ * Strips ANSI codes, redacts secrets, and limits length.
+ */
+function sanitizeDiagnostics(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const maxLength = 4096;
+  let sanitized = redact(stripAnsi(text));
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength) + "... [truncated]";
+  }
+  return sanitized;
+}
+
+/**
+ * Helper to wrap diagnostics based on debug mode.
+ */
+function getDiagnostics(stdout: string | undefined, stderr: string | undefined, exitCode?: number) {
+  const isDebug = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
+  if (!isDebug) return undefined;
+
+  return {
+    stdoutPreview: sanitizeDiagnostics(stdout),
+    stderrPreview: sanitizeDiagnostics(stderr),
+    exitCode,
+    truncated: true,
+  };
+}
+
 async function runSemgrep(): Promise<SASTFinding[]> {
   await checkToolInstalled("semgrep --version", "Install it: pip install semgrep");
 
@@ -189,7 +225,7 @@ async function runSemgrep(): Promise<SASTFinding[]> {
             rule: "scanner_error",
             message: `Semgrep output schema validation failed: ${result.error.message}`,
             filepath: "(scanner)",
-            diagnostics: { stdout, stderr },
+            diagnostics: getDiagnostics(stdout, stderr),
           },
         ];
       }
@@ -218,7 +254,7 @@ async function runSemgrep(): Promise<SASTFinding[]> {
             parseError instanceof Error ? parseError.message : String(parseError)
           }`,
           filepath: "(scanner)",
-          diagnostics: { stdout, stderr },
+          diagnostics: getDiagnostics(stdout, stderr),
         },
       ];
     }
@@ -273,7 +309,7 @@ async function runGitleaks(): Promise<SASTFinding[]> {
             rule: "scanner_error",
             message: `Gitleaks output schema validation failed: ${result.error.message}`,
             filepath: "(scanner)",
-            diagnostics: { stdout, stderr },
+            diagnostics: getDiagnostics(stdout, stderr),
           },
         ];
       }
@@ -297,7 +333,7 @@ async function runGitleaks(): Promise<SASTFinding[]> {
             parseError instanceof Error ? parseError.message : String(parseError)
           }`,
           filepath: "(scanner)",
-          diagnostics: { stdout, stderr },
+          diagnostics: getDiagnostics(stdout, stderr),
         },
       ];
     }
@@ -353,7 +389,7 @@ async function runTrivy(): Promise<SASTFinding[]> {
             rule: "scanner_error",
             message: `Trivy output schema validation failed: ${result.error.message}`,
             filepath: "(scanner)",
-            diagnostics: { stdout, stderr },
+            diagnostics: getDiagnostics(stdout, stderr),
           },
         ];
       }
@@ -395,7 +431,7 @@ async function runTrivy(): Promise<SASTFinding[]> {
             parseError instanceof Error ? parseError.message : String(parseError)
           }`,
           filepath: "(scanner)",
-          diagnostics: { stdout, stderr },
+          diagnostics: getDiagnostics(stdout, stderr),
         },
       ];
     }

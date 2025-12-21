@@ -17,14 +17,28 @@ interface ScannerResult {
     severity: string;
     rule: string;
     message: string;
-    diagnostics?: { stdout?: string; stderr?: string; exitCode?: number };
+    diagnostics?: {
+      stdout?: string;
+      stderr?: string;
+      stdoutPreview?: string;
+      stderrPreview?: string;
+      exitCode?: number;
+      truncated?: boolean;
+    };
   }[];
   skipped: string[];
 }
 
 describe("SAST Scanner Tool", () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = { ...originalEnv };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   it("should return findings from Semgrep", async () => {
@@ -61,7 +75,7 @@ describe("SAST Scanner Tool", () => {
     expect(execFileWithLimits).toHaveBeenCalledWith("semgrep", ["scan", "--json", "--quiet"]);
   });
 
-  it("should return scanner_error finding on malformed JSON", async () => {
+  it("should omit diagnostics by default on failure", async () => {
     vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
       if (args.includes("--version"))
         return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
@@ -77,9 +91,55 @@ describe("SAST Scanner Tool", () => {
     expect(result.findings).toHaveLength(1);
     const firstFinding = result.findings[0];
     expect(firstFinding?.rule).toBe("scanner_error");
-    expect(firstFinding?.message).toContain("Failed to parse Semgrep output");
-    expect(firstFinding?.diagnostics?.stdout).toBe("not json");
-    expect(firstFinding?.diagnostics?.stderr).toBe("some error");
+    expect(firstFinding?.diagnostics).toBeUndefined();
+  });
+
+  it("should include sanitized diagnostics when SHIPSPEC_DEBUG_DIAGNOSTICS=1", async () => {
+    process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+
+    const secret = "sk-1234567890123456789012345678";
+    const ansiError = `\x1b[31mError with secret ${secret}\x1b[0m`;
+
+    vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
+      if (args.includes("--version"))
+        return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
+      if (file === "semgrep" && args.includes("scan"))
+        return Promise.resolve({ stdout: "not json", stderr: ansiError, exitCode: 0 });
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    const firstFinding = result.findings[0];
+    expect(firstFinding?.diagnostics).toBeDefined();
+    expect(firstFinding?.diagnostics?.stdoutPreview).toBe("not json");
+    expect(firstFinding?.diagnostics?.stderrPreview).toBe("Error with secret [REDACTED]");
+    expect(firstFinding?.diagnostics?.stderrPreview).not.toContain("\x1b[");
+    expect(firstFinding?.diagnostics?.truncated).toBe(true);
+  });
+
+  it("should truncate long diagnostics", async () => {
+    process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+    const longOutput = "a".repeat(5000);
+
+    vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
+      if (args.includes("--version"))
+        return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
+      if (file === "semgrep" && args.includes("scan"))
+        return Promise.resolve({ stdout: longOutput, stderr: "", exitCode: 0 });
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    const diag = result.findings[0]?.diagnostics;
+    expect(diag?.stdoutPreview).toHaveLength(4096 + "... [truncated]".length);
+    expect(diag?.stdoutPreview).toContain("[truncated]");
   });
 
   it("should handle missing tools gracefully", async () => {

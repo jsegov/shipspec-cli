@@ -1,7 +1,7 @@
 import { config as loadDotenv } from "dotenv";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
-import { join } from "path";
+import { join, isAbsolute } from "path";
 import { ShipSpecConfigSchema, type ShipSpecConfig } from "./schema.js";
 import { logger } from "../utils/logger.js";
 import { ZodError } from "zod";
@@ -21,17 +21,51 @@ export async function loadConfig(
   overrides: Partial<ShipSpecConfig> = {},
   options: { strict?: boolean } = {}
 ): Promise<ShipSpecConfig> {
-  const shouldLoadDotenv =
-    process.env.NODE_ENV !== "production" || process.env.SHIPSPEC_LOAD_DOTENV === "1";
+  const isProduction = process.env.NODE_ENV === "production";
+  const explicitDotenvPath = process.env.SHIPSPEC_DOTENV_PATH;
+  const shouldLoadDotenv = !isProduction || process.env.SHIPSPEC_LOAD_DOTENV === "1";
 
   if (shouldLoadDotenv) {
-    const dotenvPath = join(cwd, ".env");
-    if (existsSync(dotenvPath)) {
+    let dotenvPath: string | undefined;
+
+    if (isProduction) {
+      if (!explicitDotenvPath) {
+        // Only throw if SHIPSPEC_LOAD_DOTENV was explicitly requested or we are strictly in prod
+        // Actually, if shouldLoadDotenv is true and it's production, it means SHIPSPEC_LOAD_DOTENV === '1'
+        throw new Error(
+          "In production, SHIPSPEC_DOTENV_PATH must be set to load a .env file. Implicit loading from CWD is disabled for security."
+        );
+      }
+      if (!isAbsolute(explicitDotenvPath)) {
+        throw new Error(
+          `In production, SHIPSPEC_DOTENV_PATH must be an absolute path. Received: ${explicitDotenvPath}`
+        );
+      }
+      dotenvPath = explicitDotenvPath;
+
+      if (process.env.SHIPSPEC_DOTENV_OVERRIDE === "1") {
+        if (process.env.SHIPSPEC_DOTENV_OVERRIDE_ACK !== "I_UNDERSTAND") {
+          throw new Error(
+            "In production, overriding environment variables via .env requires explicit acknowledgement. Set SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND to proceed."
+          );
+        }
+      }
+    } else {
+      dotenvPath = explicitDotenvPath ?? join(cwd, ".env");
+    }
+
+    if (dotenvPath && existsSync(dotenvPath)) {
       loadDotenv({
         path: dotenvPath,
         override: process.env.SHIPSPEC_DOTENV_OVERRIDE === "1",
       });
-      logger.debug("Loaded .env configuration", true);
+      if (isProduction) {
+        logger.warn(`Loaded dotenv configuration in production from: ${dotenvPath}`);
+      } else {
+        logger.debug(`Loaded .env configuration from ${dotenvPath}`, true);
+      }
+    } else if (explicitDotenvPath) {
+      throw new Error(`Dotenv file not found at: ${explicitDotenvPath}`);
     }
   }
 

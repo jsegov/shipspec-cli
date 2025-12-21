@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { redact, redactEnvValue, sanitizeError, logger } from "../../utils/logger.js";
+import { redact, redactEnvValue, stripAnsi, sanitizeError, logger } from "../../utils/logger.js";
 
 describe("Logger Utility", () => {
   describe("redact", () => {
@@ -12,6 +12,31 @@ describe("Logger Utility", () => {
       const input =
         "Using sk-ant-sid01-abcdef1234567890abcd-abcdef1234567890abcdef1234567890abcdef12";
       expect(redact(input)).toBe("Using [REDACTED]");
+    });
+
+    it("should redact JWT-like tokens", () => {
+      const jwt =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoyNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+      expect(redact(`token: ${jwt}`)).toBe("token: [REDACTED]");
+    });
+
+    it("should redact Bearer tokens", () => {
+      expect(redact("Authorization: Bearer my-secret-token")).toBe("Authorization: [REDACTED]");
+      expect(redact("Bearer abc.def.ghi")).toBe("[REDACTED]");
+    });
+
+    it("should redact Basic auth", () => {
+      expect(redact("Authorization: Basic YWRtaW46cGFzc3dvcmQ=")).toBe("Authorization: [REDACTED]");
+    });
+
+    it("should redact PEM blocks", () => {
+      const pem =
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA75...\n-----END RSA PRIVATE KEY-----";
+      expect(redact(`cert: ${pem}`)).toBe("cert: [REDACTED]");
+    });
+
+    it("should redact AWS Access Key IDs", () => {
+      expect(redact("AWS_KEY=AKIA1234567890ABCDEF")).toBe("AWS_KEY=[REDACTED]");
     });
 
     it("should redact URL credentials", () => {
@@ -31,6 +56,10 @@ describe("Logger Utility", () => {
       expect(redactEnvValue("GITHUB_TOKEN", "secret")).toBe("[REDACTED]");
       expect(redactEnvValue("STRIPE_SECRET", "secret")).toBe("[REDACTED]");
       expect(redactEnvValue("DATABASE_URL", "postgres://...")).toBe("[REDACTED]");
+      expect(redactEnvValue("PASSWORD", "mypass")).toBe("[REDACTED]");
+      expect(redactEnvValue("MY_API_KEY", "abc")).toBe("[REDACTED]");
+      expect(redactEnvValue("SECRET_TOKEN", "123")).toBe("[REDACTED]");
+      expect(redactEnvValue("AUTH_CONFIG", "{}")).toBe("[REDACTED]");
     });
 
     it("should not redact non-sensitive env vars", () => {
@@ -39,18 +68,30 @@ describe("Logger Utility", () => {
     });
   });
 
-  describe("sanitizeError", () => {
-    it("should redact secrets from the error message", () => {
-      const err = new Error("Failed with key sk-1234567890abcdef12345678");
-      expect(sanitizeError(err)).toBe("Failed with key [REDACTED]");
+  describe("stripAnsi", () => {
+    it("should strip ANSI escape codes", () => {
+      expect(stripAnsi("\x1b[31mRed Text\x1b[0m")).toBe("Red Text");
     });
 
-    it("should include redacted stack trace in verbose mode", () => {
+    it("should strip non-printable characters except newline and tab", () => {
+      expect(stripAnsi("Line 1\nLine 2\tTabbed\x07Alert")).toBe("Line 1\nLine 2\tTabbedAlert");
+    });
+  });
+
+  describe("sanitizeError", () => {
+    it("should redact secrets and strip ANSI from the error message", () => {
+      const err = new Error("\x1b[31mFailed with sk-1234567890abcdef12345678\x1b[0m");
+      expect(sanitizeError(err)).toBe("Failed with [REDACTED]");
+    });
+
+    it("should include redacted and stripped stack trace in verbose mode", () => {
       const err = new Error("Auth failed");
-      err.stack = "Error: Auth failed\n  at Object.<anonymous> (sk-1234567890abcdef12345678:1:1)";
+      err.stack =
+        "Error: Auth failed\n  at Object.<anonymous> (\x1b[34msk-1234567890abcdef12345678\x1b[0m:1:1)";
       const sanitized = sanitizeError(err, true);
       expect(sanitized).toContain("Auth failed");
       expect(sanitized).toContain("[REDACTED]");
+      expect(sanitized).not.toContain("\x1b[");
     });
 
     it("should only include message in non-verbose mode", () => {

@@ -180,22 +180,23 @@ Ship Spec resolve configuration from multiple sources in the following priority 
 
 By default, Ship Spec loads environment variables from a `.env` file in the current working directory **only in non-production environments**.
 
-In **production** (`NODE_ENV=production`), `.env` loading is disabled to prevent accidental configuration leakage or unexpected behavior. You should manage secrets and configuration via:
-- Real process environment variables
-- Cloud secret managers (AWS Secrets Manager, GCP Secret Manager, etc.)
-- CI/CD environment settings
+In **production** (`NODE_ENV=production`), `.env` loading is strictly controlled to prevent accidental configuration leakage.
 
-#### Production Opt-in
-If you MUST use a `.env` file in production, you can explicitly opt-in:
+#### Production Requirements
+If you MUST use a `.env` file in production, the following guardrails apply:
+1. **Explicit Opt-in**: Set `SHIPSPEC_LOAD_DOTENV=1`.
+2. **Absolute Path**: You must provide an absolute path to the `.env` file via `SHIPSPEC_DOTENV_PATH`. Implicit loading from the current directory is disabled.
+3. **Override Acknowledgment**: If you use `SHIPSPEC_DOTENV_OVERRIDE=1` to overwrite existing process variables, you must also set `SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND`.
+
+Example for production:
 ```bash
-SHIPSPEC_LOAD_DOTENV=1 ship-spec productionalize
+NODE_ENV=production \
+SHIPSPEC_LOAD_DOTENV=1 \
+SHIPSPEC_DOTENV_PATH=/etc/shipspec/.env \
+ship-spec productionalize
 ```
 
-#### Overwriting Existing Variables
-By default, `.env` will **not** overwrite environment variables that are already set in your process. To force `.env` values to take precedence over process variables (use with caution):
-```bash
-SHIPSPEC_DOTENV_OVERRIDE=1 ship-spec productionalize
-```
+By default, `.env` will **not** overwrite environment variables that are already set in your process unless `SHIPSPEC_DOTENV_OVERRIDE=1` is set (with acknowledgment in production).
 
 ---
 
