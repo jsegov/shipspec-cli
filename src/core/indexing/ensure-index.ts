@@ -158,8 +158,8 @@ async function getGitChanges(
       } else if (status.startsWith("R")) {
         const nextEntry = statusParts[i + 1];
         if (nextEntry && !nextEntry.startsWith(" ")) {
-          const oldFile = file;
-          const newFile = nextEntry;
+          const newFile = file;
+          const oldFile = nextEntry;
           i++;
           if (!removed.includes(oldFile)) removed.push(oldFile);
           if (!added.includes(newFile)) added.push(newFile);
