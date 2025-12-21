@@ -8,7 +8,7 @@ import { configCommand } from "./commands/config.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
 import { logger } from "../utils/logger.js";
-import { CliError } from "./errors.js";
+import { CliError, CliRuntimeError } from "./errors.js";
 
 setMaxListeners(100);
 
@@ -34,7 +34,9 @@ async function main() {
   try {
     await program.parseAsync(process.argv);
   } catch (error: unknown) {
-    if (error instanceof CliError) {
+    if (error instanceof CliRuntimeError) {
+      logger.error(error.toPublicString());
+    } else if (error instanceof CliError) {
       logger.error(error);
     } else if (error instanceof Error) {
       logger.error(error);

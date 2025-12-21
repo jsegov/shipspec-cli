@@ -6,12 +6,16 @@ import chalk from "chalk";
  */
 const SECRET_PATTERNS = [
   /sk-[a-zA-Z0-9]{20,}/g, // OpenAI-style keys
-  /sk-ant-sid01-[a-zA-Z0-9]{20,}-[a-zA-Z0-9]{40,}/g, // Anthropic-style keys
+  /sk-ant-[a-zA-Z0-9_-]{10,}/g, // Anthropic API keys
+  /sk-ant-sid01-[a-zA-Z0-9_-]{20,}/g, // Anthropic session keys
   /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, // JWT-like
   /\bBearer\s+[A-Za-z0-9._-]{10,}\b/gi, // Bearer token (min length to avoid false positives)
   /\bBasic\s+[A-Za-z0-9+/=]{10,}/gi, // Basic auth
   /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, // PEM blocks
   /\bAKIA[0-9A-Z]{16}\b/g, // AWS Access Key ID
+  /\b[A-Za-z0-9+/]{40,}={0,2}\b/g, // High-entropy base64 (40+ chars)
+  /\b[a-fA-F0-9]{64,}\b/g, // Hex-encoded secrets (64+ chars)
+  /Authorization:\s*\S+/gi, // Authorization headers
 ];
 const URL_CRED_PATTERN = /\/\/[^/]+:[^/]+@/g;
 
@@ -39,6 +43,26 @@ export function redact(text: string): string {
   }
   redacted = redacted.replace(URL_CRED_PATTERN, "//[REDACTED]@");
   return redacted;
+}
+
+/**
+ * Recursively redacts sensitive information from objects and arrays.
+ */
+export function redactObject(obj: unknown): unknown {
+  if (typeof obj === "string") {
+    return redact(obj);
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(redactObject);
+  }
+  if (obj && typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = redactObject(value);
+    }
+    return result;
+  }
+  return obj;
 }
 
 /**

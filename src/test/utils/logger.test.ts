@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { redact, redactEnvValue, stripAnsi, sanitizeError, logger } from "../../utils/logger.js";
+import {
+  redact,
+  redactObject,
+  redactEnvValue,
+  stripAnsi,
+  sanitizeError,
+  logger,
+} from "../../utils/logger.js";
 
 describe("Logger Utility", () => {
   describe("redact", () => {
@@ -21,12 +28,12 @@ describe("Logger Utility", () => {
     });
 
     it("should redact Bearer tokens", () => {
-      expect(redact("Authorization: Bearer my-secret-token")).toBe("Authorization: [REDACTED]");
+      expect(redact("Authorization: Bearer my-secret-token")).toBe("[REDACTED]");
       expect(redact("Bearer abc.def.ghi")).toBe("[REDACTED]");
     });
 
     it("should redact Basic auth", () => {
-      expect(redact("Authorization: Basic YWRtaW46cGFzc3dvcmQ=")).toBe("Authorization: [REDACTED]");
+      expect(redact("Authorization: Basic YWRtaW46cGFzc3dvcmQ=")).toBe("[REDACTED]");
     });
 
     it("should redact PEM blocks", () => {
@@ -47,6 +54,83 @@ describe("Logger Utility", () => {
     it("should not redact non-sensitive information", () => {
       const input = "Server started on port 3000";
       expect(redact(input)).toBe(input);
+    });
+
+    it("should redact Anthropic session keys", () => {
+      const input = "Session key: sk-ant-sid01-abcdefghijklmnopqrstuvwxyz1234567890";
+      expect(redact(input)).toContain("[REDACTED]");
+      expect(redact(input)).not.toContain("sk-ant-sid01");
+    });
+
+    it("should redact high-entropy base64 strings", () => {
+      const input =
+        "Secret: dGhpc2lzYXZlcnlsb25nYmFzZTY0ZW5jb2RlZHN0cmluZ3RoYXRsb29rc2xpa2VhY2VydA==";
+      expect(redact(input)).toContain("[REDACTED]");
+    });
+
+    it("should redact hex-encoded secrets", () => {
+      const input = "Token: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+      expect(redact(input)).toContain("[REDACTED]");
+    });
+
+    it("should redact Authorization headers", () => {
+      expect(redact("Authorization: Bearer my-token")).toContain("[REDACTED]");
+      expect(redact("authorization: Basic dXNlcjpwYXNz")).toContain("[REDACTED]");
+    });
+
+    it("should not over-redact normal text", () => {
+      const input = "This is a normal sentence with no secrets.";
+      expect(redact(input)).toBe(input);
+    });
+  });
+
+  describe("redactObject", () => {
+    it("should redact strings in objects", () => {
+      const input = {
+        apiKey: "sk-1234567890abcdef12345678",
+        message: "normal text",
+      };
+      const result = redactObject(input) as Record<string, string>;
+      expect(result.apiKey).toBe("[REDACTED]");
+      expect(result.message).toBe("normal text");
+    });
+
+    it("should recursively redact nested objects", () => {
+      const input = {
+        apiKey: "sk-1234567890abcdef12345678",
+        nested: {
+          token: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.test",
+          normal: "text",
+        },
+      };
+      const result = redactObject(input);
+      const resultStr = JSON.stringify(result);
+      expect(resultStr).toContain("[REDACTED]");
+      expect(resultStr).not.toContain("sk-1234567890");
+      expect(resultStr).not.toContain("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9");
+      expect(resultStr).toContain("text");
+    });
+
+    it("should redact arrays", () => {
+      const input = ["sk-1234567890abcdef12345678", "normal text"];
+      const result = redactObject(input) as string[];
+      expect(result[0]).toBe("[REDACTED]");
+      expect(result[1]).toBe("normal text");
+    });
+
+    it("should handle mixed types", () => {
+      const input = {
+        count: 42,
+        enabled: true,
+        secret: "sk-1234567890abcdef12345678",
+        items: ["Bearer token123456789", "normal"],
+      };
+      const result = redactObject(input);
+      const resultStr = JSON.stringify(result);
+      expect(resultStr).toContain("[REDACTED]");
+      expect(resultStr).toContain("42");
+      expect(resultStr).toContain("true");
+      expect(resultStr).toContain("normal");
     });
   });
 

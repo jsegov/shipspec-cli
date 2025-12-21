@@ -124,7 +124,8 @@ describe("SAST Scanner Tool", () => {
 
   it("should truncate long diagnostics", async () => {
     process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
-    const longOutput = "a".repeat(5000);
+    // Use realistic error message that won't match secret patterns
+    const longOutput = "Error: File not found. ".repeat(210); // ~5000 chars
 
     vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
       if (args.includes("--version"))
@@ -135,13 +136,14 @@ describe("SAST Scanner Tool", () => {
     });
 
     const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
-    const resultString = await tool.invoke({ tools: ["semgrep"] });
-    const result = JSON.parse(resultString) as ScannerResult;
+    const toolResult = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(toolResult) as ScannerResult;
 
     const diag = result.findings[0]?.diagnostics;
+    // The output should be truncated to 4096 chars + "... [truncated]"
     expect(diag?.stdoutPreview).toHaveLength(4096 + "... [truncated]".length);
     expect(diag?.stdoutPreview).toContain("[truncated]");
-    // truncated should be true since stdout exceeded 4096 characters
+    // truncated should be true since original was > 4096 chars
     expect(diag?.truncated).toBe(true);
   });
 

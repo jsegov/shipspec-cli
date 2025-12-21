@@ -171,4 +171,54 @@ describe("Config Loader", () => {
     // Falls back to defaults
     expect(config.projectPath).toBe(".");
   });
+
+  it("should hide dotenv path in production logs", async () => {
+    const dotenvPath = join(tempDir, ".env");
+    await writeFile(dotenvPath, "OPENAI_API_KEY=test");
+
+    process.env.NODE_ENV = "production";
+    process.env.SHIPSPEC_LOAD_DOTENV = "1";
+    process.env.SHIPSPEC_DOTENV_PATH = dotenvPath;
+
+    await loadConfig(tempDir);
+
+    expect(logger.warn).toHaveBeenCalled();
+    const warnCalls = vi.mocked(logger.warn).mock.calls;
+    const dotenvLogCall = warnCalls.find((call) => call[0].includes("Loaded dotenv configuration"));
+
+    expect(dotenvLogCall).toBeDefined();
+    expect(dotenvLogCall?.[0]).not.toContain(dotenvPath);
+    expect(dotenvLogCall?.[0]).toContain("path hidden for security");
+  });
+
+  describe("ALLOW_LOCALHOST_LLM production guardrail", () => {
+    it("should throw in production without acknowledgement", async () => {
+      process.env.NODE_ENV = "production";
+      process.env.ALLOW_LOCALHOST_LLM = "1";
+      delete process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK;
+
+      await expect(loadConfig(tempDir)).rejects.toThrow("I_UNDERSTAND_SSRF_RISK");
+    });
+
+    it("should succeed in production with acknowledgement", async () => {
+      process.env.NODE_ENV = "production";
+      process.env.ALLOW_LOCALHOST_LLM = "1";
+      process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK = "I_UNDERSTAND_SSRF_RISK";
+
+      const config = await loadConfig(tempDir);
+      expect(config).toBeDefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("ALLOW_LOCALHOST_LLM enabled in production")
+      );
+    });
+
+    it("should succeed in non-production without acknowledgement", async () => {
+      process.env.NODE_ENV = "development";
+      process.env.ALLOW_LOCALHOST_LLM = "1";
+      delete process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK;
+
+      const config = await loadConfig(tempDir);
+      expect(config).toBeDefined();
+    });
+  });
 });

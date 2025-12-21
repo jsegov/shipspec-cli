@@ -216,6 +216,22 @@ src/
 - **Template Literals** — When using non-string values (numbers, booleans) in template literals, wrap them in `String()` to satisfy strict linting.
 - **Sanitized Logging** — Always use the `logger` utility (`src/utils/logger.ts`) for CLI output. Never use `console.log` or `console.error` directly; the logger ensures secrets are redacted and errors are sanitized.
 
+### Secret Redaction
+
+The logger automatically redacts common secret patterns from all output to prevent accidental credential leakage:
+
+**Redacted Patterns:**
+- **API Keys**: OpenAI (`sk-...`), Anthropic (`sk-ant-...`), AWS (`AKIA...`)
+- **Tokens**: JWTs, Bearer tokens, Basic auth credentials
+- **Certificates**: PEM blocks (`-----BEGIN ... -----END`)
+- **Authorization Headers**: Any `Authorization:` header values
+- **High-Entropy Secrets**: Base64 strings (40+ chars), hex strings (64+ chars)
+- **URL Credentials**: Username/password in URLs (`user:pass@host`)
+
+**Recursive Redaction**: The `redactObject()` function recursively redacts secrets in nested objects and arrays, useful for sanitizing structured data before logging.
+
+**Extending Patterns**: To add new redaction patterns, update `SECRET_PATTERNS` in `src/utils/logger.ts`. Use specific patterns to avoid over-redaction of normal text.
+
 ### Type Safety & Linting
 
 The project enforces a zero-warning ESLint policy with strict TypeScript rules. Key learnings and requirements:
@@ -330,11 +346,12 @@ SHIPSPEC_STRICT_CONFIG=1                  # Fail on malformed config (auto-enabl
 # Development & Debugging
 SHIPSPEC_DEBUG_DIAGNOSTICS=1              # Enable verbose logging
 ALLOW_LOCALHOST_LLM=1                     # Allow localhost LLM URLs (dev only)
+SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK  # Required in production if ALLOW_LOCALHOST_LLM=1
 NODE_ENV=production                       # Environment mode
 ```
 
 > [!CAUTION]
-> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. Only use in trusted development environments.
+> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. Only use in trusted development environments. In production, this flag requires explicit acknowledgement via `SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK`.
 
 ### Config Schema (src/config/schema.ts)
 

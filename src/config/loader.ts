@@ -28,6 +28,7 @@ const ShipSpecEnvSchema = z.object({
   SHIPSPEC_DOTENV_PATH: z.string().optional(),
   SHIPSPEC_DEBUG_DIAGNOSTICS: ENV_BOOL,
   ALLOW_LOCALHOST_LLM: ENV_BOOL,
+  SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK: z.string().optional(),
 });
 
 type DeepPartial<T> = {
@@ -81,7 +82,7 @@ export async function loadConfig(
         override: process.env.SHIPSPEC_DOTENV_OVERRIDE === "1",
       });
       if (isProduction) {
-        logger.warn(`Loaded dotenv configuration in production from: ${dotenvPath}`);
+        logger.warn("Loaded dotenv configuration in production (path hidden for security)");
       } else {
         logger.debug(`Loaded .env configuration from ${dotenvPath}`, true);
       }
@@ -97,6 +98,19 @@ export async function loadConfig(
     throw new Error(`Invalid environment variables: ${invalidVars}`);
   }
   const env = envParsed.data;
+
+  // Production guardrail for ALLOW_LOCALHOST_LLM
+  if (env.NODE_ENV === "production" && env.ALLOW_LOCALHOST_LLM) {
+    if (env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK !== "I_UNDERSTAND_SSRF_RISK") {
+      throw new Error(
+        "ALLOW_LOCALHOST_LLM=1 is not permitted in production without explicit acknowledgement. " +
+          "This flag disables SSRF protections. To proceed, set SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK"
+      );
+    }
+    logger.warn(
+      "ALLOW_LOCALHOST_LLM enabled in production with explicit acknowledgement. SSRF protections are disabled."
+    );
+  }
 
   const isStrict =
     (options.strict ?? false) || env.SHIPSPEC_STRICT_CONFIG || env.NODE_ENV === "production";
