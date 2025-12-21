@@ -306,11 +306,35 @@ The CLI supports multiple configuration sources in the following priority order:
 
 ### Key Environment Variables
 
+**Provider API Keys:**
 ```bash
 OPENAI_API_KEY=         # For OpenAI embeddings/LLM
-ANTHROPIC_API_KEY=      # For Anthropic LLM
+ANTHROPIC_API_KEY=      # For Anthropic LLM (alternative)
+MISTRAL_API_KEY=        # For Mistral LLM (alternative)
+GOOGLE_API_KEY=         # For Google LLM/embeddings (alternative)
+TAVILY_API_KEY=         # For web search (Tavily provider)
 OLLAMA_BASE_URL=        # Default: http://localhost:11434
 ```
+
+**Configuration Control Flags:**
+```bash
+# Dotenv Loading (Production)
+SHIPSPEC_LOAD_DOTENV=1                    # Opt-in to .env loading in production
+SHIPSPEC_DOTENV_PATH=/absolute/path/.env  # Absolute path (required in prod if LOAD_DOTENV=1)
+SHIPSPEC_DOTENV_OVERRIDE=1                # Allow .env to override existing vars
+SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND # Required if OVERRIDE=1 in production
+
+# Configuration Validation
+SHIPSPEC_STRICT_CONFIG=1                  # Fail on malformed config (auto-enabled in production)
+
+# Development & Debugging
+SHIPSPEC_DEBUG_DIAGNOSTICS=1              # Enable verbose logging
+ALLOW_LOCALHOST_LLM=1                     # Allow localhost LLM URLs (dev only)
+NODE_ENV=production                       # Environment mode
+```
+
+> [!CAUTION]
+> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. Only use in trusted development environments.
 
 ### Config Schema (src/config/schema.ts)
 

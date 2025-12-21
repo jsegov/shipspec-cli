@@ -43,3 +43,24 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Verify package contents
+        run: |
+          npm pack --dry-run > pack-output.txt
+          echo "=== Package Contents ==="
+          cat pack-output.txt
+          
+          # Fail if any .map files are included
+          if grep -q '\.map$' pack-output.txt; then
+            echo "ERROR: Source map files found in package!"
+            grep '\.map$' pack-output.txt
+            exit 1
+          fi
+          
+          # Verify essential files are present
+          if ! grep -q 'dist/cli/index.js' pack-output.txt; then
+            echo "ERROR: CLI entry point missing from package!"
+            exit 1
+          fi
+          
+          echo "✓ Package contents verified"
+
