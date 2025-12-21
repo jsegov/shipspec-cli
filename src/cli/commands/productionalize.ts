@@ -1,6 +1,7 @@
 import { Command, Option } from "commander";
 import { writeFile } from "fs/promises";
 import { resolve, join } from "path";
+import { randomUUID } from "node:crypto";
 import chalk from "chalk";
 
 import { loadConfig } from "../../config/loader.js";
@@ -49,8 +50,16 @@ async function productionalizeAction(
 
   const checkpointEnabled = options.checkpoint || config.checkpoint.enabled;
 
-  if (options.threadId && !checkpointEnabled) {
-    throw new CliUsageError("--thread-id requires --checkpoint to be enabled");
+  if (options.threadId) {
+    if (!checkpointEnabled) {
+      throw new CliUsageError("--thread-id requires --checkpoint to be enabled");
+    }
+    // Validate threadId format: allow only [A-Za-z0-9._-]{1,64}
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(options.threadId)) {
+      throw new CliUsageError(
+        "Invalid --thread-id. Must be 1-64 characters and contain only alphanumeric, '.', '_', or '-'."
+      );
+    }
   }
 
   logger.progress(
@@ -105,7 +114,7 @@ async function productionalizeAction(
   const graphConfig = checkpointEnabled
     ? {
         configurable: {
-          thread_id: options.threadId ?? `session-${String(Date.now())}`,
+          thread_id: options.threadId ?? randomUUID(),
         },
       }
     : {};

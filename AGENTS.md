@@ -244,6 +244,7 @@ import { loadConfig } from "../config/loader";
 
 ```typescript
 import { z } from "zod";
+import { logger } from "../utils/logger.js";
 
 // ✅ Correct: Use Zod to validate external data
 const UserSchema = z.object({
@@ -255,7 +256,7 @@ type User = z.infer<typeof UserSchema>;
 
 function handleUserResponse(data: unknown) {
   const user = UserSchema.parse(data); // Returns typed User or throws
-  console.log(`Hello, ${user.name}`);
+  logger.plain(`Hello, ${user.name}`);
 }
 
 // ✅ Correct: Use specific interfaces for internal logic
@@ -270,7 +271,7 @@ function analyzeProject(config: ProjectConfig) {
 
 // ❌ Incorrect: Using any or unknown without validation
 function handleData(data: any) {
-  console.log(data.someProperty);
+  logger.plain(data.someProperty);
 }
 ```
 

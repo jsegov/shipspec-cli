@@ -5,6 +5,7 @@ import fs from "fs/promises";
 import path from "path";
 
 const execFileAsync = promisify(execFile);
+const verifiedBinaries = new Set<string>();
 
 export interface ExecWithLimitsOptions extends Omit<ExecFileOptions, "timeout" | "maxBuffer"> {
   timeoutSeconds?: number;
@@ -70,7 +71,8 @@ export async function execFileWithLimits(
         HOME: process.env.HOME,
         USER: process.env.USER,
         TMPDIR: process.env.TMPDIR,
-        // Specific tool path overrides can be added here or passed in options.env
+        LANG: process.env.LANG,
+        LC_ALL: process.env.LC_ALL,
         ...getToolPathOverrides(),
       },
     });
@@ -127,6 +129,10 @@ async function resolveBinary(name: string): Promise<string> {
   const overrideKey = `${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_PATH`;
   const override = process.env[overrideKey];
   if (override) {
+    if (!path.isAbsolute(override)) {
+      throw new Error(`Environment override ${overrideKey} must be an absolute path: ${override}`);
+    }
+    await verifyBinary(override);
     return override;
   }
 
@@ -139,6 +145,7 @@ async function resolveBinary(name: string): Promise<string> {
       const fullPath = path.join(p, name + ext);
       try {
         await fs.access(fullPath, fs.constants.X_OK);
+        await verifyBinary(fullPath);
         return fullPath;
       } catch {
         continue;
@@ -147,6 +154,29 @@ async function resolveBinary(name: string): Promise<string> {
   }
 
   throw new ToolMissingError(name);
+}
+
+/**
+ * Performs a one-time verification check (version check) after resolution.
+ */
+async function verifyBinary(binaryPath: string): Promise<void> {
+  if (verifiedBinaries.has(binaryPath)) return;
+
+  try {
+    // Try --version first
+    await execFileAsync(binaryPath, ["--version"], { timeout: 5000 });
+    verifiedBinaries.add(binaryPath);
+  } catch {
+    try {
+      // Fallback to 'version'
+      await execFileAsync(binaryPath, ["version"], { timeout: 5000 });
+      verifiedBinaries.add(binaryPath);
+    } catch {
+      throw new Error(
+        `Binary verification failed for ${binaryPath}. Ensure it is a valid executable.`
+      );
+    }
+  }
 }
 
 function getToolPathOverrides(): NodeJS.ProcessEnv {

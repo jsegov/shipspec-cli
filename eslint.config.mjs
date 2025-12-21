@@ -40,9 +40,17 @@ export default tseslint.config(
           minimumDescriptionLength: 10,
         },
       ],
+      "no-console": "error",
     },
   },
 
   // Prettier must be last to override formatting rules
   eslintConfigPrettier,
+  // Allow console in logger utility
+  {
+    files: ["src/utils/logger.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  }
 );

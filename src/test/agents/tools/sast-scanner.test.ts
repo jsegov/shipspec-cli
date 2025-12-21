@@ -174,4 +174,55 @@ describe("SAST Scanner Tool", () => {
     expect(firstSkipped).toContain("timed out");
     expect(firstSkipped).toContain("misconfigured or unresponsive");
   });
+
+  it("should return scanner_error findings for Gitleaks malformed output", async () => {
+    vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
+      if (args.includes("version"))
+        return Promise.resolve({ stdout: "8.0.0", stderr: "", exitCode: 0 });
+      if (file === "gitleaks" && args.includes("detect"))
+        return Promise.resolve({ stdout: "{ invalid json }", stderr: "", exitCode: 0 });
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["gitleaks"] });
+    const resultString = await tool.invoke({ tools: ["gitleaks"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.tool).toBe("gitleaks");
+    expect(result.findings[0]?.rule).toBe("scanner_error");
+  });
+
+  it("should return scanner_error findings for Trivy malformed output", async () => {
+    vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
+      if (args.includes("--version"))
+        return Promise.resolve({ stdout: "0.45.0", stderr: "", exitCode: 0 });
+      if (file === "trivy" && args.includes("fs"))
+        return Promise.resolve({ stdout: "[ malformed }", stderr: "", exitCode: 0 });
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["trivy"] });
+    const resultString = await tool.invoke({ tools: ["trivy"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.tool).toBe("trivy");
+    expect(result.findings[0]?.rule).toBe("scanner_error");
+  });
+
+  it("should return scanner_timeout findings for tool timeout", async () => {
+    vi.mocked(execFileWithLimits).mockImplementation((file: string, args: string[]) => {
+      if (args.includes("--version") || args.includes("version"))
+        return Promise.resolve({ stdout: "1.0.0", stderr: "", exitCode: 0 });
+      throw new TimeoutError(file, 300);
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.rule).toBe("scanner_timeout");
+  });
 });

@@ -2,11 +2,33 @@ import { config as loadDotenv } from "dotenv";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join, isAbsolute } from "path";
+import { z } from "zod";
 import { ShipSpecConfigSchema, type ShipSpecConfig } from "./schema.js";
 import { logger } from "../utils/logger.js";
 import { ZodError } from "zod";
 
 const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"];
+const ENV_BOOL = z
+  .enum(["0", "1"])
+  .optional()
+  .transform((v: string | undefined) => v === "1");
+
+const ShipSpecEnvSchema = z.object({
+  NODE_ENV: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  MISTRAL_API_KEY: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  TAVILY_API_KEY: z.string().optional(),
+  OLLAMA_BASE_URL: z.url().optional(),
+  SHIPSPEC_LOAD_DOTENV: ENV_BOOL,
+  SHIPSPEC_DOTENV_OVERRIDE: ENV_BOOL,
+  SHIPSPEC_DOTENV_OVERRIDE_ACK: z.string().optional(),
+  SHIPSPEC_STRICT_CONFIG: ENV_BOOL,
+  SHIPSPEC_DOTENV_PATH: z.string().optional(),
+  SHIPSPEC_DEBUG_DIAGNOSTICS: ENV_BOOL,
+  ALLOW_LOCALHOST_LLM: ENV_BOOL,
+});
 
 type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
@@ -18,7 +40,7 @@ type DeepPartial<T> = {
 
 export async function loadConfig(
   cwd: string = process.cwd(),
-  overrides: Partial<ShipSpecConfig> = {},
+  overrides: DeepPartial<ShipSpecConfig> = {},
   options: { strict?: boolean } = {}
 ): Promise<ShipSpecConfig> {
   const isProduction = process.env.NODE_ENV === "production";
@@ -26,12 +48,11 @@ export async function loadConfig(
   const shouldLoadDotenv = !isProduction || process.env.SHIPSPEC_LOAD_DOTENV === "1";
 
   if (shouldLoadDotenv) {
+    // ... same logic for dotenvPath ...
     let dotenvPath: string | undefined;
 
     if (isProduction) {
       if (!explicitDotenvPath) {
-        // Only throw if SHIPSPEC_LOAD_DOTENV was explicitly requested or we are strictly in prod
-        // Actually, if shouldLoadDotenv is true and it's production, it means SHIPSPEC_LOAD_DOTENV === '1'
         throw new Error(
           "In production, SHIPSPEC_DOTENV_PATH must be set to load a .env file. Implicit loading from CWD is disabled for security."
         );
@@ -69,10 +90,16 @@ export async function loadConfig(
     }
   }
 
+  // Parse environment variables after potentially loading .env
+  const envParsed = ShipSpecEnvSchema.safeParse(process.env);
+  if (!envParsed.success) {
+    const invalidVars = envParsed.error.issues.map((i) => i.path.join(".")).join(", ");
+    throw new Error(`Invalid environment variables: ${invalidVars}`);
+  }
+  const env = envParsed.data;
+
   const isStrict =
-    (options.strict ?? false) ||
-    process.env.SHIPSPEC_STRICT_CONFIG === "1" ||
-    process.env.NODE_ENV === "production";
+    (options.strict ?? false) || env.SHIPSPEC_STRICT_CONFIG || env.NODE_ENV === "production";
 
   let fileConfig: DeepPartial<ShipSpecConfig> = {};
   for (const filename of CONFIG_FILES) {
@@ -120,19 +147,16 @@ export async function loadConfig(
   const envConfig: DeepPartial<ShipSpecConfig> = {
     llm: {
       apiKey:
-        process.env.OPENAI_API_KEY ??
-        process.env.ANTHROPIC_API_KEY ??
-        process.env.MISTRAL_API_KEY ??
-        process.env.GOOGLE_API_KEY,
-      baseUrl: process.env.OLLAMA_BASE_URL,
+        env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY ?? env.MISTRAL_API_KEY ?? env.GOOGLE_API_KEY,
+      baseUrl: env.OLLAMA_BASE_URL,
     },
     embedding: {
-      apiKey: process.env.OPENAI_API_KEY ?? process.env.GOOGLE_API_KEY,
-      baseUrl: process.env.OLLAMA_BASE_URL,
+      apiKey: env.OPENAI_API_KEY ?? env.GOOGLE_API_KEY,
+      baseUrl: env.OLLAMA_BASE_URL,
     },
     productionalize: {
       webSearch: {
-        apiKey: process.env.TAVILY_API_KEY,
+        apiKey: env.TAVILY_API_KEY,
       },
     },
   };
