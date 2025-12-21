@@ -1,6 +1,7 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import type { z } from "zod";
 import type { ProductionalizeStateType } from "../state.js";
 import type { ProductionalizeSubtask } from "../types.js";
 import type { TokenBudget } from "../../../utils/tokens.js";
@@ -10,6 +11,8 @@ import {
   PRODUCTIONALIZE_WORKER_TEMPLATE,
   ProductionalizeWorkerOutputSchema,
 } from "../../prompts/index.js";
+
+type WorkerOutput = z.infer<typeof ProductionalizeWorkerOutputSchema>;
 
 export function createWorkerNode(
   model: BaseChatModel,
@@ -74,10 +77,24 @@ ${contextString}
 Subtask Query:
 ${subtask.query}`;
 
-    const output = await structuredModel.invoke([
-      new SystemMessage(PRODUCTIONALIZE_WORKER_TEMPLATE),
-      new HumanMessage(userPrompt),
-    ]);
+    let output: WorkerOutput;
+    try {
+      output = await structuredModel.invoke([
+        new SystemMessage(PRODUCTIONALIZE_WORKER_TEMPLATE),
+        new HumanMessage(userPrompt),
+      ]);
+    } catch (parseError) {
+      // LangChain parser fails on JSON with leading newlines; extract and re-parse
+      const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
+      const textMatch = /Text: "([\s\S]+?)"\. Error:/.exec(errMsg);
+      if (!textMatch?.[1]) throw parseError;
+      try {
+        const parsed: unknown = JSON.parse(textMatch[1].trim());
+        output = ProductionalizeWorkerOutputSchema.parse(parsed);
+      } catch {
+        throw parseError;
+      }
+    }
 
     const finalFindings = output.findings.map((f) => {
       if (subtask.source === "scan") {
