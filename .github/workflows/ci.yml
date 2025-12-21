@@ -45,7 +45,7 @@ jobs:
 
       - name: Verify package contents
         run: |
-          npm pack --dry-run > pack-output.txt
+          npm pack --dry-run > pack-output.txt 2>&1
           echo "=== Package Contents ==="
           cat pack-output.txt
           
