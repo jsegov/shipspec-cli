@@ -98,4 +98,19 @@ describe("Config Loader", () => {
     const config = await loadConfig(tempDir, { projectPath: "./override" });
     expect(config.projectPath).toBe("./override");
   });
+
+  it("should continue to next config file when first file is invalid in non-strict mode", async () => {
+    // Create invalid first config file (shipspec.json)
+    const firstConfigPath = join(tempDir, "shipspec.json");
+    await writeFile(firstConfigPath, JSON.stringify({ unknownKey: "invalid" }));
+
+    // Create valid second config file (.shipspecrc)
+    const secondConfigPath = join(tempDir, ".shipspecrc");
+    await writeFile(secondConfigPath, JSON.stringify({ projectPath: "./valid" }));
+
+    const config = await loadConfig(tempDir);
+    expect(config.projectPath).toBe("./valid");
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
+    expect(logger.debug).toHaveBeenCalledWith("Loaded config from .shipspecrc", true);
+  });
 });

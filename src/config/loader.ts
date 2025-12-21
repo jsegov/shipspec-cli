@@ -50,6 +50,7 @@ export async function loadConfig(
         if (result.success) {
           fileConfig = result.data as DeepPartial<ShipSpecConfig>;
           logger.debug(`Loaded config from ${filename}`, true);
+          break;
         } else {
           const msg = `Invalid config in ${filepath}:\n${result.error.issues
             .map((i) => `- ${i.path.join(".")}: ${i.message}`)
@@ -58,8 +59,8 @@ export async function loadConfig(
             throw new Error(msg);
           }
           logger.warn(msg);
+          // Continue to next config file in non-strict mode
         }
-        break;
       } catch (err) {
         if (isStrict) throw err;
       }
