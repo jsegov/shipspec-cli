@@ -18,7 +18,7 @@ export function redact(text: string): string {
   for (const pattern of SECRET_PATTERNS) {
     redacted = redacted.replace(pattern, "[REDACTED]");
   }
-  redacted = redacted.replace(URL_CRED_PATTERN, "//[REDACTED]@[REDACTED]");
+  redacted = redacted.replace(URL_CRED_PATTERN, "//[REDACTED]@");
   return redacted;
 }
 

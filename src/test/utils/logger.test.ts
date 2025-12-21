@@ -16,9 +16,7 @@ describe("Logger Utility", () => {
 
     it("should redact URL credentials", () => {
       const input = "Database URL: postgres://user:password123@localhost:5432/mydb";
-      expect(redact(input)).toBe(
-        "Database URL: postgres://[REDACTED]@[REDACTED]localhost:5432/mydb"
-      );
+      expect(redact(input)).toBe("Database URL: postgres://[REDACTED]@localhost:5432/mydb");
     });
 
     it("should not redact non-sensitive information", () => {
