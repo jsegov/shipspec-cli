@@ -7,7 +7,7 @@ import { createWorkerNode } from "./nodes/worker.js";
 import { createAggregatorNode } from "./nodes/aggregator.js";
 import { createTaskGeneratorNode } from "./nodes/task-generator.js";
 import { createWebSearchTool } from "../tools/web-search.js";
-import { createSASTScannerTool } from "../tools/sast-scanner.js";
+import { createSASTScannerTool, ScannerResultsSchema } from "../tools/sast-scanner.js";
 import { createRetrieverTool } from "../tools/retriever.js";
 import { createChatModel } from "../../core/models/llm.js";
 import { DocumentRepository } from "../../core/storage/repository.js";
@@ -39,18 +39,14 @@ export async function createProductionalizeGraph(
     return { signals };
   };
 
-  interface ScannerResults {
-    findings?: unknown[];
-  }
-
   const scannerNode = async () => {
     if (!config.productionalize.sast?.enabled) {
       return { sastResults: [] };
     }
-    const resultsString = await sastTool.invoke({});
     try {
-      const results = JSON.parse(resultsString) as ScannerResults;
-      return { sastResults: results.findings ?? [] };
+      const resultsString = await sastTool.invoke({});
+      const validated = ScannerResultsSchema.safeParse(JSON.parse(resultsString));
+      return { sastResults: validated.success ? (validated.data.findings ?? []) : [] };
     } catch {
       return { sastResults: [] };
     }

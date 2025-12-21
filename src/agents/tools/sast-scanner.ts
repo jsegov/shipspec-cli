@@ -18,6 +18,23 @@ export interface SASTFinding {
   cveId?: string;
 }
 
+export const SASTFindingSchema = z.object({
+  tool: z.enum(["semgrep", "gitleaks", "trivy"]),
+  severity: z.enum(["critical", "high", "medium", "low", "info"]),
+  rule: z.string(),
+  message: z.string(),
+  filepath: z.string(),
+  startLine: z.number().optional(),
+  endLine: z.number().optional(),
+  cweId: z.string().optional(),
+  cveId: z.string().optional(),
+});
+
+export const ScannerResultsSchema = z.object({
+  findings: z.array(SASTFindingSchema).optional(),
+  skipped: z.array(z.string()).optional(),
+});
+
 const SemgrepResultSchema = z.object({
   check_id: z.string(),
   path: z.string(),
