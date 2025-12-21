@@ -145,12 +145,13 @@ npm run test:coverage
 **Before committing any changes, you MUST run the full verification suite:**
 
 ```bash
-npm run typecheck && npm run lint && npm run build && npm test
+npm run typecheck && npm run lint && npm run format:check && npm run build && npm test
 ```
 
-All four commands must pass without errors. This ensures:
+All five commands must pass without errors. This ensures:
 - **Type safety** — No TypeScript compilation errors
 - **Code quality** — No ESLint warnings or errors (zero-warning policy)
+- **Code formatting** — Consistent style according to Prettier
 - **Build integrity** — Successful production build
 - **Test coverage** — All tests pass
 
