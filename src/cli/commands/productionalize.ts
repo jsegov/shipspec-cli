@@ -13,6 +13,7 @@ import { createProductionalizeGraph } from "../../agents/productionalize/graph.j
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
 import type { ProductionalizeSubtask, TaskmasterTask } from "../../agents/productionalize/types.js";
+import { CliUsageError, CliRuntimeError } from "../errors.js";
 
 interface ProductionalizeOptions {
   output?: string;
@@ -34,11 +35,12 @@ async function productionalizeAction(
 
   // Override config with CLI options
   if (options.enableScans) {
-    config.productionalize.sast ??= { enabled: false, tools: [] };
-    config.productionalize.sast.enabled = true;
-    if (config.productionalize.sast.tools.length === 0) {
-      config.productionalize.sast.tools = ["semgrep", "gitleaks", "trivy"];
+    const sast = config.productionalize.sast ?? { enabled: false, tools: [] };
+    sast.enabled = true;
+    if (sast.tools.length === 0) {
+      sast.tools = ["semgrep", "gitleaks", "trivy"];
     }
+    config.productionalize.sast = sast;
   }
 
   if (options.categories) {
@@ -48,8 +50,7 @@ async function productionalizeAction(
   const checkpointEnabled = options.checkpoint || config.checkpoint.enabled;
 
   if (options.threadId && !checkpointEnabled) {
-    logger.error("--thread-id requires --checkpoint to be enabled");
-    process.exit(1);
+    throw new CliUsageError("--thread-id requires --checkpoint to be enabled");
   }
 
   logger.progress(
@@ -82,9 +83,7 @@ async function productionalizeAction(
       logger.info("Index is up to date.");
     }
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    logger.error(`Indexing failed: ${errorMsg}`);
-    process.exit(1);
+    throw new CliRuntimeError("Indexing failed", error);
   }
 
   let checkpointer;
@@ -93,9 +92,7 @@ async function productionalizeAction(
       logger.progress("Initializing checkpointer...");
       checkpointer = createCheckpointer(config.checkpoint.type, config.checkpoint.sqlitePath);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`Failed to initialize checkpointer: ${errorMsg}`);
-      process.exit(1);
+      throw new CliRuntimeError("Failed to initialize checkpointer", error);
     }
   }
 
@@ -132,41 +129,35 @@ async function productionalizeAction(
         if (event.scanner) {
           logger.progress(chalk.cyan("[Scanner] SAST scans completed."));
         }
-        if (event.planner) {
+        if (event.planner?.subtasks) {
           const subtasks = event.planner.subtasks as ProductionalizeSubtask[];
-          console.error(
-            chalk.cyan(`[Planner] Generated ${String(subtasks.length)} analysis subtasks:`)
-          );
+          logger.progress(`[Planner] Generated ${String(subtasks.length)} analysis subtasks:`);
           subtasks.forEach((task, i: number) => {
-            console.error(
-              chalk.cyan(`  ${String(i + 1)}. [${task.source}] ${task.category}: ${task.query}`)
-            );
+            logger.progress(`  ${String(i + 1)}. [${task.source}] ${task.category}: ${task.query}`);
           });
-          console.error();
+          logger.progress("");
         }
 
-        if (event.worker) {
+        if (event.worker?.subtasks) {
           const subtasks = event.worker.subtasks as ProductionalizeSubtask[];
           const completedTask = subtasks.find((t) => t.status === "complete");
           if (completedTask) {
-            console.error(chalk.yellow(`[Worker] Completed: ${completedTask.category}`));
+            logger.progress(chalk.yellow(`[Worker] Completed: ${completedTask.category}`));
           }
         }
 
         if (event.aggregator?.finalReport) {
           finalReport = event.aggregator.finalReport;
-          console.error(chalk.green("\n[Aggregator] Production Readiness Report generated!"));
+          logger.progress(chalk.green("\n[Aggregator] Production Readiness Report generated!"));
         }
 
         if (event.taskGenerator?.tasks) {
           finalTasks = event.taskGenerator.tasks;
-          console.error(chalk.green("[TaskGenerator] Agent-executable tasks generated!\n"));
+          logger.progress(chalk.green("[TaskGenerator] Agent-executable tasks generated!\n"));
         }
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`Analysis failed: ${errorMsg}`);
-      process.exit(1);
+      throw new CliRuntimeError("Analysis failed", error);
     }
   } else {
     try {
@@ -177,28 +168,34 @@ async function productionalizeAction(
       finalReport = result.finalReport;
       finalTasks = result.tasks;
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      logger.error(`Analysis failed: ${errorMsg}`);
-      process.exit(1);
+      throw new CliRuntimeError("Analysis failed", error);
     }
   }
 
   if (options.output) {
     const outputPath = resolve(options.output);
-    await writeFile(outputPath, finalReport, "utf-8");
-    logger.success(`Report written to: ${outputPath}`);
+    try {
+      await writeFile(outputPath, finalReport, "utf-8");
+      logger.success(`Report written to: ${outputPath}`);
+    } catch (error) {
+      throw new CliRuntimeError(`Failed to write report to: ${outputPath}`, error);
+    }
   } else {
-    console.log(finalReport);
+    logger.output(finalReport);
   }
 
   if (options.tasksOutput) {
     const tasksPath = resolve(options.tasksOutput);
-    await writeFile(tasksPath, JSON.stringify(finalTasks, null, 2), "utf-8");
-    logger.success(`Tasks written to: ${tasksPath}`);
+    try {
+      await writeFile(tasksPath, JSON.stringify(finalTasks, null, 2), "utf-8");
+      logger.success(`Tasks written to: ${tasksPath}`);
+    } catch (error) {
+      throw new CliRuntimeError(`Failed to write tasks to: ${tasksPath}`, error);
+    }
   } else {
     if (finalTasks.length > 0 && !options.output) {
-      console.log(chalk.bold("\n--- Agent Task List ---"));
-      console.log(JSON.stringify(finalTasks, null, 2));
+      logger.plain(chalk.bold("\n--- Agent Task List ---"));
+      logger.plain(JSON.stringify(finalTasks, null, 2));
     }
   }
 }

@@ -214,6 +214,7 @@ src/
 - **Provider abstraction** — Never import vendor SDKs directly in business logic; use factory functions.
 - **No Non-Null Assertions** — Avoid `!` operator. Use optional chaining (`?.`), nullish coalescing (`??`), or type guards instead.
 - **Template Literals** — When using non-string values (numbers, booleans) in template literals, wrap them in `String()` to satisfy strict linting.
+- **Sanitized Logging** — Always use the `logger` utility (`src/utils/logger.ts`) for CLI output. Never use `console.log` or `console.error` directly; the logger ensures secrets are redacted and errors are sanitized.
 
 ### Type Safety & Linting
 
@@ -225,6 +226,7 @@ The project enforces a zero-warning ESLint policy with strict TypeScript rules. 
 4.  **Array Syntax**: Use `T[]` instead of `Array<T>` for consistency.
 5.  **Sync vs Async**: Remove `async` from functions that do not perform `await` operations.
 6.  **Floating Promises**: Always await promises or explicitly mark them as ignored using the `void` operator.
+7.  **No Direct Console Usage**: Direct use of `console.log` or `console.error` is prohibited. Use the centralized `logger` to prevent accidental credential leakage and ensure sanitized error reporting.
 
 ### Import Conventions
 

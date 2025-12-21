@@ -9,6 +9,9 @@ import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
+import { logger } from "../utils/logger.js";
+import { CliError } from "./errors.js";
+
 setMaxListeners(100);
 
 loadDotenv({ path: join(process.cwd(), ".env") });
@@ -31,4 +34,22 @@ program
 program.addCommand(configCommand);
 program.addCommand(productionalizeCommand);
 
-program.parse();
+async function main() {
+  try {
+    await program.parseAsync(process.argv);
+  } catch (error) {
+    const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbose");
+
+    if (error instanceof CliError) {
+      logger.error(error, isVerbose);
+    } else {
+      logger.error("An unexpected error occurred.");
+      if (isVerbose) {
+        logger.error(error as Error, true);
+      }
+    }
+    process.exitCode = 1;
+  }
+}
+
+void main();
