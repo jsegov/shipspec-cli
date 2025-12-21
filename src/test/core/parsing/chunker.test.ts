@@ -66,9 +66,7 @@ describe("SemanticChunker", () => {
       const chunker = new SemanticChunker({ includeComments: true });
       const chunks = await chunker.chunkFile("test.ts", TS_FIXTURE);
 
-      const addFunction = chunks.find(
-        (chunk) => chunk.symbolName === "add"
-      );
+      const addFunction = chunks.find((chunk) => chunk.symbolName === "add");
       expect(addFunction).toBeDefined();
       expect(addFunction?.content).toContain("function add");
       expect(addFunction?.content).toContain("return a + b");
@@ -82,9 +80,7 @@ describe("SemanticChunker", () => {
       const chunker = new SemanticChunker({ includeComments: false });
       const chunks = await chunker.chunkFile("test.ts", TS_FIXTURE);
 
-      const addFunction = chunks.find(
-        (chunk) => chunk.symbolName === "add"
-      );
+      const addFunction = chunks.find((chunk) => chunk.symbolName === "add");
       expect(addFunction).toBeDefined();
       expect(addFunction?.content).not.toContain("/**");
       expect(addFunction?.content).toContain("function add");
@@ -134,9 +130,7 @@ ${Array(100).fill("  const x = 'some very long string that repeats';").join("\n"
         expect(chunk.endLine).toBeGreaterThanOrEqual(chunk.startLine);
       }
 
-      const addFunction = chunks.find(
-        (chunk) => chunk.symbolName === "add"
-      );
+      const addFunction = chunks.find((chunk) => chunk.symbolName === "add");
       if (addFunction) {
         expect(addFunction.startLine).toBeGreaterThanOrEqual(0);
         expect(addFunction.endLine).toBeGreaterThan(addFunction.startLine);
@@ -187,9 +181,7 @@ ${Array(100).fill("  const x = 'some very long string that repeats';").join("\n"
       const chunker = new SemanticChunker({ includeComments: true });
       const chunks = await chunker.chunkFile("test.py", PYTHON_FIXTURE);
 
-      const addFunction = chunks.find(
-        (chunk) => chunk.symbolName === "add"
-      );
+      const addFunction = chunks.find((chunk) => chunk.symbolName === "add");
       expect(addFunction).toBeDefined();
       expect(addFunction?.content).toContain('"""');
       expect(addFunction?.content).toContain("Adds two numbers");
@@ -199,9 +191,9 @@ ${Array(100).fill("  const x = 'some very long string that repeats';").join("\n"
   describe("chunkFile - error handling", () => {
     it("throws error for unsupported language", async () => {
       const chunker = new SemanticChunker();
-      await expect(
-        chunker.chunkFile("test.unknown", "some code")
-      ).rejects.toThrow("Unsupported language");
+      await expect(chunker.chunkFile("test.unknown", "some code")).rejects.toThrow(
+        "Unsupported language"
+      );
     });
   });
 });

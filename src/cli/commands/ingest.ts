@@ -22,10 +22,7 @@ interface IngestOptions {
   resolvedConfig?: ShipSpecConfig;
 }
 
-async function discoverFiles(
-  projectPath: string,
-  ignorePatterns: string[]
-): Promise<string[]> {
+async function discoverFiles(projectPath: string, ignorePatterns: string[]): Promise<string[]> {
   const files = await fg("**/*", {
     cwd: projectPath,
     ignore: ignorePatterns,
@@ -42,10 +39,7 @@ function generateChunkId(): string {
   return randomUUID();
 }
 
-async function processFile(
-  filepath: string,
-  projectPath: string
-): Promise<CodeChunk[]> {
+async function processFile(filepath: string, projectPath: string): Promise<CodeChunk[]> {
   const content = await readSourceFile(filepath);
   const relativePath = getRelativePath(filepath, projectPath);
 
@@ -83,7 +77,9 @@ async function ingestAction(options: IngestOptions): Promise<void> {
   // Dry run mode - just show what would be processed
   if (options.dryRun) {
     logger.info("Dry run mode - files that would be processed:");
-    files.forEach((f) => { logger.plain(`  ${getRelativePath(f, projectPath)}`); });
+    files.forEach((f) => {
+      logger.plain(`  ${getRelativePath(f, projectPath)}`);
+    });
     logger.info(`Total: ${String(files.length)} files`);
     return;
   }
@@ -92,17 +88,12 @@ async function ingestAction(options: IngestOptions): Promise<void> {
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
   const embeddings = createEmbeddingsModel(config.embedding);
-  const repository = new DocumentRepository(
-    vectorStore,
-    embeddings,
-    config.embedding.dimensions
-  );
+  const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
 
   // Setup progress bar
   const progressBar = new cliProgress.SingleBar(
     {
-      format:
-        "Ingesting |{bar}| {percentage}% || {value}/{total} files || {eta}s remaining",
+      format: "Ingesting |{bar}| {percentage}% || {value}/{total} files || {eta}s remaining",
       barCompleteChar: "\u2588",
       barIncompleteChar: "\u2591",
       hideCursor: true,
@@ -129,10 +120,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
       } catch (error) {
         errors++;
         const errorMsg = error instanceof Error ? error.message : String(error);
-        logger.debug(
-          `Failed to process ${getRelativePath(file, projectPath)}: ${errorMsg}`,
-          true
-        );
+        logger.debug(`Failed to process ${getRelativePath(file, projectPath)}: ${errorMsg}`, true);
       } finally {
         processedFiles++;
         progressBar.update(processedFiles);
@@ -153,8 +141,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
 
   const embeddingProgressBar = new cliProgress.SingleBar(
     {
-      format:
-        "Embedding |{bar}| {percentage}% || {value}/{total} chunks || {eta}s remaining",
+      format: "Embedding |{bar}| {percentage}% || {value}/{total} chunks || {eta}s remaining",
       barCompleteChar: "\u2588",
       barIncompleteChar: "\u2591",
       hideCursor: true,
@@ -193,19 +180,7 @@ async function ingestAction(options: IngestOptions): Promise<void> {
 export const ingestCommand = new Command("ingest")
   .description("Index the codebase into the vector store")
   .addOption(new Option("--resolved-config").hideHelp())
-  .option(
-    "--concurrency <n>",
-    "Number of concurrent file processors",
-    "10"
-  )
-  .option(
-    "--batch-size <n>",
-    "Documents per embedding batch",
-    "50"
-  )
-  .option(
-    "--dry-run",
-    "Show files that would be processed without indexing",
-    false
-  )
+  .option("--concurrency <n>", "Number of concurrent file processors", "10")
+  .option("--batch-size <n>", "Documents per embedding batch", "50")
+  .option("--dry-run", "Show files that would be processed without indexing", false)
   .action(ingestAction);

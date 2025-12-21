@@ -31,10 +31,7 @@ export class DocumentRepository {
     const queryVector = await this.embeddings.embedQuery(query);
     const table = await this.getTable();
 
-    const results = await table
-      .vectorSearch(queryVector)
-      .limit(k)
-      .toArray();
+    const results = await table.vectorSearch(queryVector).limit(k).toArray();
 
     return results.map((record) => this.recordToCodeChunk(record as Record<string, unknown>));
   }
@@ -43,10 +40,7 @@ export class DocumentRepository {
     const table = await this.getTable();
     const queryVector = await this.embeddings.embedQuery(query);
 
-    const results = await table
-      .search(queryVector, "hybrid")
-      .limit(k)
-      .toArray();
+    const results = await table.search(queryVector, "hybrid").limit(k).toArray();
 
     return results.map((record) => this.recordToCodeChunk(record as Record<string, unknown>));
   }

@@ -4,12 +4,12 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { ProductionalizeStateType } from "../state.js";
 import type { ProductionalizeSubtask } from "../types.js";
 import type { TokenBudget } from "../../../utils/tokens.js";
-import {
-  pruneChunksByTokenBudget,
-  getAvailableContextBudget,
-} from "../../../utils/tokens.js";
+import { pruneChunksByTokenBudget, getAvailableContextBudget } from "../../../utils/tokens.js";
 import type { CodeChunk } from "../../../core/types/index.js";
-import { PRODUCTIONALIZE_WORKER_TEMPLATE, ProductionalizeWorkerOutputSchema } from "../../prompts/index.js";
+import {
+  PRODUCTIONALIZE_WORKER_TEMPLATE,
+  ProductionalizeWorkerOutputSchema,
+} from "../../prompts/index.js";
 
 export function createWorkerNode(
   model: BaseChatModel,
@@ -36,10 +36,7 @@ export function createWorkerNode(
           const parsed: unknown = JSON.parse(toolResult);
           const chunks = parsed as CodeChunk[];
           const availableBudget = getAvailableContextBudget(tokenBudget);
-          const prunedChunks = pruneChunksByTokenBudget(
-            chunks,
-            Math.floor(availableBudget * 0.7)
-          );
+          const prunedChunks = pruneChunksByTokenBudget(chunks, Math.floor(availableBudget * 0.7));
           contextString = JSON.stringify(prunedChunks, null, 2);
         } catch {
           contextString = toolResult;

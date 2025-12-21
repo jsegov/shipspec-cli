@@ -10,49 +10,51 @@ describe("Worker Node", () => {
   it("should analyze code and return findings", async () => {
     const mockOutput = {
       findings: [
-        { 
-          id: "F1", 
-          severity: "high", 
-          category: "security", 
-          title: "Leak", 
-          description: "desc", 
-          evidence: { 
+        {
+          id: "F1",
+          severity: "high",
+          category: "security",
+          title: "Leak",
+          description: "desc",
+          evidence: {
             codeRefs: [{ filepath: "src/app.ts", lines: "1-10", content: "..." }],
-            links: []
-          } 
-        }
+            links: [],
+          },
+        },
       ],
-      summary: "summary"
+      summary: "summary",
     };
     const mockModel = {
       withStructuredOutput: vi.fn().mockReturnValue({
-        invoke: vi.fn().mockResolvedValue(mockOutput)
-      })
+        invoke: vi.fn().mockResolvedValue(mockOutput),
+      }),
     } as unknown as BaseChatModel;
     const mockRetrieverTool = {
-      invoke: vi.fn().mockResolvedValue(JSON.stringify([{ filepath: "src/app.ts", content: "..." }])),
+      invoke: vi
+        .fn()
+        .mockResolvedValue(JSON.stringify([{ filepath: "src/app.ts", content: "..." }])),
       name: "retrieve_code",
-      description: "retrieve"
+      description: "retrieve",
     } as unknown as DynamicStructuredTool;
     const mockWebSearchTool = {
       invoke: vi.fn().mockResolvedValue("search results"),
       name: "web_search",
-      description: "search"
+      description: "search",
     } as unknown as DynamicStructuredTool;
 
     const node = createWorkerNode(mockModel, mockRetrieverTool, mockWebSearchTool);
-    const subtask: ProductionalizeSubtask = { 
-      id: "1", 
-      category: "security", 
-      query: "audit auth", 
-      source: "code", 
-      status: "pending"
+    const subtask: ProductionalizeSubtask = {
+      id: "1",
+      category: "security",
+      query: "audit auth",
+      source: "code",
+      status: "pending",
     };
     const state = {
       subtask,
       researchDigest: "test digest",
       sastResults: [],
-      signals: {}
+      signals: {},
     } as unknown as ProductionalizeStateType & { subtask: ProductionalizeSubtask };
 
     const result = await node(state);

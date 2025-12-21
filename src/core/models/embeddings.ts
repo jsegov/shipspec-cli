@@ -3,9 +3,7 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { OllamaEmbeddings } from "@langchain/ollama";
 import type { EmbeddingConfig } from "../../config/schema.js";
 
-export function createEmbeddingsModel(
-  config: EmbeddingConfig
-): Embeddings {
+export function createEmbeddingsModel(config: EmbeddingConfig): Embeddings {
   const maxRetries = config.maxRetries;
 
   switch (config.provider) {

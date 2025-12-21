@@ -39,4 +39,3 @@ Findings:
 Synthesis:
 The project uses a standard Passport.js JWT authentication flow. Authorization is consistently enforced via custom middleware.
 `;
-

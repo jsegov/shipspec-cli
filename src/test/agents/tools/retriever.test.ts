@@ -19,7 +19,7 @@ describe("createRetrieverTool", () => {
     mockRepository = {
       hybridSearch: vi.fn(),
     };
-    
+
     retrieverTool = createRetrieverTool(mockRepository as DocumentRepository);
   });
 

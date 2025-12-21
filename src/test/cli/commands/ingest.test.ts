@@ -4,11 +4,7 @@ import { join } from "path";
 import fg from "fast-glob";
 
 import { createTempDir, cleanupTempDir, TS_FIXTURE } from "../../fixtures.js";
-import {
-  readSourceFile,
-  isSourceFile,
-  getRelativePath,
-} from "../../../utils/fs.js";
+import { readSourceFile, isSourceFile, getRelativePath } from "../../../utils/fs.js";
 
 // Mock dependencies for unit tests
 vi.mock("../../../core/storage/vector-store.js", () => ({
@@ -22,9 +18,11 @@ vi.mock("../../../core/storage/vector-store.js", () => ({
 
 vi.mock("../../../core/models/embeddings.js", () => ({
   createEmbeddingsModel: vi.fn().mockResolvedValue({
-    embedDocuments: vi.fn().mockImplementation((texts: string[]) =>
-      Promise.resolve(texts.map(() => new Array<number>(3072).fill(0.1)))
-    ),
+    embedDocuments: vi
+      .fn()
+      .mockImplementation((texts: string[]) =>
+        Promise.resolve(texts.map(() => new Array<number>(3072).fill(0.1)))
+      ),
     embedQuery: vi.fn().mockResolvedValue(new Array<number>(3072).fill(0.1)),
   }),
 }));
@@ -82,7 +80,10 @@ describe("Ingest Command Utilities", () => {
 
     it("handles nested directories", async () => {
       await mkdir(join(tempDir, "src", "components", "ui"), { recursive: true });
-      await writeFile(join(tempDir, "src", "components", "ui", "Button.tsx"), "export const Button = () => null");
+      await writeFile(
+        join(tempDir, "src", "components", "ui", "Button.tsx"),
+        "export const Button = () => null"
+      );
       await writeFile(join(tempDir, "src", "index.ts"), "export {}");
 
       const files = await fg("**/*", {
@@ -171,9 +172,7 @@ describe("Ingest Command Utilities", () => {
     });
 
     it("throws error for non-existent file", async () => {
-      await expect(
-        readSourceFile(join(tempDir, "nonexistent.ts"))
-      ).rejects.toThrow();
+      await expect(readSourceFile(join(tempDir, "nonexistent.ts"))).rejects.toThrow();
     });
   });
 

@@ -56,4 +56,3 @@ describe("Checkpoint Factory", () => {
     });
   });
 });
-

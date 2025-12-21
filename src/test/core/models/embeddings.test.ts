@@ -8,7 +8,12 @@ vi.mock("@langchain/openai", () => {
     dimensions?: number;
     apiKey?: string;
     maxRetries?: number;
-    constructor(config: { model: string; dimensions?: number; apiKey?: string; maxRetries?: number }) {
+    constructor(config: {
+      model: string;
+      dimensions?: number;
+      apiKey?: string;
+      maxRetries?: number;
+    }) {
       this.model = config.model;
       this.dimensions = config.dimensions;
       this.apiKey = config.apiKey;

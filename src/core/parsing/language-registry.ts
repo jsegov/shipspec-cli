@@ -1,11 +1,6 @@
 import { extname } from "path";
 
-export type SupportedLanguage =
-  | "typescript"
-  | "javascript"
-  | "python"
-  | "go"
-  | "rust";
+export type SupportedLanguage = "typescript" | "javascript" | "python" | "go" | "rust";
 
 export interface LanguageConfig {
   extensions: string[];
@@ -79,7 +74,8 @@ export const LANGUAGE_REGISTRY: Record<SupportedLanguage, LanguageConfig> = {
         (method_declaration
           name: (field_identifier) @name) @func
       `,
-      classes: "(type_declaration (type_spec name: (type_identifier) @name type: (struct_type))) @class",
+      classes:
+        "(type_declaration (type_spec name: (type_identifier) @name type: (struct_type))) @class",
     },
     commentPrefix: "//",
   },
@@ -98,9 +94,7 @@ export const LANGUAGE_REGISTRY: Record<SupportedLanguage, LanguageConfig> = {
   },
 };
 
-export function getLanguageFromExtension(
-  filepath: string
-): SupportedLanguage | null {
+export function getLanguageFromExtension(filepath: string): SupportedLanguage | null {
   const ext = extname(filepath).toLowerCase();
   for (const [lang, config] of Object.entries(LANGUAGE_REGISTRY)) {
     if (config.extensions.includes(ext)) {

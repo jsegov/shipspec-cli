@@ -129,12 +129,7 @@ describe("CLI Integration Tests", () => {
     });
 
     it("respects ignore patterns from config", async () => {
-      const ignorePatterns = [
-        "**/node_modules/**",
-        "**/dist/**",
-        "**/.git/**",
-        "**/*.test.ts",
-      ];
+      const ignorePatterns = ["**/node_modules/**", "**/dist/**", "**/.git/**", "**/*.test.ts"];
 
       // Create files that should be ignored
       await mkdir(join(projectDir, "node_modules", "pkg"), { recursive: true });
@@ -236,14 +231,18 @@ export const more =
     });
 
     it("processes JSON files with fallback splitter", async () => {
-      const jsonContent = JSON.stringify({
-        name: "test-project",
-        version: "1.0.0",
-        dependencies: {
-          typescript: "^5.0.0",
-          vitest: "^1.0.0",
+      const jsonContent = JSON.stringify(
+        {
+          name: "test-project",
+          version: "1.0.0",
+          dependencies: {
+            typescript: "^5.0.0",
+            vitest: "^1.0.0",
+          },
         },
-      }, null, 2);
+        null,
+        2
+      );
 
       const chunks = await chunkSourceFile("package.json", jsonContent);
       expect(chunks.length).toBeGreaterThan(0);

@@ -7,10 +7,14 @@ export const ReasoningSchema = z.object({
 
 export const ProductionalizeSubtaskSchema = z.object({
   id: z.string(),
-  category: z.string().describe("The production-readiness category (e.g., security, soc2, testing)"),
+  category: z
+    .string()
+    .describe("The production-readiness category (e.g., security, soc2, testing)"),
   query: z.string().describe("The specific investigation query"),
   source: z.enum(["code", "web", "scan"]).describe("The data source to use for this subtask"),
-  rationale: z.string().describe("Reasoning for this subtask grounded in project signals and research"),
+  rationale: z
+    .string()
+    .describe("Reasoning for this subtask grounded in project signals and research"),
 });
 
 export const ProductionalizePlanSchema = z.object({
@@ -30,7 +34,9 @@ export const FindingSchema = z.object({
   category: z.string(),
   title: z.string(),
   description: z.string(),
-  complianceRefs: z.array(z.string()).describe("References to compliance controls (e.g., SOC 2 CC6.1, OWASP A01)"),
+  complianceRefs: z
+    .array(z.string())
+    .describe("References to compliance controls (e.g., SOC 2 CC6.1, OWASP A01)"),
   evidence: z.object({
     codeRefs: z.array(CodeRefSchema),
     links: z.array(z.string()),
@@ -41,7 +47,9 @@ export const ProductionalizeWorkerOutputSchema = z.object({
   reasoning: z.string().describe("Detailed analysis of the provided context"),
   findings: z.array(FindingSchema),
   summary: z.string().describe("Concise technical summary of findings"),
-  confidenceLevel: z.enum(["high", "medium", "low"]).describe("Confidence in the findings based on context quality"),
+  confidenceLevel: z
+    .enum(["high", "medium", "low"])
+    .describe("Confidence in the findings based on context quality"),
 });
 
 export const TaskmasterTaskSchema: z.ZodType<TaskmasterTask> = z.lazy(() =>
@@ -54,8 +62,12 @@ export const TaskmasterTaskSchema: z.ZodType<TaskmasterTask> = z.lazy(() =>
     dependencies: z.array(z.number()),
     details: z.string(),
     effort: z.enum(["1-2h", "4-8h", "16h+"]).describe("Estimated implementation effort"),
-    acceptanceCriteria: z.array(z.string()).describe("Specific, testable conditions for task completion"),
-    dependencyRationale: z.string().describe("Explanation for why dependencies exist (use empty string if none)"),
+    acceptanceCriteria: z
+      .array(z.string())
+      .describe("Specific, testable conditions for task completion"),
+    dependencyRationale: z
+      .string()
+      .describe("Explanation for why dependencies exist (use empty string if none)"),
     testStrategy: z.string(),
     subtasks: z.array(TaskmasterTaskSchema).describe("Nested subtasks (use empty array if none)"),
   })
@@ -65,4 +77,3 @@ export const TasksOutputSchema = z.object({
   reasoning: z.string().describe("Architecture and dependency analysis for the task list"),
   tasks: z.array(TaskmasterTaskSchema),
 });
-

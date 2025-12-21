@@ -55,9 +55,7 @@ describe("DocumentRepository", () => {
       };
       const getOrCreateTable = mockVectorStore.getOrCreateTable;
       if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
-      vi.mocked(getOrCreateTable).mockResolvedValue(
-        mockTable as unknown as Table
-      );
+      vi.mocked(getOrCreateTable).mockResolvedValue(mockTable as unknown as Table);
 
       const chunks: CodeChunk[] = [
         {
@@ -127,9 +125,7 @@ describe("DocumentRepository", () => {
       };
       const getOrCreateTable = mockVectorStore.getOrCreateTable;
       if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
-      vi.mocked(getOrCreateTable).mockResolvedValue(
-        mockTable as unknown as Table
-      );
+      vi.mocked(getOrCreateTable).mockResolvedValue(mockTable as unknown as Table);
 
       const results = await repository.similaritySearch("test query", 10);
 
@@ -162,17 +158,12 @@ describe("DocumentRepository", () => {
       };
       const getOrCreateTable = mockVectorStore.getOrCreateTable;
       if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
-      vi.mocked(getOrCreateTable).mockResolvedValue(
-        mockTable as unknown as Table
-      );
+      vi.mocked(getOrCreateTable).mockResolvedValue(mockTable as unknown as Table);
 
       const results = await repository.hybridSearch("test query", 10);
 
       expect(mockEmbeddings.embedQuery).toHaveBeenCalledWith("test query");
-      expect(mockTable.search).toHaveBeenCalledWith(
-        [0.7, 0.8, 0.9],
-        "hybrid"
-      );
+      expect(mockTable.search).toHaveBeenCalledWith([0.7, 0.8, 0.9], "hybrid");
       expect(results).toHaveLength(1);
     });
 
@@ -182,15 +173,11 @@ describe("DocumentRepository", () => {
       };
       const getOrCreateTable = mockVectorStore.getOrCreateTable;
       if (!getOrCreateTable) throw new Error("getOrCreateTable not defined");
-      vi.mocked(getOrCreateTable).mockResolvedValue(
-        mockTable as unknown as Table
-      );
+      vi.mocked(getOrCreateTable).mockResolvedValue(mockTable as unknown as Table);
 
       await repository.deleteByFilepath("test's file.ts");
 
-      expect(mockTable.delete).toHaveBeenCalledWith(
-        "filepath = 'test''s file.ts'"
-      );
+      expect(mockTable.delete).toHaveBeenCalledWith("filepath = 'test''s file.ts'");
     });
   });
 
@@ -258,9 +245,7 @@ describe("DocumentRepository", () => {
       await repository.deleteByFilepath("math.ts");
 
       const afterDeleteResults = await repository.similaritySearch("add", 10);
-      const mathChunks = afterDeleteResults.filter(
-        (r) => r.filepath === "math.ts"
-      );
+      const mathChunks = afterDeleteResults.filter((r) => r.filepath === "math.ts");
       expect(mathChunks.length).toBe(0);
 
       const calcResults = await repository.similaritySearch("Calculator", 10);

@@ -12,13 +12,15 @@ export function createRetrieverTool(repository: DocumentRepository) {
     }),
     func: async ({ query, k }) => {
       const chunks = await repository.hybridSearch(query, k);
-      return JSON.stringify(chunks.map((c) => ({
-        filepath: c.filepath,
-        content: c.content,
-        type: c.type,
-        symbolName: c.symbolName ?? null,
-        lines: `${String(c.startLine)}-${String(c.endLine)}`,
-      })));
+      return JSON.stringify(
+        chunks.map((c) => ({
+          filepath: c.filepath,
+          content: c.content,
+          type: c.type,
+          symbolName: c.symbolName ?? null,
+          lines: `${String(c.startLine)}-${String(c.endLine)}`,
+        }))
+      );
     },
   });
 }

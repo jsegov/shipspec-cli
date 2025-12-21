@@ -37,7 +37,11 @@ export async function gatherProjectSignals(projectPath: string): Promise<Project
   if (existsSync(join(projectPath, "package-lock.json"))) signals.packageManager = "npm";
   else if (existsSync(join(projectPath, "yarn.lock"))) signals.packageManager = "yarn";
   else if (existsSync(join(projectPath, "pnpm-lock.yaml"))) signals.packageManager = "pnpm";
-  else if (existsSync(join(projectPath, "requirements.txt")) || existsSync(join(projectPath, "pyproject.toml"))) signals.packageManager = "pip";
+  else if (
+    existsSync(join(projectPath, "requirements.txt")) ||
+    existsSync(join(projectPath, "pyproject.toml"))
+  )
+    signals.packageManager = "pip";
   else if (existsSync(join(projectPath, "go.mod"))) signals.packageManager = "go";
   else if (existsSync(join(projectPath, "Cargo.toml"))) signals.packageManager = "cargo";
 
@@ -64,13 +68,28 @@ export async function gatherProjectSignals(projectPath: string): Promise<Project
   });
   if (testFiles.length > 0) {
     signals.hasTests = true;
-    if (existsSync(join(projectPath, "jest.config.js")) || existsSync(join(projectPath, "jest.config.ts"))) signals.testFramework = "jest";
-    else if (existsSync(join(projectPath, "vitest.config.js")) || existsSync(join(projectPath, "vitest.config.ts"))) signals.testFramework = "vitest";
-    else if (existsSync(join(projectPath, "pytest.ini")) || existsSync(join(projectPath, "conftest.py"))) signals.testFramework = "pytest";
+    if (
+      existsSync(join(projectPath, "jest.config.js")) ||
+      existsSync(join(projectPath, "jest.config.ts"))
+    )
+      signals.testFramework = "jest";
+    else if (
+      existsSync(join(projectPath, "vitest.config.js")) ||
+      existsSync(join(projectPath, "vitest.config.ts"))
+    )
+      signals.testFramework = "vitest";
+    else if (
+      existsSync(join(projectPath, "pytest.ini")) ||
+      existsSync(join(projectPath, "conftest.py"))
+    )
+      signals.testFramework = "pytest";
   }
 
   // Detect Docker
-  if (existsSync(join(projectPath, "Dockerfile")) || existsSync(join(projectPath, "docker-compose.yml"))) {
+  if (
+    existsSync(join(projectPath, "Dockerfile")) ||
+    existsSync(join(projectPath, "docker-compose.yml"))
+  ) {
     signals.hasDocker = true;
   }
 
@@ -86,7 +105,10 @@ export async function gatherProjectSignals(projectPath: string): Promise<Project
     signals.hasIaC = true;
     signals.iacTool = "cloudformation";
   } else {
-    const bicepFiles = await fg(["**/*.bicep"], { cwd: projectPath, ignore: ["**/node_modules/**"] });
+    const bicepFiles = await fg(["**/*.bicep"], {
+      cwd: projectPath,
+      ignore: ["**/node_modules/**"],
+    });
     if (bicepFiles.length > 0) {
       signals.hasIaC = true;
       signals.iacTool = "bicep";
@@ -113,13 +135,15 @@ export async function gatherProjectSignals(projectPath: string): Promise<Project
   });
   signals.fileCount = files.length;
 
-  const detectedExts = new Set(files.map(f => {
-    const dotIndex = f.lastIndexOf(".");
-    return dotIndex !== -1 ? f.slice(dotIndex) : "";
-  }));
+  const detectedExts = new Set(
+    files.map((f) => {
+      const dotIndex = f.lastIndexOf(".");
+      return dotIndex !== -1 ? f.slice(dotIndex) : "";
+    })
+  );
 
   for (const [lang, exts] of Object.entries(langExts)) {
-    if (exts.some(ext => detectedExts.has(ext))) {
+    if (exts.some((ext) => detectedExts.has(ext))) {
       signals.detectedLanguages.push(lang);
     }
   }

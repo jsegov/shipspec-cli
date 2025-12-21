@@ -4,7 +4,10 @@ import type { ProjectSignals } from "../../core/analysis/project-signals.js";
 import type { SASTFinding } from "../tools/sast-scanner.js";
 import type { Finding, ProductionalizeSubtask, TaskmasterTask } from "./types.js";
 
-export function subtasksReducer(current: ProductionalizeSubtask[], update: ProductionalizeSubtask[]): ProductionalizeSubtask[] {
+export function subtasksReducer(
+  current: ProductionalizeSubtask[],
+  update: ProductionalizeSubtask[]
+): ProductionalizeSubtask[] {
   const map = new Map(current.map((t) => [t.id, t]));
   update.forEach((t) => map.set(t.id, t));
   return Array.from(map.values());

@@ -13,7 +13,7 @@ export const configCommand = new Command("config")
   .option("--json", "Output as JSON")
   .action(async (options: ConfigOptions) => {
     const config = options.resolvedConfig ?? (await loadConfig());
-    
+
     if (options.json) {
       console.log(JSON.stringify(config, null, 2));
     } else {
@@ -27,7 +27,7 @@ export const configCommand = new Command("config")
       console.log(`  Model: ${config.llm.modelName}`);
       console.log(`  Temperature: ${String(config.llm.temperature)}`);
       console.log(`  Max Retries: ${String(config.llm.maxRetries)}`);
-      console.log(`  Timeout: ${config.llm.timeout ? `${String(config.llm.timeout)}ms` : 'none'}`);
+      console.log(`  Timeout: ${config.llm.timeout ? `${String(config.llm.timeout)}ms` : "none"}`);
       console.log(`  Max Context Tokens: ${String(config.llm.maxContextTokens)}`);
       console.log(`  Reserved Output Tokens: ${String(config.llm.reservedOutputTokens)}`);
       console.log();

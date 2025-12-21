@@ -13,10 +13,7 @@ export function countChunkTokens(chunks: CodeChunk[]): number {
   return chunks.reduce((sum, chunk) => sum + countTokensApprox(chunk.content), 0);
 }
 
-export function pruneChunksByTokenBudget(
-  chunks: CodeChunk[],
-  budget: number
-): CodeChunk[] {
+export function pruneChunksByTokenBudget(chunks: CodeChunk[], budget: number): CodeChunk[] {
   let total = 0;
   const result: CodeChunk[] = [];
 
@@ -32,10 +29,7 @@ export function pruneChunksByTokenBudget(
   return result;
 }
 
-export function truncateTextByTokenBudget(
-  text: string,
-  budget: number
-): string {
+export function truncateTextByTokenBudget(text: string, budget: number): string {
   const estimatedTokens = countTokensApprox(text);
 
   if (estimatedTokens <= budget) {
@@ -65,4 +59,3 @@ export function truncateTextByTokenBudget(
 export function getAvailableContextBudget(budget: TokenBudget): number {
   return Math.max(0, budget.maxContextTokens - budget.reservedOutputTokens);
 }
-

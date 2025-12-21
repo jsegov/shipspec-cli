@@ -108,12 +108,7 @@ export class SemanticChunker {
       let chunkContent = content.slice(node.startIndex, node.endIndex);
 
       if (this.options.includeComments ?? true) {
-        const comments = this.extractPrecedingComments(
-          content,
-          node,
-          config.commentPrefix,
-          lang
-        );
+        const comments = this.extractPrecedingComments(content, node, config.commentPrefix, lang);
         if (comments) {
           const commentLines = comments.split("\n").length;
           startLine = Math.max(0, startLine - commentLines);
@@ -123,18 +118,13 @@ export class SemanticChunker {
 
       // Apply size filters
       const chunkSize = chunkContent.length;
-      if (
-        this.options.minChunkSize &&
-        chunkSize < this.options.minChunkSize
-      ) {
+      if (this.options.minChunkSize && chunkSize < this.options.minChunkSize) {
         continue;
       }
 
       if (this.options.maxChunkSize && chunkSize > this.options.maxChunkSize) {
         const lines = chunkContent.split("\n");
-        const maxLines = Math.floor(
-          (this.options.maxChunkSize / chunkSize) * lines.length
-        );
+        const maxLines = Math.floor((this.options.maxChunkSize / chunkSize) * lines.length);
         for (let i = 0; i < lines.length; i += maxLines) {
           const chunkLines = lines.slice(i, i + maxLines);
           const subchunkLinesCount = chunkLines.length;
@@ -204,7 +194,7 @@ export class SemanticChunker {
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i];
       if (line === undefined) continue;
-      
+
       const trimmed = line.trim();
       const isEmpty = trimmed === "";
 
