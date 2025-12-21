@@ -167,35 +167,34 @@ ship-spec -c, --config <path>  # Use custom config file
 
 ---
 
-## ⚙️ Configuration
+### Configuration Precedence
 
-Ship Spec can be configured via a config file or environment variables.
+Ship Spec resolve configuration from multiple sources in the following priority order:
 
-### Config File
+1. **CLI Flags** — Overrides all other settings (e.g., `--config`, `--reindex`)
+2. **Environment Variables** — Set directly in your shell or process
+3. **Configuration File** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
+4. **Defaults** — Sensible defaults defined in the system schema
 
-Create a `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json` in your project root:
+### Environment Variables & .env
 
-```json
-{
-  "projectPath": ".",
-  "vectorDbPath": ".ship-spec/lancedb",
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/dist/**",
-    "**/*.test.ts"
-  ],
-  "llm": {
-    "provider": "openai",
-    "modelName": "gpt-5.2-2025-12-11",
-    "temperature": 0
-  },
-  "embedding": {
-    "provider": "openai",
-    "modelName": "text-embedding-3-large",
-    "dimensions": 3072
-  }
-}
+By default, Ship Spec loads environment variables from a `.env` file in the current working directory **only in non-production environments**.
+
+In **production** (`NODE_ENV=production`), `.env` loading is disabled to prevent accidental configuration leakage or unexpected behavior. You should manage secrets and configuration via:
+- Real process environment variables
+- Cloud secret managers (AWS Secrets Manager, GCP Secret Manager, etc.)
+- CI/CD environment settings
+
+#### Production Opt-in
+If you MUST use a `.env` file in production, you can explicitly opt-in:
+```bash
+SHIPSPEC_LOAD_DOTENV=1 ship-spec productionalize
+```
+
+#### Overwriting Existing Variables
+By default, `.env` will **not** overwrite environment variables that are already set in your process. To force `.env` values to take precedence over process variables (use with caution):
+```bash
+SHIPSPEC_DOTENV_OVERRIDE=1 ship-spec productionalize
 ```
 
 ---

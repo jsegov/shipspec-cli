@@ -284,11 +284,22 @@ function handleData(data: any) {
 
 ## Configuration
 
-The CLI supports multiple configuration sources (in priority order):
+The CLI supports multiple configuration sources in the following priority order:
 
-1. **Environment variables** — API keys via `.env`
-2. **Config files** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
-3. **Zod defaults** — Sensible defaults for all options
+1. **CLI Flags** — Highest priority (overrides everything)
+2. **Environment Variables** — System/process environment variables
+3. **Config Files** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
+4. **Defaults** — System-defined defaults
+
+### Dotenv Loading & Production Guidance
+
+- **Non-Production**: `.env` files are automatically loaded from the current working directory.
+- **Production** (`NODE_ENV=production`): `.env` loading is **disabled** by default for security and deterministic behavior.
+- **Opt-in**: Use `SHIPSPEC_LOAD_DOTENV=1` to force loading `.env` in production.
+- **Override**: Use `SHIPSPEC_DOTENV_OVERRIDE=1` to allow `.env` to overwrite existing process environment variables (default: `false`).
+
+> [!IMPORTANT]
+> In production environments, always prefer real environment variables or a managed secret provider over `.env` files.
 
 ### Key Environment Variables
 

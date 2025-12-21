@@ -21,7 +21,19 @@ export async function loadConfig(
   overrides: Partial<ShipSpecConfig> = {},
   options: { strict?: boolean } = {}
 ): Promise<ShipSpecConfig> {
-  loadDotenv({ path: join(cwd, ".env") });
+  const shouldLoadDotenv =
+    process.env.NODE_ENV !== "production" || process.env.SHIPSPEC_LOAD_DOTENV === "1";
+
+  if (shouldLoadDotenv) {
+    const dotenvPath = join(cwd, ".env");
+    if (existsSync(dotenvPath)) {
+      loadDotenv({
+        path: dotenvPath,
+        override: process.env.SHIPSPEC_DOTENV_OVERRIDE === "1",
+      });
+      logger.debug("Loaded .env configuration", true);
+    }
+  }
 
   const isStrict =
     (options.strict ?? false) ||
