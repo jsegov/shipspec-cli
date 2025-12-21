@@ -23,7 +23,14 @@ program
   .option("--strict-config", "Fail on malformed or invalid config files")
   .hook("preAction", async (thisCommand, actionCommand) => {
     const options = thisCommand.opts();
-    const config = await loadConfig(process.cwd(), {}, { strict: !!options.strictConfig });
+    const config = await loadConfig(
+      process.cwd(),
+      {},
+      {
+        strict: !!options.strictConfig,
+        configPath: options.config as string | undefined,
+      }
+    );
     actionCommand.setOptionValue("resolvedConfig", config);
   });
 

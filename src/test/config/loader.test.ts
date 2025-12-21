@@ -31,7 +31,8 @@ describe("Config Loader", () => {
 
     const config = await loadConfig(tempDir);
     expect(config.projectPath).toBe("./custom");
-    expect(logger.debug).toHaveBeenCalledWith("Loaded config from shipspec.json", true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Loaded config from"), true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("shipspec.json"), true);
   });
 
   it("should warn but continue on malformed JSON in non-strict mode", async () => {
@@ -111,7 +112,8 @@ describe("Config Loader", () => {
     const config = await loadConfig(tempDir);
     expect(config.projectPath).toBe("./valid");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
-    expect(logger.debug).toHaveBeenCalledWith("Loaded config from .shipspecrc", true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Loaded config from"), true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining(".shipspecrc"), true);
   });
 
   it("should strip unknown keys in nested config objects instead of rejecting", async () => {
@@ -148,7 +150,8 @@ describe("Config Loader", () => {
 
     // Should NOT have warned about invalid config (it's valid, just with extra keys)
     expect(logger.warn).not.toHaveBeenCalled();
-    expect(logger.debug).toHaveBeenCalledWith("Loaded config from shipspec.json", true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Loaded config from"), true);
+    expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("shipspec.json"), true);
   });
 
   it("should still reject unknown top-level keys", async () => {

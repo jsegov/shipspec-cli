@@ -42,7 +42,7 @@ type DeepPartial<T> = {
 export async function loadConfig(
   cwd: string = process.cwd(),
   overrides: DeepPartial<ShipSpecConfig> = {},
-  options: { strict?: boolean } = {}
+  options: { strict?: boolean; configPath?: string } = {}
 ): Promise<ShipSpecConfig> {
   const isProduction = process.env.NODE_ENV === "production";
   const explicitDotenvPath = process.env.SHIPSPEC_DOTENV_PATH;
@@ -116,40 +116,61 @@ export async function loadConfig(
     (options.strict ?? false) || env.SHIPSPEC_STRICT_CONFIG || env.NODE_ENV === "production";
 
   let fileConfig: DeepPartial<ShipSpecConfig> = {};
-  for (const filename of CONFIG_FILES) {
-    const filepath = join(cwd, filename);
-    if (existsSync(filepath)) {
-      try {
-        const content = await readFile(filepath, "utf-8");
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(content);
-        } catch {
-          const msg = `Malformed JSON in config file: ${filepath}`;
-          if (isStrict) {
-            throw new Error(msg);
-          }
-          logger.warn(msg);
-          continue;
-        }
 
-        const result = ShipSpecConfigSchema.partial().safeParse(parsed);
-        if (result.success) {
-          fileConfig = result.data as DeepPartial<ShipSpecConfig>;
-          logger.debug(`Loaded config from ${filename}`, true);
-          break;
-        } else {
-          const msg = `Invalid config in ${filepath}:\n${result.error.issues
-            .map((i) => `- ${i.path.join(".")}: ${i.message}`)
-            .join("\n")}`;
-          if (isStrict) {
-            throw new Error(msg);
-          }
-          logger.warn(msg);
-          // Continue to next config file in non-strict mode
+  // Helper to load and parse a config file
+  const loadConfigFile = async (filepath: string): Promise<boolean> => {
+    try {
+      const content = await readFile(filepath, "utf-8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        const msg = `Malformed JSON in config file: ${filepath}`;
+        if (isStrict) {
+          throw new Error(msg);
         }
-      } catch (err) {
-        if (isStrict) throw err;
+        logger.warn(msg);
+        return false;
+      }
+
+      const result = ShipSpecConfigSchema.partial().safeParse(parsed);
+      if (result.success) {
+        fileConfig = result.data as DeepPartial<ShipSpecConfig>;
+        logger.debug(`Loaded config from ${filepath}`, true);
+        return true;
+      } else {
+        const msg = `Invalid config in ${filepath}:\n${result.error.issues
+          .map((i) => `- ${i.path.join(".")}: ${i.message}`)
+          .join("\n")}`;
+        if (isStrict) {
+          throw new Error(msg);
+        }
+        logger.warn(msg);
+        return false;
+      }
+    } catch (err) {
+      if (isStrict) throw err;
+      return false;
+    }
+  };
+
+  // If explicit config path provided, use it directly
+  if (options.configPath) {
+    const configPath = isAbsolute(options.configPath)
+      ? options.configPath
+      : join(cwd, options.configPath);
+
+    if (!existsSync(configPath)) {
+      throw new Error(`Config file not found: ${configPath}`);
+    }
+    await loadConfigFile(configPath);
+  } else {
+    // Search for config files in cwd
+    for (const filename of CONFIG_FILES) {
+      const filepath = join(cwd, filename);
+      if (existsSync(filepath)) {
+        const loaded = await loadConfigFile(filepath);
+        if (loaded) break;
       }
     }
   }
