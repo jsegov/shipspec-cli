@@ -253,7 +253,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     isSourceFile(f)
   );
 
-  const toRemove = changedFiles.removed;
+  const toRemove = changedFiles.removed.filter(isSourceFile);
 
   if (toProcess.length === 0 && toRemove.length === 0) {
     return { added: 0, modified: 0, removed: 0 };
@@ -285,11 +285,12 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
 
   const addedSourceFiles = changedFiles.added.filter(isSourceFile);
   const modifiedSourceFiles = changedFiles.modified.filter(isSourceFile);
+  const removedSourceFiles = changedFiles.removed.filter(isSourceFile);
 
   return {
     added: addedSourceFiles.length,
     modified: modifiedSourceFiles.length,
-    removed: changedFiles.removed.length,
+    removed: removedSourceFiles.length,
   };
 }
 
@@ -303,6 +304,7 @@ async function runIndexing(
   const limit = pLimit(concurrency);
 
   const allChunks: CodeChunk[] = [];
+  const successfulFiles = new Set<string>();
   let processedCount = 0;
 
   const tasks = files.map((file) =>
@@ -318,6 +320,7 @@ async function runIndexing(
         }
         
         allChunks.push(...chunks);
+        successfulFiles.add(file);
       } catch (error) {
         logger.debug(`Failed to process ${file}: ${String(error)}`, true);
       } finally {
@@ -338,7 +341,7 @@ async function runIndexing(
     }
   }
 
-  return { added: files.length };
+  return { added: successfulFiles.size };
 }
 
 async function getFileStats(
