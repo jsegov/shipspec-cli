@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { config as loadDotenv } from "dotenv";
 import { setMaxListeners } from "events";
-import { join } from "path";
 
 import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
@@ -13,8 +11,6 @@ import { logger } from "../utils/logger.js";
 import { CliError } from "./errors.js";
 
 setMaxListeners(100);
-
-loadDotenv({ path: join(process.cwd(), ".env") });
 
 const program = new Command();
 
