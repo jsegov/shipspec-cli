@@ -206,7 +206,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     await vectorStore.dropTable("code_chunks");
 
     const files = await discoverFiles(projectPath, config.ignorePatterns);
-    await runIndexing(projectPath, files, repository);
+    const successfulFiles = await runIndexing(projectPath, files, repository);
 
     await saveManifest(manifestPath, {
       schemaVersion: 1,
@@ -217,7 +217,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
       updatedAt: new Date().toISOString(),
     });
 
-    return { added: files.length, modified: 0, removed: 0 };
+    return { added: successfulFiles.size, modified: 0, removed: 0 };
   }
 
   if (!manifest) {
@@ -267,7 +267,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     await repository.deleteByFilepath(relPath);
   }
 
-  await runIndexing(
+  const successfulFiles = await runIndexing(
     projectPath,
     toProcess.map((f) => resolve(projectPath, f)),
     repository
@@ -285,12 +285,14 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
 
   const addedSourceFiles = changedFiles.added.filter(isSourceFile);
   const modifiedSourceFiles = changedFiles.modified.filter(isSourceFile);
-  const removedSourceFiles = changedFiles.removed.filter(isSourceFile);
+
+  const actualAdded = addedSourceFiles.filter((f) => successfulFiles.has(f)).length;
+  const actualModified = modifiedSourceFiles.filter((f) => successfulFiles.has(f)).length;
 
   return {
-    added: addedSourceFiles.length,
-    modified: modifiedSourceFiles.length,
-    removed: removedSourceFiles.length,
+    added: actualAdded,
+    modified: actualModified,
+    removed: toRemove.length,
   };
 }
 
@@ -298,7 +300,7 @@ async function runIndexing(
   projectPath: string,
   files: string[],
   repository: DocumentRepository
-): Promise<{ added: number }> {
+): Promise<Set<string>> {
   const concurrency = 10;
   const batchSize = 50;
   const limit = pLimit(concurrency);
@@ -312,15 +314,15 @@ async function runIndexing(
       try {
         const chunks = await processFile(file, projectPath);
         const relPath = getRelativePath(file, projectPath);
-        
+
         try {
           await repository.deleteByFilepath(relPath);
         } catch (deleteError) {
           logger.debug(`Failed to delete old chunks for ${relPath}: ${String(deleteError)}`, true);
         }
-        
+
         allChunks.push(...chunks);
-        successfulFiles.add(file);
+        successfulFiles.add(relPath);
       } catch (error) {
         logger.debug(`Failed to process ${file}: ${String(error)}`, true);
       } finally {
@@ -341,7 +343,7 @@ async function runIndexing(
     }
   }
 
-  return { added: successfulFiles.size };
+  return successfulFiles;
 }
 
 async function getFileStats(
