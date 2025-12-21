@@ -201,11 +201,9 @@ async function productionalizeAction(
     } catch (error) {
       throw new CliRuntimeError(`Failed to write tasks to: ${tasksPath}`, error);
     }
-  } else {
-    if (finalTasks.length > 0 && !options.output) {
-      logger.plain(chalk.bold("\n--- Agent Task List ---"));
-      logger.plain(JSON.stringify(finalTasks, null, 2));
-    }
+  } else if (finalTasks.length > 0) {
+    logger.plain(chalk.bold("\n--- Agent Task List ---"));
+    logger.plain(JSON.stringify(finalTasks, null, 2));
   }
 }
 
