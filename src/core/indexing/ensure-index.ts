@@ -281,9 +281,12 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     updatedAt: new Date().toISOString(),
   });
 
+  const addedSourceFiles = changedFiles.added.filter(isSourceFile);
+  const modifiedSourceFiles = changedFiles.modified.filter(isSourceFile);
+
   return {
-    added: changedFiles.added.length,
-    modified: changedFiles.modified.length,
+    added: addedSourceFiles.length,
+    modified: modifiedSourceFiles.length,
     removed: changedFiles.removed.length,
   };
 }
