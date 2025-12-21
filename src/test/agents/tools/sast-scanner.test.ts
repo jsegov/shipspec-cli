@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSASTScannerTool } from "../../../agents/tools/sast-scanner.js";
-import { execFileWithLimits, ToolMissingError } from "../../../core/exec.js";
+import { execFileWithLimits, ToolMissingError, TimeoutError } from "../../../core/exec.js";
 
 // Mock exec utility
 vi.mock("../../../core/exec.js", async (importOriginal) => {
@@ -94,5 +94,24 @@ describe("SAST Scanner Tool", () => {
     expect(result.findings).toHaveLength(0);
     const firstSkipped = result.skipped[0];
     expect(firstSkipped).toContain("semgrep failed");
+  });
+
+  it("should fail if --version check times out", async () => {
+    vi.mocked(execFileWithLimits).mockImplementation((_file: string, args: string[]) => {
+      if (args.includes("--version")) {
+        throw new TimeoutError("semgrep", 5);
+      }
+      return Promise.resolve({ stdout: "", stderr: "", exitCode: 0 });
+    });
+
+    const tool = createSASTScannerTool({ enabled: true, tools: ["semgrep"] });
+    const resultString = await tool.invoke({ tools: ["semgrep"] });
+    const result = JSON.parse(resultString) as ScannerResult;
+
+    expect(result.findings).toHaveLength(0);
+    const firstSkipped = result.skipped[0];
+    expect(firstSkipped).toContain("semgrep failed");
+    expect(firstSkipped).toContain("timed out");
+    expect(firstSkipped).toContain("misconfigured or unresponsive");
   });
 });

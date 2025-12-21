@@ -161,7 +161,13 @@ async function checkToolInstalled(command: string, installInstructions: string):
     if (error instanceof ToolMissingError) {
       throw new Error(`${error.message} ${installInstructions}`);
     }
-    // If it fails with another error but doesn't throw ToolMissingError, it's likely installed but --version failed
+    if (error instanceof TimeoutError) {
+      throw new Error(
+        `${command} --version timed out. The tool may be misconfigured or unresponsive.`
+      );
+    }
+    // If it fails with ExecError (non-zero exit code), the tool exists but --version failed.
+    // This is acceptable - some tools have quirky --version behavior.
   }
 }
 
