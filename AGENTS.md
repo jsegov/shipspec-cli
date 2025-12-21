@@ -20,7 +20,6 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and product
 | Web-Tree-sitter | AST parsing for semantic chunking |
 | fast-glob | High-performance file discovery |
 | p-limit | Concurrency control |
-| cli-progress | Progress bar display |
 | chalk | Terminal styling |
 | Vitest | Unit testing framework |
 
@@ -44,35 +43,9 @@ npm run dev
 
 ## CLI Commands
 
-### `ship-spec ingest`
-
-Index the codebase into the vector store.
-
-```bash
-# Basic usage - index current directory
-ship-spec ingest
-
-# With options
-ship-spec ingest --concurrency 20 --batch-size 100
-
-# Dry run to see what files would be processed
-ship-spec ingest --dry-run
-```
-
-**Options:**
-- `--concurrency <n>` - Number of concurrent file processors (default: 10)
-- `--batch-size <n>` - Documents per embedding batch (default: 50)
-- `--dry-run` - Show files that would be processed without indexing
-
-**Pipeline:**
-1. Discovers source files using fast-glob (respects `ignorePatterns`)
-2. Parses files with Tree-sitter for semantic chunking
-3. Generates embeddings in batches
-4. Stores vectors in LanceDB
-
 ### `ship-spec productionalize [context]`
 
-Analyze the codebase for production readiness.
+Analyze the codebase for production readiness. This command automatically ensures the codebase index is up to date before running analysis, using incremental Git-based staleness detection to avoid unnecessary re-indexing.
 
 ```bash
 # Basic usage
@@ -81,6 +54,9 @@ ship-spec productionalize
 # With specific context
 ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
 
+# Force full re-index
+ship-spec productionalize --reindex
+
 # Enable SAST scans
 ship-spec productionalize --enable-scans
 ```
@@ -88,18 +64,20 @@ ship-spec productionalize --enable-scans
 **Options:**
 - `-o, --output <file>` - Write report to file instead of stdout
 - `--tasks-output <file>` - Write Taskmaster JSON to file
+- `--reindex` - Force full re-index of the codebase
 - `--enable-scans` - Run SAST scanners (Semgrep, Gitleaks, Trivy)
 - `--categories <list>` - Filter to specific categories (csv)
 - `--no-stream` - Disable streaming progress output
 
 **Workflow:**
-1. **Gather Signals** - Deterministic scan for tech stack, CI, tests, etc.
-2. **Researcher** - Web search for compliance standards (SOC 2, OWASP, SRE).
-3. **SAST Scans** - Run external scanners if enabled and available.
-4. **Planner** - Hybrid planner (core categories + dynamic signals).
-5. **Workers** - Parallel analysis with code/web/scan routing.
-6. **Aggregator** - Synthesize findings into Markdown report.
-7. **Task Generator** - Generate agent-executable Taskmaster JSON.
+1. **Auto-Index** - Ensures codebase index is fresh using Git-based staleness detection (with mtime+size fallback).
+2. **Gather Signals** - Deterministic scan for tech stack, CI, tests, etc.
+3. **Researcher** - Web search for compliance standards (SOC 2, OWASP, SRE).
+4. **SAST Scans** - Run external scanners if enabled and available.
+5. **Planner** - Hybrid planner (core categories + dynamic signals).
+6. **Workers** - Parallel analysis with code/web/scan routing.
+7. **Aggregator** - Synthesize findings into Markdown report.
+8. **Task Generator** - Generate agent-executable Taskmaster JSON.
 
 ### `ship-spec config`
 
@@ -165,16 +143,17 @@ src/
 │   ├── index.ts               # CLI entry point (Commander.js)
 │   └── commands/
 │       ├── config.ts          # Display resolved configuration
-│       ├── ingest.ts          # Index codebase with progress bar
-│       └── productionalize.ts # Production readiness analysis
+│       └── productionalize.ts # Production readiness analysis with auto-indexing
 ├── config/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
 ├── core/
-│   ├── analysis/              # NEW: Deterministic project signals
+│   ├── analysis/              # Deterministic project signals
 │   │   └── project-signals.ts
 │   ├── checkpoint/
 │   │   └── index.ts           # Checkpointer factory (MemorySaver/SQLite)
+│   ├── indexing/              # Automatic indexing with staleness detection
+│   │   └── ensure-index.ts    # Git-based incremental indexing
 │   ├── models/
 │   │   ├── embeddings.ts      # Embedding model factory
 │   │   └── llm.ts             # Chat model factory
@@ -213,10 +192,11 @@ src/
 │   ├── fixtures.ts            # Test fixtures (sample code)
 │   ├── agents/                # Agent tests (state, nodes, tools, graph)
 │   ├── cli/                   # CLI command tests
-│   │   ├── commands/          # Unit tests for ingest
+│   │   ├── commands/          # Unit tests for commands
 │   │   └── integration.test.ts # End-to-end workflow tests
 │   ├── core/                  # Unit tests (mirrors src/core)
-│   │   └── checkpoint/        # Checkpointer factory tests
+│   │   ├── checkpoint/        # Checkpointer factory tests
+│   │   └── indexing/          # Indexing and staleness detection tests
 │   └── utils/                 # Utility function tests
 │       └── tokens.test.ts     # Token counting/pruning tests
 └── utils/
@@ -460,8 +440,8 @@ npm run test:coverage # Coverage report
 | `agents/nodes/aggregator` | Final specification synthesis |
 | `agents/tools/retriever` | DocumentRepository tool wrapper |
 | `agents/graph` | Graph topology and node integration |
-| `cli/commands/ingest` | File discovery, batch processing, progress bar |
-| `cli/integration` | End-to-end ingest and query workflow |
+| `cli/integration` | End-to-end indexing and query workflow |
+| `core/indexing/ensure-index` | Git-based staleness detection, incremental indexing |
 | `core/models/embeddings` | Factory function, provider validation |
 | `core/models/llm` | Chat model factory with initChatModel |
 | `core/parsing/tree-sitter` | WASM loading, parser initialization |
@@ -507,6 +487,41 @@ describe("MyModule", () => {
   it("should do something", () => {
     expect(true).toBe(true);
   });
+});
+```
+
+### Regression Testing for Bug Fixes
+
+**When fixing a bug, you MUST add a test case that verifies the fix if one does not already exist.**
+
+This ensures:
+- The bug doesn't reoccur in future refactoring
+- The fix is validated and documented
+- Test coverage remains comprehensive
+
+**Process:**
+1. Identify the root cause and edge case that triggered the bug
+2. Write a test case that reproduces the bug (it should fail before the fix)
+3. Apply the fix to make the test pass
+4. Verify all existing tests still pass
+5. Commit both the fix and the test together
+
+**Example:** If a bug is discovered where incremental indexing doesn't update the embedding signature in the manifest, add a test case like:
+
+```typescript
+it("should update manifest with current embedding signature during incremental indexing", async () => {
+  // Setup: Create initial index
+  await ensureIndex({ config, repository, vectorStore, manifestPath });
+  
+  // Modify a file to trigger incremental update
+  await writeFile(join(projectPath, "test.ts"), "// Modified");
+  
+  // Run incremental update
+  await ensureIndex({ config, repository, vectorStore, manifestPath });
+  
+  // Verify manifest reflects current config
+  const manifest = JSON.parse(await readFile(manifestPath, "utf-8"));
+  expect(manifest.embeddingSignature).toEqual(config.embedding);
 });
 ```
 
@@ -710,14 +725,14 @@ The worker node automatically prunes retrieved code chunks to fit within the tok
 Future enhancements could include:
 - Human-in-the-loop workflows with interruption points
 - Multi-model routing for specialized tasks
-- Incremental re-indexing for changed files
 - Custom embedding fine-tuning for domain-specific codebases
+- Support for additional SAST scanners and analysis tools
 
 ## Troubleshooting
 
 ### "Dimension mismatch" warning
 
-The embedding dimensions changed (e.g., switched from OpenAI to Ollama). The table will be automatically recreated, but existing vectors are lost. Re-run `ingest` to rebuild.
+The embedding dimensions changed (e.g., switched from OpenAI to Ollama). The system will automatically detect this change and trigger a full re-index on the next `productionalize` run.
 
 ### ESM import errors
 
@@ -732,10 +747,6 @@ If Tree-sitter fails to parse a file, it will automatically fall back to text sp
 - Memory issues: Very large files may exceed WASM limits
 
 Check logs with `--verbose` flag to see which files used fallback parsing.
-
-### "No indexed data found" error
-
-Run `ship-spec ingest` before running analysis.
 
 ### API key errors
 
