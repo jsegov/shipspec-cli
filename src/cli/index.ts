@@ -33,11 +33,13 @@ program.addCommand(productionalizeCommand);
 async function main() {
   try {
     await program.parseAsync(process.argv);
-  } catch (error) {
-    const isVerbose = process.argv.includes("-v") || process.argv.includes("--verbose");
-    logger.error(error instanceof CliError ? error : "An unexpected error occurred.");
-    if (isVerbose && !(error instanceof CliError)) {
-      logger.error(error as Error, true);
+  } catch (error: unknown) {
+    if (error instanceof CliError) {
+      logger.error(error);
+    } else if (error instanceof Error) {
+      logger.error(error);
+    } else {
+      logger.error(`Unexpected error: ${String(error)}`);
     }
     process.exitCode = 1;
   }
