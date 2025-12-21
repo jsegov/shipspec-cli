@@ -4,9 +4,13 @@ import { DocumentRepository } from "../../../core/storage/repository.js";
 import type { ShipSpecConfig } from "../../../config/schema.js";
 import { createSASTScannerTool } from "../../../agents/tools/sast-scanner.js";
 
-vi.mock("../../../agents/tools/sast-scanner.js", () => ({
-  createSASTScannerTool: vi.fn(),
-}));
+vi.mock("../../../agents/tools/sast-scanner.js", async (importActual) => {
+  const actual = await importActual<typeof import("../../../agents/tools/sast-scanner.js")>();
+  return {
+    ...actual,
+    createSASTScannerTool: vi.fn(),
+  };
+});
 
 vi.mock("../../../core/models/llm.js", () => ({
   createChatModel: vi.fn().mockResolvedValue({
@@ -61,26 +65,32 @@ describe("Productionalize Graph", () => {
     const mockTool = {
       invoke: mockInvoke,
     };
-    vi.mocked(createSASTScannerTool).mockReturnValue(mockTool as unknown as ReturnType<typeof createSASTScannerTool>);
+    vi.mocked(createSASTScannerTool).mockReturnValue(
+      mockTool as unknown as ReturnType<typeof createSASTScannerTool>
+    );
 
     const graph = await createProductionalizeGraph(mockConfig, mockRepository);
-    
-    await graph.invoke({
+
+    const result = await graph.invoke({
       userQuery: "test query",
       messages: [],
     });
 
     expect(mockInvoke).toHaveBeenCalled();
+    expect(result.sastResults).toHaveLength(1);
+    expect(result.sastResults[0]?.tool).toBe("semgrep");
   });
 
   it("should handle malformed JSON from scanner", async () => {
     const mockTool = {
       invoke: vi.fn().mockResolvedValue("invalid json"),
     };
-    vi.mocked(createSASTScannerTool).mockReturnValue(mockTool as unknown as ReturnType<typeof createSASTScannerTool>);
+    vi.mocked(createSASTScannerTool).mockReturnValue(
+      mockTool as unknown as ReturnType<typeof createSASTScannerTool>
+    );
 
     const graph = await createProductionalizeGraph(mockConfig, mockRepository);
-    
+
     const result = await graph.invoke({
       userQuery: "test query",
       messages: [],
@@ -93,10 +103,12 @@ describe("Productionalize Graph", () => {
     const mockTool = {
       invoke: vi.fn().mockResolvedValue(JSON.stringify({ wrong: "data" })),
     };
-    vi.mocked(createSASTScannerTool).mockReturnValue(mockTool as unknown as ReturnType<typeof createSASTScannerTool>);
+    vi.mocked(createSASTScannerTool).mockReturnValue(
+      mockTool as unknown as ReturnType<typeof createSASTScannerTool>
+    );
 
     const graph = await createProductionalizeGraph(mockConfig, mockRepository);
-    
+
     const result = await graph.invoke({
       userQuery: "test query",
       messages: [],
