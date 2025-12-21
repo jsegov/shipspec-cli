@@ -212,4 +212,52 @@ describe("ensureIndex", () => {
     expect(result.added).toBe(1);
     expect(dropTable).toHaveBeenCalledWith("code_chunks");
   });
+
+  it("should update manifest with current embedding signature during incremental indexing", async () => {
+    await writeFile(join(projectPath, "test.ts"), TS_FIXTURE);
+
+    const addDocuments = vi.fn().mockResolvedValue(undefined);
+    const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+    const repository = {
+      deleteByFilepath,
+      addDocuments,
+    } as unknown as DocumentRepository;
+
+    const dropTable = vi.fn().mockResolvedValue(undefined);
+    const vectorStore = {
+      dropTable,
+    } as unknown as LanceDBManager;
+
+    // Initial indexing with original config
+    await ensureIndex({
+      config,
+      repository,
+      vectorStore,
+      manifestPath,
+    });
+
+    // Modify file to trigger incremental update
+    await new Promise((r) => setTimeout(r, 100));
+    await writeFile(join(projectPath, "test.ts"), TS_FIXTURE + "\n// Modified");
+
+    vi.clearAllMocks();
+
+    // Run incremental update (same config, just file changed)
+    await ensureIndex({
+      config,
+      repository,
+      vectorStore,
+      manifestPath,
+    });
+
+    // Verify manifest was updated with current embedding signature
+    const manifestContent = await readFile(manifestPath, "utf-8");
+    const manifest = JSON.parse(manifestContent) as {
+      embeddingSignature: { provider: string; modelName: string; dimensions: number };
+    };
+
+    expect(manifest.embeddingSignature.provider).toBe(config.embedding.provider);
+    expect(manifest.embeddingSignature.modelName).toBe(config.embedding.modelName);
+    expect(manifest.embeddingSignature.dimensions).toBe(config.embedding.dimensions);
+  });
 });

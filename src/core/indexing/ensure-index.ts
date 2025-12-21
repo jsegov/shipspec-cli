@@ -277,7 +277,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
   await saveManifest(manifestPath, {
     schemaVersion: 1,
     projectRoot: manifest.projectRoot,
-    embeddingSignature: manifest.embeddingSignature,
+    embeddingSignature: currentSignature,
     lastIndexedCommit: await getGitHead(projectPath),
     files: await getFileStats(projectPath, allFiles),
     updatedAt: new Date().toISOString(),
