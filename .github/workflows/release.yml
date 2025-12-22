@@ -36,12 +36,16 @@ jobs:
 
       - name: Verify package contents
         run: |
-          npm pack > pack-output.txt 2>&1
-          cat pack-output.txt
-          if grep -q '\.map$' pack-output.txt; then
-            echo "ERROR: Source map files found!"
+          TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          echo "Verifying $TARBALL..."
+          tar -tf "$TARBALL" > contents.txt
+          cat contents.txt
+          if grep -q '\.map$' contents.txt; then
+            echo "ERROR: Source map files found in $TARBALL!"
+            grep '\.map$' contents.txt
             exit 1
           fi
+          echo "✓ No source maps found in $TARBALL"
 
       - name: Publish to npm with provenance
         run: npm publish shipspec-cli-*.tgz --provenance --access public
