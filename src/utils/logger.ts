@@ -12,18 +12,18 @@ import chalk from "chalk";
 const MAX_REDACTION_LENGTH = 50000;
 
 const SECRET_PATTERNS = [
-  /sk-[a-zA-Z0-9]{20,100}/g, // OpenAI-style keys (bounded)
-  /sk-ant-[a-zA-Z0-9_-]{10,100}/g, // Anthropic API keys (bounded)
-  /sk-ant-sid01-[a-zA-Z0-9_-]{20,100}/g, // Anthropic session keys (bounded)
-  /\beyJ[A-Za-z0-9_-]{10,500}\.[A-Za-z0-9_-]{10,500}\.[A-Za-z0-9_-]{10,500}\b/g, // JWT-like (bounded)
-  /\bBearer\s+[A-Za-z0-9._-]{10,500}\b/gi, // Bearer token (bounded)
-  /\bBasic\s+[A-Za-z0-9+/=]{10,500}/gi, // Basic auth (bounded)
+  /sk-[a-zA-Z0-9]{20,1000}/g, // OpenAI-style keys (bounded)
+  /sk-ant-[a-zA-Z0-9_-]{10,1000}/g, // Anthropic API keys (bounded)
+  /sk-ant-sid01-[a-zA-Z0-9_-]{20,1000}/g, // Anthropic session keys (bounded)
+  /\beyJ[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\b/g, // JWT-like (bounded)
+  /\bBearer\s+[A-Za-z0-9._-]{10,10000}\b/gi, // Bearer token (bounded)
+  /\bBasic\s+[A-Za-z0-9+/=]{10,10000}/gi, // Basic auth (bounded)
   // PEM blocks - ReDoS-safe: explicit word matching + bounded middle section
   /-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g,
   /\bAKIA[0-9A-Z]{16}\b/g, // AWS Access Key ID
-  /\b[A-Za-z0-9+/]{40,500}={0,2}\b/g, // High-entropy base64 (bounded to 500 chars)
-  /\b[a-fA-F0-9]{64,256}\b/g, // Hex-encoded secrets (bounded to 256 chars)
-  /\b(?:Proxy-)?Authorization:\s*[^\r\n]{1,500}/gi, // Authorization headers (bounded)
+  /\b[A-Za-z0-9+/]{40,512}={0,2}\b/g, // High-entropy base64 (bounded to 512 chars to avoid false positives)
+  /\b[a-fAF0-9]{64,512}\b/g, // Hex-encoded secrets (bounded to 512 chars to avoid false positives)
+  /\b(?:Proxy-)?Authorization:\s*[^\r\n]{1,10000}/gi, // Authorization headers (bounded)
 ];
 // URL credentials - ReDoS-safe: bounded + non-overlapping character classes
 const URL_CRED_PATTERN = /\/\/[^/:@]{1,256}:[^/@]{1,256}@/g;

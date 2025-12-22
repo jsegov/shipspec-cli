@@ -225,7 +225,7 @@ The logger automatically redacts common secret patterns from all output to preve
 - **Tokens**: JWTs, Bearer tokens, Basic auth credentials
 - **Certificates**: PEM blocks (`-----BEGIN ... -----END`)
 - **Authorization Headers**: Any `Authorization:` header values
-- **High-Entropy Secrets**: Base64 strings (40+ chars), hex strings (64+ chars)
+- **High-Entropy Secrets**: Base64 strings (40-512 chars), hex strings (64-512 chars)
 - **URL Credentials**: Username/password in URLs (`user:pass@host`)
 
 **Recursive Redaction**: The `redactObject()` function recursively redacts secrets in nested objects and arrays, useful for sanitizing structured data before logging.
@@ -343,7 +343,8 @@ describe('ReDoS Protection', () => {
 |--------------|--------|------|
 | PEM Blocks | `/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g` | `/-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g` |
 | URL Credentials | `/\/\/[^/]+:[^/]+@/g` | `/\/\/[^/:@]{1,256}:[^/@]{1,256}@/g` |
-| API Keys | `/sk-[a-zA-Z0-9]+/g` (unbounded) | `/sk-[a-zA-Z0-9]{20,100}/g` (bounded) |
+| API Keys | `/sk-[a-zA-Z0-9]+/g` (unbounded) | `/sk-[a-zA-Z0-9]{20,1000}/g` (bounded) |
+| JWT Tokens | `/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/` | `/\beyJ[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\b/g` |
 | Email | `/[^@]+@[^@]+/` | `/[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,255}/` |
 
 #### Validation Checklist
