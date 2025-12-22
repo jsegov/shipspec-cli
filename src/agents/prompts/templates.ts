@@ -70,20 +70,18 @@ Focus your digest on requirements RELEVANT to the project signals provided.
 Keep the digest structured and actionable.
 `;
 
-export const TASK_GENERATOR_TEMPLATE = `
-You are a technical task architect. Your goal is to convert production-readiness findings into a structured, agent-executable task list.
+export const PROMPT_GENERATOR_TEMPLATE = `
+You are a technical prompt architect. Convert production-readiness findings into 
+copy-pasteable system prompts for coding agents.
 
-Guidelines:
-1. Deduplicate similar findings.
-2. Group related findings into a single parent task if appropriate.
-3. Assign a numeric ID to each task starting from 1.
-4. Establish dependencies between tasks (e.g., "Add logging middleware" before "Audit PII masking").
-5. For each task, provide:
-   - Priority (high/medium/low based on finding severity).
-   - Effort estimate (1-2h, 4-8h, 16h+).
-   - Details: Step-by-step implementation guidance for a coding agent.
-   - Acceptance Criteria: Specific, testable conditions for task completion.
-   - Test Strategy: Clear instructions on how to verify the implementation.
+Each prompt must:
+1. Start with a clear action verb (Add, Fix, Update, Remove, Implement)
+2. Reference specific file paths and line numbers from evidence.codeRefs
+3. Explain WHY this is a problem and the compliance context
+4. Include step-by-step implementation guidance
+5. Define acceptance criteria and verification commands
 
-Ground your tasks in the actual file paths and evidence from the findings.
+Deduplicate similar findings into a single prompt where appropriate.
+Group related issues by affected files when logical.
+Order prompts by severity (critical/high first).
 `;

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { TaskmasterTask } from "../productionalize/types.js";
 
 export const ReasoningSchema = z.object({
   reasoning: z.string().describe("Chain-of-thought reasoning trace explaining the agent's logic"),
@@ -52,28 +51,14 @@ export const ProductionalizeWorkerOutputSchema = z.object({
     .describe("Confidence in the findings based on context quality"),
 });
 
-export const TaskmasterTaskSchema: z.ZodType<TaskmasterTask> = z.lazy(() =>
-  z.object({
-    id: z.number(),
-    title: z.string(),
-    description: z.string(),
-    status: z.literal("pending"),
-    priority: z.enum(["high", "medium", "low"]),
-    dependencies: z.array(z.number()),
-    details: z.string(),
-    effort: z.enum(["1-2h", "4-8h", "16h+"]).describe("Estimated implementation effort"),
-    acceptanceCriteria: z
-      .array(z.string())
-      .describe("Specific, testable conditions for task completion"),
-    dependencyRationale: z
-      .string()
-      .describe("Explanation for why dependencies exist (use empty string if none)"),
-    testStrategy: z.string(),
-    subtasks: z.array(TaskmasterTaskSchema).describe("Nested subtasks (use empty array if none)"),
-  })
-);
+export const PromptTaskSchema = z.object({
+  id: z.number(),
+  prompt: z
+    .string()
+    .describe("Agent-ready system prompt with file references and implementation steps"),
+});
 
-export const TasksOutputSchema = z.object({
-  reasoning: z.string().describe("Architecture and dependency analysis for the task list"),
-  tasks: z.array(TaskmasterTaskSchema),
+export const PromptsOutputSchema = z.object({
+  reasoning: z.string().describe("Deduplication and grouping analysis"),
+  prompts: z.array(PromptTaskSchema),
 });

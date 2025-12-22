@@ -29,18 +29,3 @@ export interface ProductionalizeSubtask {
   findings?: Finding[];
   result?: string;
 }
-
-export interface TaskmasterTask {
-  id: number;
-  title: string;
-  description: string;
-  status: "pending";
-  priority: "high" | "medium" | "low";
-  dependencies: number[];
-  details: string;
-  effort: "1-2h" | "4-8h" | "16h+";
-  acceptanceCriteria: string[];
-  dependencyRationale: string;
-  testStrategy: string;
-  subtasks: TaskmasterTask[];
-}

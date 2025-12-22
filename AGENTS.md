@@ -63,7 +63,7 @@ ship-spec productionalize --enable-scans
 
 **Options:**
 - `-o, --output <file>` - Write report to file instead of stdout
-- `--tasks-output <file>` - Write Taskmaster JSON to file
+- `--task-prompts-output <file>` - Write agent-ready task prompts to file
 - `--reindex` - Force full re-index of the codebase
 - `--enable-scans` - Run SAST scanners (Semgrep, Gitleaks, Trivy)
 - `--categories <list>` - Filter to specific categories (csv)
@@ -77,7 +77,7 @@ ship-spec productionalize --enable-scans
 5. **Planner** - Hybrid planner (core categories + dynamic signals).
 6. **Workers** - Parallel analysis with code/web/scan routing.
 7. **Aggregator** - Synthesize findings into Markdown report.
-8. **Task Generator** - Generate agent-executable Taskmaster JSON.
+8. **Prompt Generator** - Generate agent-ready system prompts.
 
 ### `ship-spec config`
 
