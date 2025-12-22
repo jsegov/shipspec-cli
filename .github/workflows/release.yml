@@ -48,13 +48,13 @@ jobs:
           fi
           echo "✓ No source maps found in $TARBALL"
 
-      - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
+      - name: Publish to npm
+        run: npm publish ${{ env.TARBALL }} --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Attest Build Provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
         with:
           subject-path: ${{ env.TARBALL }}
 
