@@ -27,9 +27,20 @@ describe("Logger Utility", () => {
       expect(redact(`token: ${jwt}`)).toBe("token: [REDACTED]");
     });
 
+    it("should redact long JWTs", () => {
+      const largePart = "a".repeat(600);
+      const largeJWT = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${largePart}.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c`;
+      expect(redact(largeJWT)).toBe("[REDACTED]");
+    });
+
     it("should redact Bearer tokens", () => {
       expect(redact("Authorization: Bearer my-secret-token")).toBe("[REDACTED]");
       expect(redact("Bearer abc.def.ghi")).toBe("[REDACTED]");
+    });
+
+    it("should redact long Bearer tokens", () => {
+      const largeToken = "a".repeat(600);
+      expect(redact(`Bearer ${largeToken}`)).toBe("[REDACTED]");
     });
 
     it("should redact Basic auth", () => {

@@ -225,12 +225,144 @@ The logger automatically redacts common secret patterns from all output to preve
 - **Tokens**: JWTs, Bearer tokens, Basic auth credentials
 - **Certificates**: PEM blocks (`-----BEGIN ... -----END`)
 - **Authorization Headers**: Any `Authorization:` header values
-- **High-Entropy Secrets**: Base64 strings (40+ chars), hex strings (64+ chars)
+- **High-Entropy Secrets**: Base64 strings (40-512 chars), hex strings (64-512 chars)
 - **URL Credentials**: Username/password in URLs (`user:pass@host`)
 
 **Recursive Redaction**: The `redactObject()` function recursively redacts secrets in nested objects and arrays, useful for sanitizing structured data before logging.
 
 **Extending Patterns**: To add new redaction patterns, update `SECRET_PATTERNS` in `src/utils/logger.ts`. Use specific patterns to avoid over-redaction of normal text.
+
+### ReDoS Prevention (Regular Expression Denial of Service)
+
+**Critical Security Requirement:** All regular expressions must be designed to prevent catastrophic backtracking that could enable denial-of-service attacks.
+
+#### What is ReDoS?
+
+ReDoS (Regular Expression Denial of Service) is a vulnerability where certain regex patterns exhibit exponential time complexity when matching specific input strings. Attackers can craft small inputs (<1KB) that cause minutes or hours of CPU time, leading to complete service disruption.
+
+**Common Vulnerable Patterns ("Evil Regex"):**
+- Nested quantifiers: `(a+)+`, `(a*)*`, `(a+)*`
+- Quantified overlapping alternations: `(a|a)+`, `(a|ab)+`
+- Quantified overlapping adjacencies: `[^/]+:[^/]+` (competing quantifiers)
+
+#### Mandatory Rules for Regex Patterns
+
+> [!CAUTION]
+> **ALL regular expressions that process untrusted input (user input, file contents, API responses, log messages) MUST follow these rules:**
+
+1. **Avoid Nested Quantifiers**
+   ```typescript
+   // ❌ FORBIDDEN: Nested quantifiers cause exponential backtracking
+   /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g
+   
+   // ✅ CORRECT: Use explicit word matching with non-capturing groups
+   /-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g
+   ```
+
+2. **Use Bounded Repetition**
+   ```typescript
+   // ❌ FORBIDDEN: Unbounded quantifiers on overlapping character classes
+   /\/\/[^/]+:[^/]+@/g
+   
+   // ✅ CORRECT: Bounded repetition with non-overlapping classes
+   /\/\/[^/:@]{1,256}:[^/@]{1,256}@/g
+   ```
+
+3. **Prevent Character Class Overlap**
+   ```typescript
+   // ❌ FORBIDDEN: Character classes can match the same input
+   /\/\/[^/]+:[^/]+@/g  // Both [^/]+ can match colons
+   
+   // ✅ CORRECT: Exclude delimiter from character classes
+   /\/\/[^/:@]{1,256}:[^/@]{1,256}@/g
+   ```
+
+4. **Set Maximum Bounds on Wildcard Matchers**
+   ```typescript
+   // ❌ RISKY: Unbounded .* or [\s\S]* can backtrack extensively
+   /BEGIN.*END/
+   
+   // ✅ CORRECT: Limit repetition to reasonable maximum
+   /BEGIN[\s\S]{0,10000}?END/
+   ```
+
+5. **Use Possessive Quantifiers or Atomic Groups (when supported)**
+   ```typescript
+   // ✅ BEST: Use possessive quantifiers (prevents backtracking)
+   /BEGIN [A-Z]++END/  // Note: Not supported in JavaScript
+   
+   // ✅ ALTERNATIVE: Use atomic groups
+   /BEGIN (?>[A-Z]+)END/  // Note: Not supported in JavaScript
+   
+   // ✅ JAVASCRIPT: Use explicit non-backtracking structure
+   /BEGIN [A-Z]+(?: [A-Z]+)*END/
+   ```
+
+6. **Implement Input Length Validation (Defense in Depth)**
+   ```typescript
+   // Always validate input length before regex processing
+   const MAX_SAFE_LENGTH = 50000; // 50KB
+   
+   function safeTruncate(text: string): string {
+     if (text.length > MAX_SAFE_LENGTH) {
+       return text.slice(0, MAX_SAFE_LENGTH) + '\n[... truncated for security]';
+     }
+     return text;
+   }
+   ```
+
+#### Mandatory Testing for ReDoS
+
+**When adding or modifying any regex pattern, you MUST add timing-based tests:**
+
+```typescript
+describe('ReDoS Protection', () => {
+  it('should handle malicious input without hanging', () => {
+    const malicious = 'triggering_pattern'.repeat(1000);
+    const start = Date.now();
+    
+    // Your function using the regex
+    yourFunction(malicious);
+    
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(100); // Must complete in <100ms
+  });
+  
+  it('should still match legitimate patterns', () => {
+    const valid = 'valid input matching pattern';
+    expect(yourFunction(valid)).toBe(expectedOutput);
+  });
+});
+```
+
+#### Safe Patterns Reference
+
+**Common safe replacements:**
+
+| Pattern Type | Unsafe | Safe |
+|--------------|--------|------|
+| PEM Blocks | `/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g` | `/-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g` |
+| URL Credentials | `/\/\/[^/]+:[^/]+@/g` | `/\/\/[^/:@]{1,256}:[^/@]{1,256}@/g` |
+| API Keys | `/sk-[a-zA-Z0-9]+/g` (unbounded) | `/sk-[a-zA-Z0-9]{20,1000}/g` (bounded) |
+| JWT Tokens | `/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/` | `/\beyJ[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\.[A-Za-z0-9_-]{10,10000}\b/g` |
+| Email | `/[^@]+@[^@]+/` | `/[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,255}/` |
+
+#### Validation Checklist
+
+Before merging any PR with regex changes:
+
+- [ ] Pattern does not contain nested quantifiers (`(a+)+`, `(a*)*`)
+- [ ] All quantifiers are bounded with `{min,max}` or reasonable limits
+- [ ] Character classes in adjacent quantifiers don't overlap
+- [ ] Input length validation exists if processing untrusted data
+- [ ] Timing-based tests verify pattern completes in <100ms on malicious input
+- [ ] CodeQL or similar static analysis shows no ReDoS warnings
+
+#### Additional Resources
+
+- [OWASP ReDoS Prevention](https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS)
+- [Regular-Expressions.info: Catastrophic Backtracking](https://www.regular-expressions.info/catastrophic.html)
+- [MDN: Quantifiers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_Expressions/Quantifiers)
 
 ### Type Safety & Linting
 

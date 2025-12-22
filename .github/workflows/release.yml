@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write # Required for npm provenance
+  attestations: write # Required for build attestation
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production # Requires manual approval
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify package contents
+        run: |
+          TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+          echo "Verifying $TARBALL..."
+          tar -tf "$TARBALL" > contents.txt
+          cat contents.txt
+          if grep -q '\.map$' contents.txt; then
+            echo "ERROR: Source map files found in $TARBALL!"
+            grep '\.map$' contents.txt
+            exit 1
+          fi
+          echo "✓ No source maps found in $TARBALL"
+
+      - name: Publish to npm
+        run: npm publish ${{ env.TARBALL }} --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@00014ed6ed5efc5b1ab7f7f34a39eb55d41aa4f8 # v3.1.0
+        with:
+          subject-path: ${{ env.TARBALL }}
+

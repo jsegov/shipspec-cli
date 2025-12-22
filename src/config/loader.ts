@@ -31,7 +31,12 @@ const ShipSpecEnvSchema = z.object({
   SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK: z.string().optional(),
 });
 
-type DeepPartial<T> = {
+export interface ConfigLoaderOptions {
+  strict?: boolean;
+  configPath?: string;
+}
+
+export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
     ? DeepPartial<U>[]
     : T[P] extends object | undefined | null
@@ -42,7 +47,7 @@ type DeepPartial<T> = {
 export async function loadConfig(
   cwd: string = process.cwd(),
   overrides: DeepPartial<ShipSpecConfig> = {},
-  options: { strict?: boolean; configPath?: string } = {}
+  options: ConfigLoaderOptions = {}
 ): Promise<ShipSpecConfig> {
   const isProduction = process.env.NODE_ENV === "production";
   const explicitDotenvPath = process.env.SHIPSPEC_DOTENV_PATH;
