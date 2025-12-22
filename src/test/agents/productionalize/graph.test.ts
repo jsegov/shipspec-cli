@@ -21,7 +21,6 @@ vi.mock("../../../core/models/llm.js", () => ({
           return Promise.resolve({
             subtasks: [],
             findings: [],
-            tasks: [],
             prompts: [],
             reasoning: "mock reasoning",
           });
@@ -154,25 +153,7 @@ describe("Productionalize Graph", () => {
     ).rejects.toThrow("SAST scanner(s) failed: [semgrep] Failed to parse Semgrep output");
   });
 
-  it("should route to promptGenerator when taskOutputMode is 'prompts'", async () => {
-    vi.mocked(createSASTScannerTool).mockReturnValue({
-      invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings: [] })),
-    } as unknown as ReturnType<typeof createSASTScannerTool>);
-
-    const graph = await createProductionalizeGraph(mockConfig, mockRepository, {
-      taskOutputMode: "prompts",
-    });
-
-    const result = await graph.invoke({
-      userQuery: "test query",
-      messages: [],
-    });
-
-    expect(result.taskPrompts).toBeDefined();
-    expect(result.tasks).toHaveLength(0); // taskGenerator not called
-  });
-
-  it("should route to taskGenerator by default", async () => {
+  it("should generate prompts via promptGenerator", async () => {
     vi.mocked(createSASTScannerTool).mockReturnValue({
       invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings: [] })),
     } as unknown as ReturnType<typeof createSASTScannerTool>);
@@ -184,7 +165,6 @@ describe("Productionalize Graph", () => {
       messages: [],
     });
 
-    expect(result.tasks).toBeDefined();
-    expect(result.taskPrompts).toBe(""); // default value
+    expect(result.taskPrompts).toBeDefined();
   });
 });

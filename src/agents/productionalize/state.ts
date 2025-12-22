@@ -2,7 +2,7 @@ import { Annotation } from "@langchain/langgraph";
 import { BaseMessage } from "@langchain/core/messages";
 import type { ProjectSignals } from "../../core/analysis/project-signals.js";
 import type { SASTFinding } from "../tools/sast-scanner.js";
-import type { Finding, ProductionalizeSubtask, TaskmasterTask } from "./types.js";
+import type { Finding, ProductionalizeSubtask } from "./types.js";
 
 export function subtasksReducer(
   current: ProductionalizeSubtask[],
@@ -46,10 +46,6 @@ export const ProductionalizeState = Annotation.Root({
   finalReport: Annotation<string>(),
   subtask: Annotation<ProductionalizeSubtask>({
     reducer: (_x, y) => y,
-  }),
-  tasks: Annotation<TaskmasterTask[]>({
-    reducer: (_x, y) => y,
-    default: () => [],
   }),
   taskPrompts: Annotation<string>({
     reducer: (_x, y) => y,

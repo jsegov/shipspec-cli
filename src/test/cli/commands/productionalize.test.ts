@@ -9,7 +9,7 @@ vi.mock("../../../agents/productionalize/graph.js", () => ({
   createProductionalizeGraph: vi.fn().mockResolvedValue({
     invoke: vi.fn().mockResolvedValue({
       finalReport: "# Mock Report",
-      tasks: [{ id: 1, title: "Mock Task" }],
+      taskPrompts: "### Task 1:\n````\nMock prompt\n````",
     }),
   }),
 }));
@@ -42,14 +42,15 @@ describe("Productionalize CLI Command", () => {
 
   it("should output a report to a file", () => {
     const _reportPath = join(tempDir, "report.md");
-    const _tasksPath = join(tempDir, "tasks.json");
+    const _taskPromptsPath = join(tempDir, "task-prompts.md");
 
     // We need to bypass the actual action because it uses process.cwd() and loadConfig
     // Instead we can test the command configuration
     expect(productionalizeCommand.name()).toBe("productionalize");
     expect(productionalizeCommand.options.map((o) => o.flags)).toContain("-o, --output <file>");
-    expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--tasks-output <file>");
-    expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--task-prompts");
+    expect(productionalizeCommand.options.map((o) => o.flags)).toContain(
+      "--task-prompts-output <file>"
+    );
     expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--reindex");
   });
 });

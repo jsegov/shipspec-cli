@@ -115,7 +115,7 @@ npm link
 
 ### `ship-spec productionalize [context]`
 
-Analyze your codebase for production readiness. This command automatically indexes your codebase, then combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and a Taskmaster-compatible task list.
+Analyze your codebase for production readiness. This command automatically indexes your codebase, then combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and agent-ready system prompts.
 
 ```bash
 # Basic usage
@@ -130,8 +130,8 @@ ship-spec productionalize --reindex
 # Enable SAST scans (Semgrep, Gitleaks, Trivy)
 ship-spec productionalize --enable-scans
 
-# Output report and tasks to files
-ship-spec productionalize -o report.md --tasks-output tasks.json
+# Output report and task prompts to files
+ship-spec productionalize -o report.md --task-prompts-output task-prompts.md
 ```
 
 **Options:**
@@ -139,7 +139,7 @@ ship-spec productionalize -o report.md --tasks-output tasks.json
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-o, --output <file>` | Write report to file | `stdout` |
-| `--tasks-output <file>` | Write tasks JSON to file | `stdout` |
+| `--task-prompts-output <file>` | Write task prompts to file | `stdout` |
 | `--reindex` | Force full re-index of the codebase | `false` |
 | `--enable-scans` | Run SAST scanners (requires binaries) | `false` |
 | `--categories <list>` | Filter to specific categories (csv) | `all` |

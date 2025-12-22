@@ -13,13 +13,12 @@ import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { createProductionalizeGraph } from "../../agents/productionalize/graph.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
-import type { ProductionalizeSubtask, TaskmasterTask } from "../../agents/productionalize/types.js";
+import type { ProductionalizeSubtask } from "../../agents/productionalize/types.js";
 import { CliUsageError, CliRuntimeError } from "../errors.js";
 
 interface ProductionalizeOptions {
   output?: string;
-  tasksOutput?: string;
-  taskPrompts: boolean;
+  taskPromptsOutput?: string;
   enableScans: boolean;
   categories?: string;
   stream: boolean;
@@ -109,12 +108,10 @@ async function productionalizeAction(
   logger.progress("Initializing productionalize workflow...");
   const graph = await createProductionalizeGraph(config, repository, {
     checkpointer,
-    taskOutputMode: options.taskPrompts ? "prompts" : "taskmaster",
   });
 
   let finalReport = "";
-  let finalTasks: TaskmasterTask[] = [];
-  let finalPrompts = "";
+  let finalTaskPrompts = "";
 
   const graphConfig = checkpointEnabled
     ? {
@@ -165,14 +162,9 @@ async function productionalizeAction(
           logger.progress(chalk.green("\n[Aggregator] Production Readiness Report generated!"));
         }
 
-        if (event.taskGenerator?.tasks) {
-          finalTasks = event.taskGenerator.tasks;
-          logger.progress(chalk.green("[TaskGenerator] Agent-executable tasks generated!\n"));
-        }
-
         if (event.promptGenerator?.taskPrompts) {
-          finalPrompts = event.promptGenerator.taskPrompts;
-          logger.progress(chalk.green("[PromptGenerator] Agent-ready system prompts generated!\n"));
+          finalTaskPrompts = event.promptGenerator.taskPrompts;
+          logger.progress(chalk.green("[PromptGenerator] Agent-ready task prompts generated!\n"));
         }
       }
     } catch (error) {
@@ -185,8 +177,7 @@ async function productionalizeAction(
         graphConfig
       );
       finalReport = result.finalReport;
-      finalTasks = result.tasks;
-      finalPrompts = result.taskPrompts;
+      finalTaskPrompts = result.taskPrompts;
     } catch (error) {
       throw new CliRuntimeError("Analysis failed", error);
     }
@@ -204,34 +195,25 @@ async function productionalizeAction(
     logger.output(finalReport);
   }
 
-  if (options.tasksOutput) {
-    const tasksPath = resolve(options.tasksOutput);
+  if (options.taskPromptsOutput) {
+    const taskPromptsPath = resolve(options.taskPromptsOutput);
     try {
-      if (options.taskPrompts) {
-        await writeFile(tasksPath, finalPrompts, "utf-8");
-        logger.success(`Prompts written to: ${tasksPath}`);
-      } else {
-        await writeFile(tasksPath, JSON.stringify(finalTasks, null, 2), "utf-8");
-        logger.success(`Tasks written to: ${tasksPath}`);
-      }
+      await writeFile(taskPromptsPath, finalTaskPrompts, "utf-8");
+      logger.success(`Task prompts written to: ${taskPromptsPath}`);
     } catch (error) {
-      throw new CliRuntimeError(`Failed to write tasks to: ${tasksPath}`, error);
+      throw new CliRuntimeError(`Failed to write task prompts to: ${taskPromptsPath}`, error);
     }
-  } else if (options.taskPrompts && finalPrompts) {
-    logger.plain(chalk.bold("\n--- Agent System Prompts ---"));
-    logger.output(finalPrompts);
-  } else if (finalTasks.length > 0) {
-    logger.plain(chalk.bold("\n--- Agent Task List ---"));
-    logger.plain(JSON.stringify(finalTasks, null, 2));
+  } else if (finalTaskPrompts) {
+    logger.plain(chalk.bold("\n--- Agent Task Prompts ---"));
+    logger.output(finalTaskPrompts);
   }
 }
 
 export const productionalizeCommand = new Command("productionalize")
-  .description("Analyze codebase for production readiness and generate task list")
+  .description("Analyze codebase for production readiness and generate agent-ready task prompts")
   .argument("[context]", "Optional context (e.g., 'B2B SaaS handling PII')")
   .option("-o, --output <file>", "Write report to file")
-  .option("--tasks-output <file>", "Write tasks JSON to file")
-  .option("--task-prompts", "Generate agent-ready system prompts instead of JSON tasks", false)
+  .option("--task-prompts-output <file>", "Write task prompts to file")
   .option("--enable-scans", "Run SAST scanners if available")
   .option("--categories <list>", "Filter to specific categories (comma-separated)")
   .option("--no-stream", "Disable streaming progress output")
