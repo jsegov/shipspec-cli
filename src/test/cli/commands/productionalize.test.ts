@@ -49,10 +49,12 @@ vi.mock("../../../core/secrets/secrets-store.js", () => ({
 describe("Productionalize CLI Command", () => {
   let tempDir: string;
   let originalCwd: string;
+  let originalOpenaiKey: string | undefined;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     originalCwd = process.cwd();
+    originalOpenaiKey = process.env.OPENAI_API_KEY;
     process.chdir(tempDir);
     vi.clearAllMocks();
 
@@ -63,6 +65,13 @@ describe("Productionalize CLI Command", () => {
   afterEach(async () => {
     process.chdir(originalCwd);
     await cleanupTempDir(tempDir);
+
+    // Restore or delete OPENAI_API_KEY to prevent env leakage
+    if (originalOpenaiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenaiKey;
+    }
   });
 
   it("should fail if not initialized", async () => {
@@ -111,9 +120,6 @@ describe("Productionalize CLI Command", () => {
 
     expect(existsSync(outputsDir)).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-report.md"))).toBe(true);
-
-    // Clean up
-    delete process.env.OPENAI_API_KEY;
   });
 
   it("should run analysis and write output to .ship-spec/outputs/", async () => {
