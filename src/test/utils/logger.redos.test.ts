@@ -166,6 +166,27 @@ MIIEpAIBAAKCAQEAwhatever
       expect(result).toBe("[REDACTED]");
       expect(result).not.toContain("Bearer");
     });
+
+    it("should redact Authorization headers with short tokens that don't match Bearer pattern", () => {
+      const auth = "Authorization: Bearer token123";
+      const result = redact(auth);
+
+      expect(result).toBe("[REDACTED]");
+    });
+
+    it("should redact Authorization headers with custom schemes", () => {
+      const auth = "Authorization: CustomScheme some-long-token-value";
+      const result = redact(auth);
+
+      expect(result).toBe("[REDACTED]");
+    });
+
+    it("should redact Proxy-Authorization headers", () => {
+      const auth = "Proxy-Authorization: Basic dXNlcjpwYXNz";
+      const result = redact(auth);
+
+      expect(result).toBe("[REDACTED]");
+    });
   });
 
   describe("Combined Pattern Testing", () => {
