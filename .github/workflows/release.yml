@@ -37,6 +37,7 @@ jobs:
       - name: Verify package contents
         run: |
           TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
           echo "Verifying $TARBALL..."
           tar -tf "$TARBALL" > contents.txt
           cat contents.txt
@@ -48,12 +49,12 @@ jobs:
           echo "✓ No source maps found in $TARBALL"
 
       - name: Publish to npm with provenance
-        run: npm publish shipspec-cli-*.tgz --provenance --access public
+        run: npm publish "$TARBALL" --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Attest Build Provenance
         uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
-          subject-path: 'shipspec-cli-*.tgz' # Using glob to match pack output
+          subject-path: ${{ env.TARBALL }}
 
