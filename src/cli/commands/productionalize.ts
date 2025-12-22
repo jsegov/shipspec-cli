@@ -1,8 +1,10 @@
 import { Command, Option } from "commander";
-import { writeFile } from "fs/promises";
+import { writeFile, copyFile, mkdir } from "fs/promises";
 import { resolve, join } from "path";
+import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
 import chalk from "chalk";
+import { format } from "date-fns";
 
 import { loadConfig } from "../../config/loader.js";
 import type { ShipSpecConfig } from "../../config/schema.js";
@@ -15,10 +17,10 @@ import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger } from "../../utils/logger.js";
 import type { ProductionalizeSubtask } from "../../agents/productionalize/types.js";
 import { CliUsageError, CliRuntimeError } from "../errors.js";
+import { findProjectRoot, PROJECT_DIR, OUTPUTS_DIR } from "../../core/project/project-state.js";
+import { createSecretsStore } from "../../core/secrets/secrets-store.js";
 
 interface ProductionalizeOptions {
-  output?: string;
-  taskPromptsOutput?: string;
   enableScans: boolean;
   categories?: string;
   stream: boolean;
@@ -32,7 +34,35 @@ async function productionalizeAction(
   context: string | undefined,
   options: ProductionalizeOptions
 ): Promise<void> {
-  const config = options.resolvedConfig ?? (await loadConfig(process.cwd()));
+  // 1. Fail-fast if not initialized
+  const projectRoot = findProjectRoot(process.cwd());
+  if (!projectRoot) {
+    throw new CliUsageError(
+      "This directory has not been initialized. Run `ship-spec init` first."
+    );
+  }
+
+  const config = options.resolvedConfig ?? (await loadConfig(projectRoot));
+
+  // 2. Load keys from keychain and inject into config
+  const secretsStore = createSecretsStore();
+  const openaiKey = await secretsStore.get("OPENAI_API_KEY");
+  const tavilyKey = await secretsStore.get("TAVILY_API_KEY");
+
+  if (!openaiKey) {
+    throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+  }
+
+  config.llm.apiKey = openaiKey;
+  config.embedding.apiKey = openaiKey;
+  if (tavilyKey) {
+    config.productionalize.webSearch ??= { provider: "tavily" };
+    config.productionalize.webSearch.apiKey = tavilyKey;
+  }
+
+  // 3. Force paths relative to initialized root
+  config.projectPath = projectRoot;
+  config.vectorDbPath = join(projectRoot, PROJECT_DIR, "lancedb");
 
   // Override config with CLI options
   if (options.enableScans) {
@@ -91,8 +121,8 @@ async function productionalizeAction(
     } else {
       logger.info("Index is up to date.");
     }
-  } catch (error) {
-    throw new CliRuntimeError("Indexing failed", error);
+  } catch (err) {
+    throw new CliRuntimeError("Indexing failed", err);
   }
 
   let checkpointer;
@@ -100,8 +130,8 @@ async function productionalizeAction(
     try {
       logger.progress("Initializing checkpointer...");
       checkpointer = createCheckpointer(config.checkpoint.type, config.checkpoint.sqlitePath);
-    } catch (error) {
-      throw new CliRuntimeError("Failed to initialize checkpointer", error);
+    } catch (err) {
+      throw new CliRuntimeError("Failed to initialize checkpointer", err);
     }
   }
 
@@ -167,8 +197,8 @@ async function productionalizeAction(
           logger.progress(chalk.green("[PromptGenerator] Agent-ready task prompts generated!\n"));
         }
       }
-    } catch (error) {
-      throw new CliRuntimeError("Analysis failed", error);
+    } catch (err) {
+      throw new CliRuntimeError("Analysis failed", err);
     }
   } else {
     try {
@@ -178,42 +208,39 @@ async function productionalizeAction(
       );
       finalReport = result.finalReport;
       finalTaskPrompts = result.taskPrompts;
-    } catch (error) {
-      throw new CliRuntimeError("Analysis failed", error);
+    } catch (err) {
+      throw new CliRuntimeError("Analysis failed", err);
     }
   }
 
-  if (options.output) {
-    const outputPath = resolve(options.output);
-    try {
-      await writeFile(outputPath, finalReport, "utf-8");
-      logger.success(`Report written to: ${outputPath}`);
-    } catch (error) {
-      throw new CliRuntimeError(`Failed to write report to: ${outputPath}`, error);
-    }
-  } else {
-    logger.output(finalReport);
-  }
+  // 4. Always write to .ship-spec/outputs/
+  const timestamp = format(new Date(), "yyyyMMdd-HHmmss");
+  const outputsDir = join(projectRoot, PROJECT_DIR, OUTPUTS_DIR);
 
-  if (options.taskPromptsOutput) {
-    const taskPromptsPath = resolve(options.taskPromptsOutput);
-    try {
-      await writeFile(taskPromptsPath, finalTaskPrompts, "utf-8");
-      logger.success(`Task prompts written to: ${taskPromptsPath}`);
-    } catch (error) {
-      throw new CliRuntimeError(`Failed to write task prompts to: ${taskPromptsPath}`, error);
+  const reportPath = join(outputsDir, `report-${timestamp}.md`);
+  const promptsPath = join(outputsDir, `task-prompts-${timestamp}.md`);
+
+  try {
+    if (!existsSync(outputsDir)) {
+      await mkdir(outputsDir, { recursive: true });
     }
-  } else if (finalTaskPrompts) {
-    logger.plain(chalk.bold("\n--- Agent Task Prompts ---"));
-    logger.output(finalTaskPrompts);
+    await writeFile(reportPath, finalReport, "utf-8");
+    await writeFile(promptsPath, finalTaskPrompts, "utf-8");
+
+    // Update latest pointers
+    await copyFile(reportPath, join(projectRoot, PROJECT_DIR, "latest-report.md"));
+    await copyFile(promptsPath, join(projectRoot, PROJECT_DIR, "latest-task-prompts.md"));
+
+    logger.success(`Report written to: ${chalk.cyan(reportPath)}`);
+    logger.success(`Task prompts written to: ${chalk.cyan(promptsPath)}`);
+  } catch (err) {
+    throw new CliRuntimeError("Failed to write output files.", err);
   }
 }
 
 export const productionalizeCommand = new Command("productionalize")
   .description("Analyze codebase for production readiness and generate agent-ready task prompts")
   .argument("[context]", "Optional context (e.g., 'B2B SaaS handling PII')")
-  .option("-o, --output <file>", "Write report to file")
-  .option("--task-prompts-output <file>", "Write task prompts to file")
   .option("--enable-scans", "Run SAST scanners if available")
   .option("--categories <list>", "Filter to specific categories (comma-separated)")
   .option("--no-stream", "Disable streaming progress output")

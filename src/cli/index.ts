@@ -5,6 +5,7 @@ import { setMaxListeners } from "events";
 
 import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
+import { initCommand } from "./commands/init.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 
 import { logger } from "../utils/logger.js";
@@ -35,6 +36,7 @@ program
   });
 
 program.addCommand(configCommand);
+program.addCommand(initCommand);
 program.addCommand(productionalizeCommand);
 
 async function main() {

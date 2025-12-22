@@ -28,6 +28,9 @@
 Understanding a codebase's production readiness is hard. Manual security and reliability audits are tedious. **Ship Spec** bridges the gap by using AI to analyze your code semantically and generate comprehensive production reports on demand.
 
 ```bash
+# Initialize project and set API keys
+ship-spec init
+
 # Analyze production readiness
 ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
 ```
@@ -43,6 +46,7 @@ That's it. Ship Spec handles the rest—parsing your code into semantic chunks, 
 - **🛡️ Production Readiness Analysis** — Hybrid planner combines deterministic signals with dynamic research and SAST scans
 - **🗄️ Local-First Vector Store** — Embedded LanceDB for fast similarity search without external dependencies
 - **☁️ Multi-Provider Support** — Works with OpenAI, Anthropic, Ollama (local), Google Vertex AI, Mistral, and Azure OpenAI
+- **🔐 Secure Credential Management** — Stores API keys in your OS keychain (macOS Keychain, Windows Credential Vault, Linux Secret Service)
 - **⚡ High Performance** — Concurrent file processing with configurable parallelism and batching
 
 ---
@@ -52,7 +56,7 @@ That's it. Ship Spec handles the rest—parsing your code into semantic chunks, 
 ### Prerequisites
 
 - **Node.js 20+** required
-- An API key from OpenAI, Anthropic, or a running [Ollama](https://ollama.ai) instance
+- An API key from OpenAI and Tavily (optional but recommended for web research)
 
 ### 1. Install
 
@@ -60,27 +64,28 @@ That's it. Ship Spec handles the rest—parsing your code into semantic chunks, 
 npm install -g shipspec-cli
 ```
 
-### 2. Set up your API key
+### 2. Initialize and configure API keys
 
 ```bash
-# Create a .env file in your project
-echo "OPENAI_API_KEY=sk-your-key-here" > .env
-
-# Or for Anthropic
-echo "ANTHROPIC_API_KEY=sk-ant-your-key-here" > .env
-
-# Or for local Ollama (no key needed)
-echo "OLLAMA_BASE_URL=http://localhost:11434" > .env
+cd your-project
+ship-spec init
 ```
+
+The `init` command will:
+- Prompt you for your OpenAI and Tavily API keys
+- Store them securely in your OS keychain (one-time setup per machine)
+- Create a `.ship-spec/` directory in your project for tracking state and outputs
 
 ### 3. Analyze production readiness
 
 ```bash
-cd your-project
 ship-spec productionalize
 ```
 
-The tool will automatically index your codebase on the first run and incrementally update it whenever you make changes.
+The tool will:
+- Automatically index your codebase on the first run
+- Run parallel analysis agents
+- Save the results to `.ship-spec/outputs/`
 
 ---
 
@@ -113,9 +118,21 @@ npm link
 
 ## 📖 Usage
 
+### `ship-spec init`
+
+Initialize Ship Spec in the current directory and configure global API keys.
+
+```bash
+# Interactive setup
+ship-spec init
+
+# Non-interactive setup (for CI/CD)
+OPENAI_API_KEY=sk-... TAVILY_API_KEY=tvly-... ship-spec init --non-interactive
+```
+
 ### `ship-spec productionalize [context]`
 
-Analyze your codebase for production readiness. This command automatically indexes your codebase, then combines code analysis, web research (SOC 2, OWASP), and SAST scans to generate a comprehensive report and agent-ready system prompts.
+Analyze your codebase for production readiness. This command automatically indexes your codebase, then combines code analysis, web research (SOC 2, OWASP), and SAST scans.
 
 ```bash
 # Basic usage
@@ -129,17 +146,18 @@ ship-spec productionalize --reindex
 
 # Enable SAST scans (Semgrep, Gitleaks, Trivy)
 ship-spec productionalize --enable-scans
-
-# Output report and task prompts to files
-ship-spec productionalize -o report.md --task-prompts-output task-prompts.md
 ```
+
+**Outputs:**
+Analysis reports and task prompts are automatically saved to:
+- `.ship-spec/outputs/report-YYYYMMDD-HHMMSS.md`
+- `.ship-spec/outputs/task-prompts-YYYYMMDD-HHMMSS.md`
+- Latest results are always available at `.ship-spec/latest-report.md` and `.ship-spec/latest-task-prompts.md`.
 
 **Options:**
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-o, --output <file>` | Write report to file | `stdout` |
-| `--task-prompts-output <file>` | Write task prompts to file | `stdout` |
 | `--reindex` | Force full re-index of the codebase | `false` |
 | `--enable-scans` | Run SAST scanners (requires binaries) | `false` |
 | `--categories <list>` | Filter to specific categories (csv) | `all` |
@@ -161,39 +179,6 @@ ship-spec --version     # Show version
 ship-spec -v, --verbose # Enable verbose logging
 ship-spec -c, --config <path>  # Use custom config file
 ```
-
----
-
-### Configuration Precedence
-
-Ship Spec resolve configuration from multiple sources in the following priority order:
-
-1. **CLI Flags** — Overrides all other settings (e.g., `--config`, `--reindex`)
-2. **Environment Variables** — Set directly in your shell or process
-3. **Configuration File** — `shipspec.json`, `.shipspecrc`, or `.shipspecrc.json`
-4. **Defaults** — Sensible defaults defined in the system schema
-
-### Environment Variables & .env
-
-By default, Ship Spec loads environment variables from a `.env` file in the current working directory **only in non-production environments**.
-
-In **production** (`NODE_ENV=production`), `.env` loading is strictly controlled to prevent accidental configuration leakage.
-
-#### Production Requirements
-If you MUST use a `.env` file in production, the following guardrails apply:
-1. **Explicit Opt-in**: Set `SHIPSPEC_LOAD_DOTENV=1`.
-2. **Absolute Path**: You must provide an absolute path to the `.env` file via `SHIPSPEC_DOTENV_PATH`. Implicit loading from the current directory is disabled.
-3. **Override Acknowledgment**: If you use `SHIPSPEC_DOTENV_OVERRIDE=1` to overwrite existing process variables, you must also set `SHIPSPEC_DOTENV_OVERRIDE_ACK=I_UNDERSTAND`.
-
-Example for production:
-```bash
-NODE_ENV=production \
-SHIPSPEC_LOAD_DOTENV=1 \
-SHIPSPEC_DOTENV_PATH=/etc/shipspec/.env \
-ship-spec productionalize
-```
-
-By default, `.env` will **not** overwrite environment variables that are already set in your process unless `SHIPSPEC_DOTENV_OVERRIDE=1` is set (with acknowledgment in production).
 
 ---
 
@@ -238,6 +223,7 @@ Built with these amazing open-source projects:
 - [LanceDB](https://lancedb.com/) — Embedded vector database
 - [Tree-sitter](https://tree-sitter.github.io/) — Incremental parsing system
 - [Commander.js](https://github.com/tj/commander.js/) — CLI framework
+- [keytar](https://github.com/atom/node-keytar) — OS keychain integration
 
 ---
 
