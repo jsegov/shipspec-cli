@@ -4,20 +4,29 @@ import chalk from "chalk";
  * Logger utility for CLI output.
  * Uses stderr for all log messages to keep stdout clean for piping.
  */
+
+/**
+ * Maximum safe string length for redaction operations.
+ * Prevents ReDoS attacks by limiting input size to ~50KB of text.
+ */
+const MAX_REDACTION_LENGTH = 50000;
+
 const SECRET_PATTERNS = [
-  /sk-[a-zA-Z0-9]{20,}/g, // OpenAI-style keys
-  /sk-ant-[a-zA-Z0-9_-]{10,}/g, // Anthropic API keys
-  /sk-ant-sid01-[a-zA-Z0-9_-]{20,}/g, // Anthropic session keys
-  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, // JWT-like
-  /\bBearer\s+[A-Za-z0-9._-]{10,}\b/gi, // Bearer token (min length to avoid false positives)
-  /\bBasic\s+[A-Za-z0-9+/=]{10,}/gi, // Basic auth
-  /-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, // PEM blocks
+  /sk-[a-zA-Z0-9]{20,100}/g, // OpenAI-style keys (bounded)
+  /sk-ant-[a-zA-Z0-9_-]{10,100}/g, // Anthropic API keys (bounded)
+  /sk-ant-sid01-[a-zA-Z0-9_-]{20,100}/g, // Anthropic session keys (bounded)
+  /\beyJ[A-Za-z0-9_-]{10,500}\.[A-Za-z0-9_-]{10,500}\.[A-Za-z0-9_-]{10,500}\b/g, // JWT-like (bounded)
+  /\bBearer\s+[A-Za-z0-9._-]{10,500}\b/gi, // Bearer token (bounded)
+  /\bBasic\s+[A-Za-z0-9+/=]{10,500}/gi, // Basic auth (bounded)
+  // PEM blocks - ReDoS-safe: explicit word matching + bounded middle section
+  /-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g,
   /\bAKIA[0-9A-Z]{16}\b/g, // AWS Access Key ID
-  /\b[A-Za-z0-9+/]{40,}={0,2}\b/g, // High-entropy base64 (40+ chars)
-  /\b[a-fA-F0-9]{64,}\b/g, // Hex-encoded secrets (64+ chars)
-  /Authorization:\s*\S+/gi, // Authorization headers
+  /\b[A-Za-z0-9+/]{40,500}={0,2}\b/g, // High-entropy base64 (bounded to 500 chars)
+  /\b[a-fA-F0-9]{64,256}\b/g, // Hex-encoded secrets (bounded to 256 chars)
+  /Authorization:\s*\S{1,500}/gi, // Authorization headers (bounded)
 ];
-const URL_CRED_PATTERN = /\/\/[^/]+:[^/]+@/g;
+// URL credentials - ReDoS-safe: bounded + non-overlapping character classes
+const URL_CRED_PATTERN = /\/\/[^/:@]{1,256}:[^/@]{1,256}@/g;
 
 /**
  * Strips ANSI escape codes and other non-printable control characters.
@@ -34,10 +43,24 @@ export function stripAnsi(text: string): string {
 }
 
 /**
+ * Safely truncates strings that exceed the maximum redaction length.
+ * Long strings are truncated with a marker to indicate data was cut.
+ * This provides defense-in-depth protection against ReDoS attacks.
+ */
+function safeTruncate(text: string): string {
+  if (text.length <= MAX_REDACTION_LENGTH) {
+    return text;
+  }
+  return text.slice(0, MAX_REDACTION_LENGTH) + "\n[... truncated for security]";
+}
+
+/**
  * Redacts sensitive information from a string.
+ * Input is truncated to prevent ReDoS attacks before pattern matching.
  */
 export function redact(text: string): string {
-  let redacted = text;
+  const safe = safeTruncate(text);
+  let redacted = safe;
   for (const pattern of SECRET_PATTERNS) {
     redacted = redacted.replace(pattern, "[REDACTED]");
   }
