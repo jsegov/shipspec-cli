@@ -23,7 +23,7 @@ Generate the agent-ready system prompts in the required structured format.`;
     ]);
 
     const formattedMarkdown = output.prompts
-      .map((p) => `### Task ${String(p.id)}:\n\`\`\`\`\n${p.prompt}\n\`\`\`\``)
+      .map((p) => `### Task ${String(p.id)}:\n\`\`\`\n${p.prompt}\n\`\`\``)
       .join("\n\n");
 
     return {

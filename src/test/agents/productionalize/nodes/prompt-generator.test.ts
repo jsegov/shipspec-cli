@@ -36,7 +36,7 @@ describe("Prompt Generator Node", () => {
     expect(result.taskPrompts).toContain("Fix vulnerability by adding auth middleware");
     expect(result.taskPrompts).toContain("### Task 2:");
     expect(result.taskPrompts).toContain("Harden gh actions by adding scanners");
-    expect(result.taskPrompts).toContain("````");
+    expect(result.taskPrompts).toContain("```");
   });
 
   it("should handle empty prompts list gracefully", async () => {
