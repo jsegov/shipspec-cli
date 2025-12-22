@@ -3,10 +3,10 @@
 import { Command } from "commander";
 import { setMaxListeners } from "events";
 
-import { loadConfig } from "../config/loader.js";
 import { configCommand } from "./commands/config.js";
 import { initCommand } from "./commands/init.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
+import { resolveCliConfig } from "./config-resolver.js";
 
 import { logger } from "../utils/logger.js";
 import { CliError, CliRuntimeError } from "./errors.js";
@@ -23,16 +23,16 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("--strict-config", "Fail on malformed or invalid config files")
   .hook("preAction", async (thisCommand, actionCommand) => {
-    const options = thisCommand.opts();
-    const config = await loadConfig(
-      process.cwd(),
-      {},
-      {
-        strict: !!options.strictConfig,
-        configPath: options.config as string | undefined,
-      }
-    );
-    actionCommand.setOptionValue("resolvedConfig", config);
+    const { strictConfig, config: configPath } = thisCommand.opts<{
+      strictConfig?: boolean;
+      config?: string;
+    }>();
+    const resolvedConfig = await resolveCliConfig({
+      actionName: actionCommand.name(),
+      strictConfig,
+      configPath,
+    });
+    actionCommand.setOptionValue("resolvedConfig", resolvedConfig);
   });
 
 program.addCommand(configCommand);

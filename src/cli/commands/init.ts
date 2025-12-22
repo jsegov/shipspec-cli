@@ -12,35 +12,47 @@ import {
   readProjectState,
   PROJECT_DIR,
   OUTPUTS_DIR,
-  isInitialized,
+  findProjectRoot,
 } from "../../core/project/project-state.js";
 import { logger } from "../../utils/logger.js";
 import { CliUsageError, CliRuntimeError } from "../errors.js";
 
 async function initAction(options: { nonInteractive?: boolean }): Promise<void> {
-  const projectRoot = process.cwd();
+  const cwd = process.cwd();
   const secretsStore = createSecretsStore();
 
   logger.info(chalk.bold("\n🚀 Initializing Ship Spec..."));
 
-  // 1. Check if already initialized
-  const alreadyInitialized = isInitialized(projectRoot);
-  const existingState = alreadyInitialized ? await readProjectState(projectRoot) : null;
+  // 1. Check if already initialized (searches up the directory tree)
+  const existingRoot = findProjectRoot(cwd);
+  const existingState = existingRoot ? await readProjectState(existingRoot) : null;
 
-  if (alreadyInitialized) {
+  // Determine the target project root
+  let projectRoot: string;
+
+  if (existingRoot) {
     if (options.nonInteractive) {
-      // Non-interactive mode: skip re-initialization silently (idempotent for CI/CD)
-      logger.info("Project already initialized. Updating API keys only.");
+      // Non-interactive mode: use existing project root (idempotent for CI/CD)
+      projectRoot = existingRoot;
+      logger.info(
+        `Project already initialized at ${chalk.cyan(existingRoot)}. Updating API keys only.`
+      );
     } else {
-      const proceed = await confirm({
-        message: "This directory is already initialized. Do you want to re-initialize?",
-        default: false,
-      });
+      const isSubdirectory = existingRoot !== cwd;
+      const message = isSubdirectory
+        ? `A Ship Spec project already exists at ${chalk.cyan(existingRoot)}. Re-initialize there?`
+        : "This directory is already initialized. Do you want to re-initialize?";
+
+      const proceed = await confirm({ message, default: false });
       if (!proceed) {
         logger.info("Initialization aborted.");
         return;
       }
+      projectRoot = existingRoot;
     }
+  } else {
+    // Fresh initialization in current directory
+    projectRoot = cwd;
   }
 
   let openaiKey: string | undefined;

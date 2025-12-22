@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { initCommand } from "../../../cli/commands/init.js";
 import { createTempDir, cleanupTempDir } from "../../fixtures.js";
 import { join } from "path";
-import { realpath, readFile } from "fs/promises";
+import { realpath, readFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
+import { writeProjectState } from "../../../core/project/project-state.js";
+import { randomUUID } from "crypto";
 
 // Mock @inquirer/prompts
 vi.mock("@inquirer/prompts", () => ({
@@ -93,5 +95,53 @@ describe("initCommand", () => {
     delete process.env.OPENAI_API_KEY;
 
     await expect(initCommand.parseAsync(["node", "test", "--non-interactive"])).rejects.toThrow();
+  });
+
+  it("should use parent project root when run from a subdirectory (non-interactive)", async () => {
+    // Initialize parent project
+    const parentProjectId = randomUUID();
+    const parentInitializedAt = new Date().toISOString();
+    await writeProjectState(tempDir, {
+      schemaVersion: 1,
+      projectId: parentProjectId,
+      initializedAt: parentInitializedAt,
+      updatedAt: parentInitializedAt,
+      projectRoot: tempDir,
+    });
+
+    // Create and cd into a subdirectory
+    const subDir = join(tempDir, "src", "deep", "nested");
+    await mkdir(subDir, { recursive: true });
+    process.chdir(subDir);
+
+    process.env.OPENAI_API_KEY = "sk-env-openai";
+    process.env.TAVILY_API_KEY = "tvly-env-tavily";
+
+    await initCommand.parseAsync(["node", "test", "--non-interactive"]);
+
+    // Verify no nested .ship-spec was created
+    expect(existsSync(join(subDir, ".ship-spec"))).toBe(false);
+
+    // Verify parent project was updated (not replaced)
+    const parentProjectPath = join(tempDir, ".ship-spec", "project.json");
+    expect(existsSync(parentProjectPath)).toBe(true);
+
+    const content = await readFile(parentProjectPath, "utf-8");
+    const projectState = JSON.parse(content) as {
+      projectId: string;
+      initializedAt: string;
+      updatedAt: string;
+    };
+
+    // projectId and initializedAt should be preserved
+    expect(projectState.projectId).toBe(parentProjectId);
+    expect(projectState.initializedAt).toBe(parentInitializedAt);
+    // updatedAt should be newer
+    expect(new Date(projectState.updatedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(parentInitializedAt).getTime()
+    );
+
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.TAVILY_API_KEY;
   });
 });

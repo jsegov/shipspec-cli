@@ -65,9 +65,3 @@ export function findProjectRoot(startDir: string): string | null {
 
   return null;
 }
-
-// Check if a directory is initialized
-export function isInitialized(dir: string): boolean {
-  const projectRoot = findProjectRoot(dir);
-  return projectRoot !== null;
-}
