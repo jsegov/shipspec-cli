@@ -22,7 +22,7 @@ const SECRET_PATTERNS = [
   /-----BEGIN [A-Z]+(?: [A-Z]+)*-----[\s\S]{0,10000}?-----END [A-Z]+(?: [A-Z]+)*-----/g,
   /\bAKIA[0-9A-Z]{16}\b/g, // AWS Access Key ID
   /\b[A-Za-z0-9+/]{40,512}={0,2}\b/g, // High-entropy base64 (bounded to 512 chars to avoid false positives)
-  /\b[a-fAF0-9]{64,512}\b/g, // Hex-encoded secrets (bounded to 512 chars to avoid false positives)
+  /\b[a-fA-F0-9]{64,512}\b/g, // Hex-encoded secrets (bounded to 512 chars to avoid false positives)
   /\b(?:Proxy-)?Authorization:\s*[^\r\n]{1,10000}/gi, // Authorization headers (bounded)
 ];
 // URL credentials - ReDoS-safe: bounded + non-overlapping character classes
