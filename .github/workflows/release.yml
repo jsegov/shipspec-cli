@@ -36,7 +36,7 @@ jobs:
 
       - name: Verify package contents
         run: |
-          npm pack --dry-run > pack-output.txt 2>&1
+          npm pack > pack-output.txt 2>&1
           cat pack-output.txt
           if grep -q '\.map$' pack-output.txt; then
             echo "ERROR: Source map files found!"
@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
+        run: npm publish shipspec-cli-*.tgz --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
