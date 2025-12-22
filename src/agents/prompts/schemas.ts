@@ -77,3 +77,15 @@ export const TasksOutputSchema = z.object({
   reasoning: z.string().describe("Architecture and dependency analysis for the task list"),
   tasks: z.array(TaskmasterTaskSchema),
 });
+
+export const PromptTaskSchema = z.object({
+  id: z.number(),
+  prompt: z
+    .string()
+    .describe("Agent-ready system prompt with file references and implementation steps"),
+});
+
+export const PromptsOutputSchema = z.object({
+  reasoning: z.string().describe("Deduplication and grouping analysis"),
+  prompts: z.array(PromptTaskSchema),
+});

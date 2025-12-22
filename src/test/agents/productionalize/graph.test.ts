@@ -15,8 +15,18 @@ vi.mock("../../../agents/tools/sast-scanner.js", async (importActual) => {
 vi.mock("../../../core/models/llm.js", () => ({
   createChatModel: vi.fn().mockResolvedValue({
     invoke: vi.fn().mockResolvedValue({ content: "{}" }),
-    withStructuredOutput: vi.fn().mockReturnValue({
-      invoke: vi.fn().mockResolvedValue({ subtasks: [] }),
+    withStructuredOutput: vi.fn().mockImplementation((_schema) => {
+      return {
+        invoke: vi.fn().mockImplementation(() => {
+          return Promise.resolve({
+            subtasks: [],
+            findings: [],
+            tasks: [],
+            prompts: [],
+            reasoning: "mock reasoning",
+          });
+        }),
+      };
     }),
   }),
 }));
@@ -142,5 +152,39 @@ describe("Productionalize Graph", () => {
         messages: [],
       })
     ).rejects.toThrow("SAST scanner(s) failed: [semgrep] Failed to parse Semgrep output");
+  });
+
+  it("should route to promptGenerator when taskOutputMode is 'prompts'", async () => {
+    vi.mocked(createSASTScannerTool).mockReturnValue({
+      invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings: [] })),
+    } as unknown as ReturnType<typeof createSASTScannerTool>);
+
+    const graph = await createProductionalizeGraph(mockConfig, mockRepository, {
+      taskOutputMode: "prompts",
+    });
+
+    const result = await graph.invoke({
+      userQuery: "test query",
+      messages: [],
+    });
+
+    expect(result.taskPrompts).toBeDefined();
+    expect(result.tasks).toHaveLength(0); // taskGenerator not called
+  });
+
+  it("should route to taskGenerator by default", async () => {
+    vi.mocked(createSASTScannerTool).mockReturnValue({
+      invoke: vi.fn().mockResolvedValue(JSON.stringify({ findings: [] })),
+    } as unknown as ReturnType<typeof createSASTScannerTool>);
+
+    const graph = await createProductionalizeGraph(mockConfig, mockRepository);
+
+    const result = await graph.invoke({
+      userQuery: "test query",
+      messages: [],
+    });
+
+    expect(result.tasks).toBeDefined();
+    expect(result.taskPrompts).toBe(""); // default value
   });
 });

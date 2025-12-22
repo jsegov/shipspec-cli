@@ -19,6 +19,7 @@ import { CliUsageError, CliRuntimeError } from "../errors.js";
 interface ProductionalizeOptions {
   output?: string;
   tasksOutput?: string;
+  taskPrompts: boolean;
   enableScans: boolean;
   categories?: string;
   stream: boolean;
@@ -106,10 +107,14 @@ async function productionalizeAction(
   }
 
   logger.progress("Initializing productionalize workflow...");
-  const graph = await createProductionalizeGraph(config, repository, { checkpointer });
+  const graph = await createProductionalizeGraph(config, repository, {
+    checkpointer,
+    taskOutputMode: options.taskPrompts ? "prompts" : "taskmaster",
+  });
 
   let finalReport = "";
   let finalTasks: TaskmasterTask[] = [];
+  let finalPrompts = "";
 
   const graphConfig = checkpointEnabled
     ? {
@@ -164,6 +169,11 @@ async function productionalizeAction(
           finalTasks = event.taskGenerator.tasks;
           logger.progress(chalk.green("[TaskGenerator] Agent-executable tasks generated!\n"));
         }
+
+        if (event.promptGenerator?.taskPrompts) {
+          finalPrompts = event.promptGenerator.taskPrompts;
+          logger.progress(chalk.green("[PromptGenerator] Agent-ready system prompts generated!\n"));
+        }
       }
     } catch (error) {
       throw new CliRuntimeError("Analysis failed", error);
@@ -176,6 +186,7 @@ async function productionalizeAction(
       );
       finalReport = result.finalReport;
       finalTasks = result.tasks;
+      finalPrompts = result.taskPrompts;
     } catch (error) {
       throw new CliRuntimeError("Analysis failed", error);
     }
@@ -196,11 +207,19 @@ async function productionalizeAction(
   if (options.tasksOutput) {
     const tasksPath = resolve(options.tasksOutput);
     try {
-      await writeFile(tasksPath, JSON.stringify(finalTasks, null, 2), "utf-8");
-      logger.success(`Tasks written to: ${tasksPath}`);
+      if (options.taskPrompts) {
+        await writeFile(tasksPath, finalPrompts, "utf-8");
+        logger.success(`Prompts written to: ${tasksPath}`);
+      } else {
+        await writeFile(tasksPath, JSON.stringify(finalTasks, null, 2), "utf-8");
+        logger.success(`Tasks written to: ${tasksPath}`);
+      }
     } catch (error) {
       throw new CliRuntimeError(`Failed to write tasks to: ${tasksPath}`, error);
     }
+  } else if (options.taskPrompts && finalPrompts) {
+    logger.plain(chalk.bold("\n--- Agent System Prompts ---"));
+    logger.output(finalPrompts);
   } else if (finalTasks.length > 0) {
     logger.plain(chalk.bold("\n--- Agent Task List ---"));
     logger.plain(JSON.stringify(finalTasks, null, 2));
@@ -212,6 +231,7 @@ export const productionalizeCommand = new Command("productionalize")
   .argument("[context]", "Optional context (e.g., 'B2B SaaS handling PII')")
   .option("-o, --output <file>", "Write report to file")
   .option("--tasks-output <file>", "Write tasks JSON to file")
+  .option("--task-prompts", "Generate agent-ready system prompts instead of JSON tasks", false)
   .option("--enable-scans", "Run SAST scanners if available")
   .option("--categories <list>", "Filter to specific categories (comma-separated)")
   .option("--no-stream", "Disable streaming progress output")

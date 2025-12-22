@@ -51,6 +51,10 @@ export const ProductionalizeState = Annotation.Root({
     reducer: (_x, y) => y,
     default: () => [],
   }),
+  taskPrompts: Annotation<string>({
+    reducer: (_x, y) => y,
+    default: () => "",
+  }),
 });
 
 export type ProductionalizeStateType = typeof ProductionalizeState.State;

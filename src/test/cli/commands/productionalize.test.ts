@@ -49,6 +49,7 @@ describe("Productionalize CLI Command", () => {
     expect(productionalizeCommand.name()).toBe("productionalize");
     expect(productionalizeCommand.options.map((o) => o.flags)).toContain("-o, --output <file>");
     expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--tasks-output <file>");
+    expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--task-prompts");
     expect(productionalizeCommand.options.map((o) => o.flags)).toContain("--reindex");
   });
 });
