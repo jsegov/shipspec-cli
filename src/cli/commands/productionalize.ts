@@ -42,36 +42,44 @@ async function productionalizeAction(
 
   const config = options.resolvedConfig ?? (await loadConfig(projectRoot));
 
-  // 2. Load keys from keychain and inject into config (only for matching providers)
+  // 2. Load keys from keychain as fallback (only if not already configured)
   const secretsStore = createSecretsStore();
-  const openaiKey = await secretsStore.get("OPENAI_API_KEY");
-  const tavilyKey = await secretsStore.get("TAVILY_API_KEY");
-
-  // Only inject OpenAI key if provider is openai or azure-openai
   const openaiProviders = ["openai", "azure-openai"];
 
+  // For LLM: use existing apiKey from config/env, fallback to keychain
   if (openaiProviders.includes(config.llm.provider)) {
-    if (!openaiKey) {
-      throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+    if (!config.llm.apiKey) {
+      const openaiKey = await secretsStore.get("OPENAI_API_KEY");
+      if (!openaiKey) {
+        throw new CliUsageError(
+          "OpenAI API key not found. Run `ship-spec init` or set OPENAI_API_KEY."
+        );
+      }
+      config.llm.apiKey = openaiKey;
     }
-    config.llm.apiKey = openaiKey;
   }
 
+  // For embeddings: use existing apiKey from config/env, fallback to keychain
   if (openaiProviders.includes(config.embedding.provider)) {
-    if (!openaiKey) {
-      throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+    if (!config.embedding.apiKey) {
+      const openaiKey = await secretsStore.get("OPENAI_API_KEY");
+      if (!openaiKey) {
+        throw new CliUsageError(
+          "OpenAI API key not found. Run `ship-spec init` or set OPENAI_API_KEY."
+        );
+      }
+      config.embedding.apiKey = openaiKey;
     }
-    config.embedding.apiKey = openaiKey;
   }
 
-  if (tavilyKey) {
-    // Only use Tavily key if webSearch is not configured or is explicitly set to tavily
-    const existingProvider = config.productionalize.webSearch?.provider;
-    if (!existingProvider || existingProvider === "tavily") {
+  // For Tavily: use existing apiKey from config/env, fallback to keychain
+  const existingWebSearchKey = config.productionalize.webSearch?.apiKey;
+  const existingProvider = config.productionalize.webSearch?.provider;
+  if (!existingWebSearchKey && (!existingProvider || existingProvider === "tavily")) {
+    const tavilyKey = await secretsStore.get("TAVILY_API_KEY");
+    if (tavilyKey) {
       config.productionalize.webSearch = { provider: "tavily", apiKey: tavilyKey };
     }
-    // If webSearch is configured with a different provider (e.g., duckduckgo),
-    // we don't inject the Tavily key to avoid credential/provider mismatch
   }
 
   // 3. Force paths relative to initialized root

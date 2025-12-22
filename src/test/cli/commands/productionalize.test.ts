@@ -71,7 +71,7 @@ describe("Productionalize CLI Command", () => {
     );
   });
 
-  it("should fail if OpenAI API key is missing from keychain", async () => {
+  it("should fail if OpenAI API key is missing from both env and keychain", async () => {
     // Initialize
     await writeProjectState(tempDir, {
       schemaVersion: 1,
@@ -81,11 +81,39 @@ describe("Productionalize CLI Command", () => {
       projectRoot: tempDir,
     });
 
-    mockSecrets.get.mockResolvedValue(null); // No key
+    mockSecrets.get.mockResolvedValue(null); // No key in keychain
+    // No key in env either (default state)
 
     await expect(productionalizeCommand.parseAsync(["node", "test"])).rejects.toThrow(
       /OpenAI API key not found/
     );
+  });
+
+  it("should succeed with API key from environment variable (no keychain needed)", async () => {
+    // Initialize
+    await writeProjectState(tempDir, {
+      schemaVersion: 1,
+      projectId: randomUUID(),
+      initializedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      projectRoot: tempDir,
+    });
+
+    // Set API key via environment variable
+    process.env.OPENAI_API_KEY = "sk-env-test-key";
+
+    mockSecrets.get.mockResolvedValue(null); // No key in keychain
+
+    await productionalizeCommand.parseAsync(["node", "test", "--no-stream"]);
+
+    const shipSpecDir = join(tempDir, PROJECT_DIR);
+    const outputsDir = join(shipSpecDir, "outputs");
+
+    expect(existsSync(outputsDir)).toBe(true);
+    expect(existsSync(join(shipSpecDir, "latest-report.md"))).toBe(true);
+
+    // Clean up
+    delete process.env.OPENAI_API_KEY;
   });
 
   it("should run analysis and write output to .ship-spec/outputs/", async () => {
