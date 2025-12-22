@@ -18,11 +18,8 @@
   <a href="#-contributing">Contributing</a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen" alt="Node Version">
-  <img src="https://img.shields.io/badge/TypeScript-5.9-blue" alt="TypeScript">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-</p>
+> [!WARNING]
+> **Under Construction**: This CLI tool is currently in active development and is **not yet fully functional**. Some features may be missing, broken, or change significantly without notice.
 
 ---
 
