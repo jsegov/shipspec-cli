@@ -49,7 +49,7 @@ describe("initCommand", () => {
 
   it("should initialize a project in interactive mode", async () => {
     const inquirer = (await import("@inquirer/prompts")) as unknown as MockInquirer;
-    
+
     inquirer.confirm.mockResolvedValue(true);
     inquirer.password.mockResolvedValueOnce("sk-test-openai");
     inquirer.password.mockResolvedValueOnce("tvly-test-tavily");
@@ -60,15 +60,15 @@ describe("initCommand", () => {
 
     const projectFilePath = join(tempDir, ".ship-spec", "project.json");
     expect(existsSync(projectFilePath)).toBe(true);
-    
+
     const content = await readFile(projectFilePath, "utf-8");
     const projectState = JSON.parse(content) as { projectRoot: string };
-    
+
     // Use realpath to handle potential /private/var vs /var differences on macOS
     const resolvedRoot = await realpath(projectState.projectRoot);
     const resolvedTemp = await realpath(tempDir);
     expect(resolvedRoot).toBe(resolvedTemp);
-    
+
     expect(mockSecrets.set).toHaveBeenCalledWith("OPENAI_API_KEY", "sk-test-openai");
     expect(mockSecrets.set).toHaveBeenCalledWith("TAVILY_API_KEY", "tvly-test-tavily");
   });
@@ -81,7 +81,7 @@ describe("initCommand", () => {
 
     const projectFilePath = join(tempDir, ".ship-spec", "project.json");
     expect(existsSync(projectFilePath)).toBe(true);
-    
+
     expect(mockSecrets.set).toHaveBeenCalledWith("OPENAI_API_KEY", "sk-env-openai");
     expect(mockSecrets.set).toHaveBeenCalledWith("TAVILY_API_KEY", "tvly-env-tavily");
 
@@ -92,8 +92,6 @@ describe("initCommand", () => {
   it("should fail in non-interactive mode if keys are missing", async () => {
     delete process.env.OPENAI_API_KEY;
 
-    await expect(
-      initCommand.parseAsync(["node", "test", "--non-interactive"])
-    ).rejects.toThrow();
+    await expect(initCommand.parseAsync(["node", "test", "--non-interactive"])).rejects.toThrow();
   });
 });

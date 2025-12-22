@@ -55,7 +55,7 @@ describe("Productionalize CLI Command", () => {
     originalCwd = process.cwd();
     process.chdir(tempDir);
     vi.clearAllMocks();
-    
+
     // Set up commander to not exit
     productionalizeCommand.exitOverride();
   });
@@ -66,9 +66,9 @@ describe("Productionalize CLI Command", () => {
   });
 
   it("should fail if not initialized", async () => {
-    await expect(
-      productionalizeCommand.parseAsync(["node", "test"])
-    ).rejects.toThrow(/directory has not been initialized/);
+    await expect(productionalizeCommand.parseAsync(["node", "test"])).rejects.toThrow(
+      /directory has not been initialized/
+    );
   });
 
   it("should fail if OpenAI API key is missing from keychain", async () => {
@@ -83,9 +83,9 @@ describe("Productionalize CLI Command", () => {
 
     mockSecrets.get.mockResolvedValue(null); // No key
 
-    await expect(
-      productionalizeCommand.parseAsync(["node", "test"])
-    ).rejects.toThrow(/OpenAI API key not found/);
+    await expect(productionalizeCommand.parseAsync(["node", "test"])).rejects.toThrow(
+      /OpenAI API key not found/
+    );
   });
 
   it("should run analysis and write output to .ship-spec/outputs/", async () => {
@@ -108,7 +108,7 @@ describe("Productionalize CLI Command", () => {
 
     const shipSpecDir = join(tempDir, PROJECT_DIR);
     const outputsDir = join(shipSpecDir, "outputs");
-    
+
     expect(existsSync(outputsDir)).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-report.md"))).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-task-prompts.md"))).toBe(true);

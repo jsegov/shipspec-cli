@@ -9,6 +9,7 @@ import { password, confirm } from "@inquirer/prompts";
 import { createSecretsStore } from "../../core/secrets/secrets-store.js";
 import {
   writeProjectState,
+  readProjectState,
   PROJECT_DIR,
   OUTPUTS_DIR,
   isInitialized,
@@ -24,14 +25,21 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
 
   // 1. Check if already initialized
   const alreadyInitialized = isInitialized(projectRoot);
-  if (alreadyInitialized && !options.nonInteractive) {
-    const proceed = await confirm({
-      message: "This directory is already initialized. Do you want to re-initialize?",
-      default: false,
-    });
-    if (!proceed) {
-      logger.info("Initialization aborted.");
-      return;
+  const existingState = alreadyInitialized ? await readProjectState(projectRoot) : null;
+
+  if (alreadyInitialized) {
+    if (options.nonInteractive) {
+      // Non-interactive mode: skip re-initialization silently (idempotent for CI/CD)
+      logger.info("Project already initialized. Updating API keys only.");
+    } else {
+      const proceed = await confirm({
+        message: "This directory is already initialized. Do you want to re-initialize?",
+        default: false,
+      });
+      if (!proceed) {
+        logger.info("Initialization aborted.");
+        return;
+      }
     }
   }
 
@@ -78,9 +86,13 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
       }
     }
 
-    tavilyKey ??= await password({
-      message: "Enter your Tavily API key (optional, press Enter to skip):",
-    });
+    if (!tavilyKey) {
+      const tavilyInput = await password({
+        message: "Enter your Tavily API key (optional, press Enter to skip):",
+      });
+      // Convert empty string to undefined for clarity (empty = skipped)
+      tavilyKey = tavilyInput || undefined;
+    }
   }
 
   // 2. Store keys in keychain
@@ -110,12 +122,12 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
     throw new CliRuntimeError("Failed to create .ship-spec directory structure.", err);
   }
 
-  // 4. Write project.json
+  // 4. Write project.json (preserve existing projectId if re-initializing)
   const now = new Date().toISOString();
   await writeProjectState(projectRoot, {
     schemaVersion: 1,
-    projectId: randomUUID(),
-    initializedAt: now,
+    projectId: existingState?.projectId ?? randomUUID(),
+    initializedAt: existingState?.initializedAt ?? now,
     updatedAt: now,
     projectRoot,
   });

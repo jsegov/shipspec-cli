@@ -36,33 +36,33 @@ export async function readProjectState(projectRoot: string): Promise<ProjectStat
 export async function writeProjectState(projectRoot: string, state: ProjectState): Promise<void> {
   const dirPath = join(projectRoot, PROJECT_DIR);
   const filePath = join(dirPath, PROJECT_FILE);
-  
+
   if (!existsSync(dirPath)) {
     await mkdir(dirPath, { recursive: true });
   }
-  
+
   await writeFile(filePath, JSON.stringify(state, null, 2), "utf-8");
 }
 
 // Find initialized project root by walking up from startDir
 export function findProjectRoot(startDir: string): string | null {
   let currentDir = resolve(startDir);
-  
+
   while (currentDir !== dirname(currentDir)) {
     const projectFilePath = join(currentDir, PROJECT_DIR, PROJECT_FILE);
     if (existsSync(projectFilePath)) {
       return currentDir;
     }
-    
+
     currentDir = dirname(currentDir);
   }
-  
+
   // Check the root directory as well
   const rootProjectFilePath = join(currentDir, PROJECT_DIR, PROJECT_FILE);
   if (existsSync(rootProjectFilePath)) {
     return currentDir;
   }
-  
+
   return null;
 }
 

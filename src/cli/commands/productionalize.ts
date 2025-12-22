@@ -37,9 +37,7 @@ async function productionalizeAction(
   // 1. Fail-fast if not initialized
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
-    throw new CliUsageError(
-      "This directory has not been initialized. Run `ship-spec init` first."
-    );
+    throw new CliUsageError("This directory has not been initialized. Run `ship-spec init` first.");
   }
 
   const config = options.resolvedConfig ?? (await loadConfig(projectRoot));
@@ -56,8 +54,13 @@ async function productionalizeAction(
   config.llm.apiKey = openaiKey;
   config.embedding.apiKey = openaiKey;
   if (tavilyKey) {
-    config.productionalize.webSearch ??= { provider: "tavily" };
-    config.productionalize.webSearch.apiKey = tavilyKey;
+    // Only use Tavily key if webSearch is not configured or is explicitly set to tavily
+    const existingProvider = config.productionalize.webSearch?.provider;
+    if (!existingProvider || existingProvider === "tavily") {
+      config.productionalize.webSearch = { provider: "tavily", apiKey: tavilyKey };
+    }
+    // If webSearch is configured with a different provider (e.g., duckduckgo),
+    // we don't inject the Tavily key to avoid credential/provider mismatch
   }
 
   // 3. Force paths relative to initialized root

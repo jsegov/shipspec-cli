@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { 
-  readProjectState, 
-  writeProjectState, 
-  findProjectRoot, 
+import {
+  readProjectState,
+  writeProjectState,
+  findProjectRoot,
 } from "../../../core/project/project-state.js";
 import { createTempDir, cleanupTempDir } from "../../fixtures.js";
 import { join } from "path";
