@@ -42,17 +42,28 @@ async function productionalizeAction(
 
   const config = options.resolvedConfig ?? (await loadConfig(projectRoot));
 
-  // 2. Load keys from keychain and inject into config
+  // 2. Load keys from keychain and inject into config (only for matching providers)
   const secretsStore = createSecretsStore();
   const openaiKey = await secretsStore.get("OPENAI_API_KEY");
   const tavilyKey = await secretsStore.get("TAVILY_API_KEY");
 
-  if (!openaiKey) {
-    throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+  // Only inject OpenAI key if provider is openai or azure-openai
+  const openaiProviders = ["openai", "azure-openai"];
+
+  if (openaiProviders.includes(config.llm.provider)) {
+    if (!openaiKey) {
+      throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+    }
+    config.llm.apiKey = openaiKey;
   }
 
-  config.llm.apiKey = openaiKey;
-  config.embedding.apiKey = openaiKey;
+  if (openaiProviders.includes(config.embedding.provider)) {
+    if (!openaiKey) {
+      throw new CliUsageError("OpenAI API key not found. Run `ship-spec init` to configure.");
+    }
+    config.embedding.apiKey = openaiKey;
+  }
+
   if (tavilyKey) {
     // Only use Tavily key if webSearch is not configured or is explicitly set to tavily
     const existingProvider = config.productionalize.webSearch?.provider;
