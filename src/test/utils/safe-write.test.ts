@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { writeFileAtomicNoFollow } from "../../utils/safe-write.js";
-import { mkdtemp, rm, readFile, symlink, readdir } from "fs/promises";
+import { mkdtemp, rm, readFile, symlink, readdir, mkdir, chmod } from "fs/promises";
 import { statSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -131,23 +131,38 @@ describe("writeFileAtomicNoFollow", () => {
   });
 
   it("should clean up temp file on write error", async () => {
-    const invalidDir = join(testDir, "nonexistent-readonly");
-
-    // Create a directory and make it readonly (on POSIX)
-    if (process.platform !== "win32") {
-      await mkdtemp(invalidDir);
-      // This test is tricky - instead just verify no .tmp files are left
+    // This test is POSIX-specific for the chmod 0 part
+    if (process.platform === "win32") {
+      return;
     }
 
-    const filePath = join(testDir, "file.txt");
+    const readonlyDir = join(testDir, "readonly-dir");
+    await mkdir(readonlyDir, { recursive: true, mode: 0o700 });
 
-    // Write successfully
-    await writeFileAtomicNoFollow(filePath, "test");
+    const filePath = join(readonlyDir, "file.txt");
 
-    // Check no temp files remain
-    const files = await readdir(testDir);
-    const tempFiles = files.filter((f) => f.startsWith(".") && f.includes(".tmp-"));
-    expect(tempFiles).toHaveLength(0);
+    // Make directory readonly (no write/execute permissions)
+    await chmod(readonlyDir, 0o000);
+
+    try {
+      // Attempt to write to a path inside a readonly directory should fail with EACCES
+      await expect(writeFileAtomicNoFollow(filePath, "test content")).rejects.toThrow(
+        /EACCES|permission denied/i
+      );
+
+      // Verify no temp files remain in the parent directory
+      // The temp file should have been created in the parent of the target file
+      // Wait a bit to ensure async cleanup if any (though it's awaited in implementation)
+      await readdir(readonlyDir).catch(() => []); // Expected to fail or be empty if we can't read
+
+      // Since we can't read readonlyDir, we check the base testDir
+      const testDirFiles = await readdir(testDir);
+      const tempFiles = testDirFiles.filter((f) => f.includes(".tmp-"));
+      expect(tempFiles).toHaveLength(0);
+    } finally {
+      // Restore permissions so it can be cleaned up by afterEach
+      await chmod(readonlyDir, 0o700);
+    }
   });
 
   it("should handle concurrent writes to same file gracefully", async () => {
