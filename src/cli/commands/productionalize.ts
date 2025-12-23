@@ -95,7 +95,12 @@ async function productionalizeAction(
   }
 
   // For Tavily: use existing apiKey from config/env, fallback to keychain
-  if (!resolvedSecrets.tavilyApiKey && config.productionalize.webSearch?.provider === "tavily") {
+  // Load from keychain unless provider is explicitly "duckduckgo" - matches web-search tool behavior
+  // which uses Tavily whenever an API key is available and provider !== "duckduckgo"
+  if (
+    !resolvedSecrets.tavilyApiKey &&
+    config.productionalize.webSearch?.provider !== "duckduckgo"
+  ) {
     const tavilyKey = await secretsStore.get("TAVILY_API_KEY");
     if (tavilyKey) {
       resolvedSecrets.tavilyApiKey = tavilyKey;
@@ -142,7 +147,9 @@ async function productionalizeAction(
   const cloudProviders = ["openai", "anthropic", "google-vertexai", "mistralai", "azure-openai"];
   const isCloudLLM = cloudProviders.includes(config.llm.provider);
   const isCloudEmbedding = cloudProviders.includes(config.embedding.provider);
-  const isCloudSearch = config.productionalize.webSearch?.provider === "tavily";
+  // Tavily is used when: provider !== "duckduckgo" AND a Tavily API key is available
+  const isCloudSearch =
+    config.productionalize.webSearch?.provider !== "duckduckgo" && !!resolvedSecrets.tavilyApiKey;
 
   if (options.localOnly && (isCloudLLM || isCloudEmbedding || isCloudSearch)) {
     const cloudDeps = [];
