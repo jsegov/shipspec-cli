@@ -1,5 +1,5 @@
-import { mkdtemp, rm } from "fs/promises";
-import { join } from "path";
+import { mkdtemp, rm, realpath } from "fs/promises";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 
 /**
@@ -9,15 +9,55 @@ import { tmpdir } from "os";
 export async function createTempDir(): Promise<string> {
   const tempRoot = tmpdir();
   const prefix = join(tempRoot, "shipspec-test-");
-  return await mkdtemp(prefix);
+  const path = await mkdtemp(prefix);
+  return resolve(path);
 }
 
 /**
  * Removes a temporary directory and all its contents.
  */
 export async function cleanupTempDir(dirPath: string): Promise<void> {
+  if (!dirPath || dirPath.trim() === "") {
+    throw new Error("cleanupTempDir: dirPath must be a non-empty string");
+  }
+
+  const absolutePath = resolve(dirPath);
+  const tempRoot = resolve(tmpdir());
+  const repoRoot = resolve(process.cwd());
+
+  // Basic guardrails
+  if (absolutePath === "/" || absolutePath === repoRoot) {
+    throw new Error(`cleanupTempDir: Refusing to delete critical directory: ${absolutePath}`);
+  }
+
+  if (absolutePath === tempRoot) {
+    throw new Error("cleanupTempDir: Refusing to delete the entire system temp directory");
+  }
+
+  // Ensure it's within the temp directory and has our prefix
+  if (!absolutePath.startsWith(tempRoot)) {
+    throw new Error(`cleanupTempDir: Path is not within system temp directory: ${absolutePath}`);
+  }
+
+  const pathSegments = absolutePath.split(/[/\\]/);
+  const lastSegment = pathSegments[pathSegments.length - 1];
+  if (!lastSegment?.startsWith("shipspec-test-")) {
+    throw new Error(
+      `cleanupTempDir: Path does not have expected prefix 'shipspec-test-': ${lastSegment ?? "undefined"}`
+    );
+  }
+
   try {
-    await rm(dirPath, { recursive: true, force: true });
+    // Use realpath to resolve any symlinks before deletion for extra safety
+    // only if the path exists. If it doesn't exist, rm with force: true will handle it.
+    let finalPath = absolutePath;
+    try {
+      finalPath = await realpath(absolutePath);
+    } catch {
+      // If it doesn't exist, we'll let rm handle it (force: true)
+    }
+
+    await rm(finalPath, { recursive: true, force: true });
   } catch (error) {
     // Ignore errors if directory doesn't exist
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {

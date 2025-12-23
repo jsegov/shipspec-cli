@@ -5,7 +5,7 @@ import { search, SafeSearchType } from "duck-duck-scrape";
 import type { WebSearchConfig } from "../../config/schema.js";
 import { logger } from "../../utils/logger.js";
 
-export function createWebSearchTool(config?: WebSearchConfig) {
+export function createWebSearchTool(config?: WebSearchConfig, explicitApiKey?: string) {
   return new DynamicStructuredTool({
     name: "web_search",
     description:
@@ -15,7 +15,7 @@ export function createWebSearchTool(config?: WebSearchConfig) {
       maxResults: z.number().optional().default(5).describe("Maximum number of results to return"),
     }),
     func: async ({ query, maxResults }) => {
-      const apiKey = config?.apiKey ?? process.env.TAVILY_API_KEY;
+      const apiKey = explicitApiKey ?? config?.apiKey ?? process.env.TAVILY_API_KEY;
       const limit = maxResults;
 
       if (apiKey && config?.provider !== "duckduckgo") {

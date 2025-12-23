@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { createTempDir, cleanupTempDir } from "../fixtures.js";
-import { loadConfig } from "../../config/loader.js";
+import { loadConfig, ShipSpecEnvSchema } from "../../config/loader.js";
 import { logger } from "../../utils/logger.js";
 import { type ShipSpecConfig } from "../../config/schema.js";
 
@@ -25,11 +25,22 @@ describe("Config Loader", () => {
     vi.restoreAllMocks();
   });
 
+  it("should include SHIPSPEC_DEBUG_DIAGNOSTICS_ACK in env schema parsing", () => {
+    process.env.SHIPSPEC_DEBUG_DIAGNOSTICS_ACK = "I_UNDERSTAND_SECURITY_RISK";
+
+    const result = ShipSpecEnvSchema.safeParse(process.env);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.SHIPSPEC_DEBUG_DIAGNOSTICS_ACK).toBe("I_UNDERSTAND_SECURITY_RISK");
+    }
+  });
+
   it("should load a valid config file", async () => {
     const configPath = join(tempDir, "shipspec.json");
     await writeFile(configPath, JSON.stringify({ projectPath: "./custom" }));
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
     expect(config.projectPath).toBe("./custom");
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Loaded config from"), true);
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("shipspec.json"), true);
@@ -39,7 +50,7 @@ describe("Config Loader", () => {
     const configPath = join(tempDir, "shipspec.json");
     await writeFile(configPath, "{ invalid json }");
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
     expect(config).toBeDefined();
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Malformed JSON"));
   });
@@ -71,7 +82,7 @@ describe("Config Loader", () => {
     const configPath = join(tempDir, "shipspec.json");
     await writeFile(configPath, JSON.stringify({ unknownKey: "typo" }));
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
     expect(config).toBeDefined();
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
   });
@@ -96,7 +107,7 @@ describe("Config Loader", () => {
     const configPath = join(tempDir, "shipspec.json");
     await writeFile(configPath, JSON.stringify({ projectPath: "./file" }));
 
-    const config = await loadConfig(tempDir, { projectPath: "./override" });
+    const { config } = await loadConfig(tempDir, { projectPath: "./override" });
     expect(config.projectPath).toBe("./override");
   });
 
@@ -109,7 +120,7 @@ describe("Config Loader", () => {
     const secondConfigPath = join(tempDir, ".shipspecrc");
     await writeFile(secondConfigPath, JSON.stringify({ projectPath: "./valid" }));
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
     expect(config.projectPath).toBe("./valid");
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
     expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("Loaded config from"), true);
@@ -136,7 +147,7 @@ describe("Config Loader", () => {
       })
     );
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
 
     // Config should load successfully
     expect(config.projectPath).toBe("./custom");
@@ -165,7 +176,7 @@ describe("Config Loader", () => {
       })
     );
 
-    const config = await loadConfig(tempDir);
+    const { config } = await loadConfig(tempDir);
 
     // In non-strict mode, the invalid config file is skipped with a warning
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid config in"));
@@ -194,33 +205,220 @@ describe("Config Loader", () => {
     expect(dotenvLogCall?.[0]).toContain("path hidden for security");
   });
 
-  describe("ALLOW_LOCALHOST_LLM production guardrail", () => {
-    it("should throw in production without acknowledgement", async () => {
-      process.env.NODE_ENV = "production";
-      process.env.ALLOW_LOCALHOST_LLM = "1";
-      delete process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK;
+  describe("secret extraction and redaction", () => {
+    it("should move api keys from file config into secrets and strip from config output", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          llm: { apiKey: "file-llm-key" },
+          embedding: { apiKey: "file-embedding-key" },
+          productionalize: { webSearch: { apiKey: "file-search-key" } },
+        })
+      );
 
-      await expect(loadConfig(tempDir)).rejects.toThrow("I_UNDERSTAND_SSRF_RISK");
+      const { config, secrets } = await loadConfig(tempDir);
+
+      expect(secrets.llmApiKey).toBe("file-llm-key");
+      expect(secrets.embeddingApiKey).toBe("file-embedding-key");
+      expect(secrets.tavilyApiKey).toBe("file-search-key");
+
+      expect("apiKey" in config.llm).toBe(false);
+      expect("apiKey" in config.embedding).toBe(false);
+      expect("apiKey" in (config.productionalize.webSearch ?? {})).toBe(false);
     });
 
-    it("should succeed in production with acknowledgement", async () => {
+    it("should prioritize overrides over env and file secrets", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          llm: { apiKey: "file-llm-key" },
+          embedding: { apiKey: "file-embedding-key" },
+          productionalize: { webSearch: { apiKey: "file-search-key" } },
+        })
+      );
+
+      process.env.OPENAI_API_KEY = "env-openai-key";
+      process.env.TAVILY_API_KEY = "env-tavily-key";
+
+      const overrides: ShipSpecConfig = {
+        llm: {
+          apiKey: "override-llm-key",
+          provider: "openai",
+          modelName: "model",
+          temperature: 0,
+          maxRetries: 1,
+          maxContextTokens: 1,
+          reservedOutputTokens: 1,
+        },
+        embedding: {
+          apiKey: "override-embedding-key",
+          provider: "openai",
+          modelName: "model",
+          dimensions: 1,
+          maxRetries: 1,
+        },
+        productionalize: {
+          webSearch: { apiKey: "override-search-key", provider: "tavily" },
+          coreCategories: [],
+        },
+        projectPath: ".",
+        vectorDbPath: ".ship-spec/lancedb",
+        ignorePatterns: [],
+        checkpoint: { enabled: false, type: "memory" },
+      };
+
+      const { config, secrets } = await loadConfig(tempDir, overrides);
+
+      expect(secrets.llmApiKey).toBe("override-llm-key");
+      expect(secrets.embeddingApiKey).toBe("override-embedding-key");
+      expect(secrets.tavilyApiKey).toBe("override-search-key");
+
+      expect("apiKey" in config.llm).toBe(false);
+      expect("apiKey" in config.embedding).toBe(false);
+      expect("apiKey" in (config.productionalize.webSearch ?? {})).toBe(false);
+    });
+  });
+
+  describe("path disclosure prevention", () => {
+    it("should hide absolute path in production config load logs", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(configPath, JSON.stringify({ projectPath: "./custom" }));
+
+      process.env.NODE_ENV = "production";
+
+      await loadConfig(tempDir);
+
+      const debugCalls = vi.mocked(logger.debug).mock.calls;
+      const configLogCall = debugCalls.find((call) => call[0].includes("Loaded config from"));
+
+      expect(configLogCall).toBeDefined();
+      // Should contain only the basename, not the full absolute path
+      expect(configLogCall?.[0]).toContain("shipspec.json");
+      expect(configLogCall?.[0]).not.toContain(tempDir);
+    });
+
+    it("should hide absolute path in non-production without verbose flag", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(configPath, JSON.stringify({ projectPath: "./custom" }));
+
+      process.env.NODE_ENV = "development";
+      // Ensure --verbose is not in process.argv for this test
+      const originalArgv = process.argv;
+      process.argv = process.argv.filter((arg) => arg !== "--verbose");
+
+      await loadConfig(tempDir);
+
+      process.argv = originalArgv;
+
+      const debugCalls = vi.mocked(logger.debug).mock.calls;
+      const configLogCall = debugCalls.find((call) => call[0].includes("Loaded config from"));
+
+      expect(configLogCall).toBeDefined();
+      // Should contain only the basename
+      expect(configLogCall?.[0]).toContain("shipspec.json");
+      expect(configLogCall?.[0]).not.toContain(tempDir);
+    });
+
+    it("should hide absolute path in production error for missing config", async () => {
+      process.env.NODE_ENV = "production";
+      const missingPath = "/some/absolute/path/to/config.json";
+
+      await expect(loadConfig(tempDir, {}, { configPath: missingPath })).rejects.toThrow(
+        /Config file not found: config\.json/
+      );
+
+      // Verify the absolute path is NOT in the error
+      try {
+        await loadConfig(tempDir, {}, { configPath: missingPath });
+      } catch (err) {
+        expect((err as Error).message).not.toContain("/some/absolute/path");
+        expect((err as Error).message).toContain(
+          "Full paths are hidden for security in production"
+        );
+      }
+    });
+
+    it("should hide absolute path in production error for missing dotenv", async () => {
+      process.env.NODE_ENV = "production";
+      process.env.SHIPSPEC_LOAD_DOTENV = "1";
+      process.env.SHIPSPEC_DOTENV_PATH = "/some/absolute/path/.env";
+
+      await expect(loadConfig(tempDir)).rejects.toThrow(/Dotenv file not found: \.env/);
+
+      // Verify the absolute path is NOT in the error
+      try {
+        await loadConfig(tempDir);
+      } catch (err) {
+        expect((err as Error).message).not.toContain("/some/absolute/path");
+        expect((err as Error).message).toContain(
+          "Full paths are hidden for security in production"
+        );
+      }
+    });
+
+    it("should hide absolute path in malformed JSON warning in production", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(configPath, "{ invalid json }");
+
+      process.env.NODE_ENV = "production";
+
+      // strict mode is auto-enabled in production, so it will throw
+      await expect(loadConfig(tempDir)).rejects.toThrow(/Malformed JSON/);
+
+      // Verify the error message contains only the basename
+      try {
+        await loadConfig(tempDir);
+      } catch (err) {
+        expect((err as Error).message).toContain("shipspec.json");
+        expect((err as Error).message).not.toContain(tempDir);
+      }
+    });
+
+    it("should hide absolute path in invalid config warning in production", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      await writeFile(configPath, JSON.stringify({ unknownKey: "typo" }));
+
+      process.env.NODE_ENV = "production";
+
+      // strict mode is auto-enabled in production, so it will throw
+      await expect(loadConfig(tempDir)).rejects.toThrow(/Invalid config in/);
+
+      // Verify the error message contains only the basename
+      try {
+        await loadConfig(tempDir);
+      } catch (err) {
+        expect((err as Error).message).toContain("shipspec.json");
+        expect((err as Error).message).not.toContain(tempDir);
+      }
+    });
+  });
+
+  describe("ALLOW_LOCALHOST_LLM production guardrail", () => {
+    it("should throw in production", async () => {
       process.env.NODE_ENV = "production";
       process.env.ALLOW_LOCALHOST_LLM = "1";
+
+      await expect(loadConfig(tempDir)).rejects.toThrow("strictly prohibited in production");
+    });
+
+    it("should throw in production even with (former) acknowledgement", async () => {
+      process.env.NODE_ENV = "production";
+      process.env.ALLOW_LOCALHOST_LLM = "1";
+      // @ts-ignore - Testing legacy/invalid env var
       process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK = "I_UNDERSTAND_SSRF_RISK";
 
-      const config = await loadConfig(tempDir);
-      expect(config).toBeDefined();
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("ALLOW_LOCALHOST_LLM enabled in production")
-      );
+      await expect(loadConfig(tempDir)).rejects.toThrow("strictly prohibited in production");
     });
 
     it("should succeed in non-production without acknowledgement", async () => {
       process.env.NODE_ENV = "development";
       process.env.ALLOW_LOCALHOST_LLM = "1";
+      // @ts-ignore - Verification for non-production
       delete process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK;
 
-      const config = await loadConfig(tempDir);
+      const { config } = await loadConfig(tempDir);
       expect(config).toBeDefined();
     });
   });

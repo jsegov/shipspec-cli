@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { execFileWithLimits, ToolMissingError, TimeoutError, ExecError } from "../../core/exec.js";
 import type { SASTConfig } from "../../config/schema.js";
-import { redact, stripAnsi } from "../../utils/logger.js";
+import { redactText, stripAnsi } from "../../utils/logger.js";
 
 export interface SASTFinding {
   tool: "semgrep" | "gitleaks" | "trivy";
@@ -182,7 +182,7 @@ interface SanitizedResult {
 function sanitizeDiagnostics(text: string | undefined): SanitizedResult {
   if (!text) return { value: undefined, truncated: false };
   const maxLength = 4096;
-  const sanitized = redact(stripAnsi(text));
+  const sanitized = redactText(stripAnsi(text));
   if (sanitized.length > maxLength) {
     return {
       value: sanitized.substring(0, maxLength) + "... [truncated]",

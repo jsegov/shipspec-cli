@@ -17,6 +17,9 @@ import { gatherProjectSignals } from "../../core/analysis/project-signals.js";
 
 export interface CreateProductionalizeGraphOptions {
   checkpointer?: BaseCheckpointSaver;
+  llmApiKey?: string;
+  searchApiKey?: string;
+  shouldRedactCloud?: boolean;
 }
 
 export async function createProductionalizeGraph(
@@ -24,9 +27,9 @@ export async function createProductionalizeGraph(
   repository: DocumentRepository,
   options: CreateProductionalizeGraphOptions = {}
 ) {
-  const model = await createChatModel(config.llm);
+  const model = await createChatModel(config.llm, options.llmApiKey);
   const retrieverTool = createRetrieverTool(repository);
-  const webSearchTool = createWebSearchTool(config.productionalize.webSearch);
+  const webSearchTool = createWebSearchTool(config.productionalize.webSearch, options.searchApiKey);
   const sastTool = createSASTScannerTool(config.productionalize.sast);
 
   const tokenBudget: TokenBudget = {
@@ -67,7 +70,7 @@ export async function createProductionalizeGraph(
   const plannerNode = createPlannerNode(model);
   const workerNode = createWorkerNode(model, retrieverTool, webSearchTool, tokenBudget);
   const aggregatorNode = createAggregatorNode(model);
-  const promptGeneratorNode = createPromptGeneratorNode(model);
+  const promptGeneratorNode = createPromptGeneratorNode(model, options.shouldRedactCloud);
 
   const workflow = new StateGraph(ProductionalizeState)
     .addNode("gatherSignals", gatherSignalsNode)

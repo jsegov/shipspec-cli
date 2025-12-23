@@ -113,7 +113,7 @@ describe("Productionalize CLI Command", () => {
 
     mockSecrets.get.mockResolvedValue(null); // No key in keychain
 
-    await productionalizeCommand.parseAsync(["node", "test", "--no-stream"]);
+    await productionalizeCommand.parseAsync(["node", "test", "--no-stream", "--cloud-ok"]);
 
     const shipSpecDir = join(tempDir, PROJECT_DIR);
     const outputsDir = join(shipSpecDir, "outputs");
@@ -138,7 +138,7 @@ describe("Productionalize CLI Command", () => {
       return Promise.resolve(null);
     });
 
-    await productionalizeCommand.parseAsync(["node", "test", "--no-stream"]);
+    await productionalizeCommand.parseAsync(["node", "test", "--no-stream", "--cloud-ok"]);
 
     const shipSpecDir = join(tempDir, PROJECT_DIR);
     const outputsDir = join(shipSpecDir, "outputs");

@@ -1,11 +1,25 @@
 import { config as loadDotenv } from "dotenv";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
-import { join, isAbsolute } from "path";
+import { join, isAbsolute, basename } from "path";
 import { z } from "zod";
 import { ShipSpecConfigSchema, type ShipSpecConfig } from "./schema.js";
 import { logger } from "../utils/logger.js";
 import { ZodError } from "zod";
+
+/**
+ * Formats a file path for logging/error messages to prevent information disclosure.
+ * - In production: always returns basename only
+ * - In non-production with verbose: returns full path
+ * - In non-production without verbose: returns basename
+ */
+function formatPathForLog(path: string, verbose = false): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction || !verbose) {
+    return basename(path);
+  }
+  return path;
+}
 
 const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"];
 const ENV_BOOL = z
@@ -13,7 +27,7 @@ const ENV_BOOL = z
   .optional()
   .transform((v: string | undefined) => v === "1");
 
-const ShipSpecEnvSchema = z.object({
+export const ShipSpecEnvSchema = z.object({
   NODE_ENV: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -27,13 +41,15 @@ const ShipSpecEnvSchema = z.object({
   SHIPSPEC_STRICT_CONFIG: ENV_BOOL,
   SHIPSPEC_DOTENV_PATH: z.string().optional(),
   SHIPSPEC_DEBUG_DIAGNOSTICS: ENV_BOOL,
+  SHIPSPEC_DEBUG_DIAGNOSTICS_ACK: z.string().optional(),
   ALLOW_LOCALHOST_LLM: ENV_BOOL,
-  SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK: z.string().optional(),
 });
 
 export interface ConfigLoaderOptions {
   strict?: boolean;
   configPath?: string;
+  verbose?: boolean;
+  allowImplicitDotenv?: boolean;
 }
 
 export type DeepPartial<T> = {
@@ -44,14 +60,48 @@ export type DeepPartial<T> = {
       : T[P];
 };
 
+export interface ShipSpecSecrets {
+  llmApiKey?: string;
+  embeddingApiKey?: string;
+  tavilyApiKey?: string;
+}
+
+const pickFirstDefined = <T>(...values: (T | undefined)[]): T | undefined =>
+  values.find((value) => value !== undefined);
+
+export function stripConfigSecrets(config: DeepPartial<ShipSpecConfig>): void {
+  const llmConfig = config.llm as { apiKey?: string } | undefined;
+  const embeddingConfig = config.embedding as { apiKey?: string } | undefined;
+  const webSearchConfig = config.productionalize?.webSearch as { apiKey?: string } | undefined;
+
+  if (llmConfig) {
+    delete llmConfig.apiKey;
+  }
+  if (embeddingConfig) {
+    delete embeddingConfig.apiKey;
+  }
+  if (webSearchConfig) {
+    delete webSearchConfig.apiKey;
+  }
+}
+
 export async function loadConfig(
   cwd: string = process.cwd(),
   overrides: DeepPartial<ShipSpecConfig> = {},
   options: ConfigLoaderOptions = {}
-): Promise<ShipSpecConfig> {
+): Promise<{ config: ShipSpecConfig; secrets: ShipSpecSecrets }> {
   const isProduction = process.env.NODE_ENV === "production";
   const explicitDotenvPath = process.env.SHIPSPEC_DOTENV_PATH;
-  const shouldLoadDotenv = !isProduction || process.env.SHIPSPEC_LOAD_DOTENV === "1";
+  const inCI = process.env.CI === "true" || process.env.CI === "1";
+
+  // In production: require explicit opt-in
+  // In CI (non-production): require explicit opt-in to avoid config injection
+  // In local dev: allow unless explicitly disabled
+  const shouldLoadDotenv = isProduction
+    ? process.env.SHIPSPEC_LOAD_DOTENV === "1"
+    : inCI
+      ? process.env.SHIPSPEC_LOAD_DOTENV === "1"
+      : (options.allowImplicitDotenv ?? true);
 
   if (shouldLoadDotenv) {
     // ... same logic for dotenvPath ...
@@ -65,7 +115,7 @@ export async function loadConfig(
       }
       if (!isAbsolute(explicitDotenvPath)) {
         throw new Error(
-          `In production, SHIPSPEC_DOTENV_PATH must be an absolute path. Received: ${explicitDotenvPath}`
+          "In production, SHIPSPEC_DOTENV_PATH must be an absolute path. Full paths are hidden for security in production."
         );
       }
       dotenvPath = explicitDotenvPath;
@@ -92,7 +142,15 @@ export async function loadConfig(
         logger.debug(`Loaded .env configuration from ${dotenvPath}`, true);
       }
     } else if (explicitDotenvPath) {
-      throw new Error(`Dotenv file not found at: ${explicitDotenvPath}`);
+      const isVerbose = options.verbose ?? false;
+      const safePath = formatPathForLog(explicitDotenvPath, isVerbose);
+      const isProductionRuntime = process.env.NODE_ENV === "production";
+      const pathHint = isProductionRuntime
+        ? " Full paths are hidden for security in production."
+        : isVerbose
+          ? ""
+          : " Use --verbose to see the full path.";
+      throw new Error(`Dotenv file not found: ${safePath}.${pathHint}`);
     }
   }
 
@@ -106,14 +164,9 @@ export async function loadConfig(
 
   // Production guardrail for ALLOW_LOCALHOST_LLM
   if (env.NODE_ENV === "production" && env.ALLOW_LOCALHOST_LLM) {
-    if (env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK !== "I_UNDERSTAND_SSRF_RISK") {
-      throw new Error(
-        "ALLOW_LOCALHOST_LLM=1 is not permitted in production without explicit acknowledgement. " +
-          "This flag disables SSRF protections. To proceed, set SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK"
-      );
-    }
-    logger.warn(
-      "ALLOW_LOCALHOST_LLM enabled in production with explicit acknowledgement. SSRF protections are disabled."
+    throw new Error(
+      "ALLOW_LOCALHOST_LLM=1 is strictly prohibited in production. " +
+        "Localhost LLM target is only permitted in development mode for security reasons (SSRF protection)."
     );
   }
 
@@ -124,13 +177,16 @@ export async function loadConfig(
 
   // Helper to load and parse a config file
   const loadConfigFile = async (filepath: string): Promise<boolean> => {
+    const isVerbose = options.verbose ?? false;
+    const safePath = formatPathForLog(filepath, isVerbose);
+
     try {
       const content = await readFile(filepath, "utf-8");
       let parsed: unknown;
       try {
         parsed = JSON.parse(content);
       } catch {
-        const msg = `Malformed JSON in config file: ${filepath}`;
+        const msg = `Malformed JSON in config file: ${safePath}`;
         if (isStrict) {
           throw new Error(msg);
         }
@@ -141,10 +197,10 @@ export async function loadConfig(
       const result = ShipSpecConfigSchema.partial().safeParse(parsed);
       if (result.success) {
         fileConfig = result.data as DeepPartial<ShipSpecConfig>;
-        logger.debug(`Loaded config from ${filepath}`, true);
+        logger.debug(`Loaded config from ${safePath}`, true);
         return true;
       } else {
-        const msg = `Invalid config in ${filepath}:\n${result.error.issues
+        const msg = `Invalid config in ${safePath}:\n${result.error.issues
           .map((i) => `- ${i.path.join(".")}: ${i.message}`)
           .join("\n")}`;
         if (isStrict) {
@@ -166,7 +222,15 @@ export async function loadConfig(
       : join(cwd, options.configPath);
 
     if (!existsSync(configPath)) {
-      throw new Error(`Config file not found: ${configPath}`);
+      const isVerbose = options.verbose ?? false;
+      const safePath = formatPathForLog(configPath, isVerbose);
+      const isProductionRuntime = process.env.NODE_ENV === "production";
+      const pathHint = isProductionRuntime
+        ? " Full paths are hidden for security in production."
+        : isVerbose
+          ? ""
+          : " Use --verbose to see the full path.";
+      throw new Error(`Config file not found: ${safePath}.${pathHint}`);
     }
     await loadConfigFile(configPath);
   } else {
@@ -184,20 +248,45 @@ export async function loadConfig(
     logger.debug("No config file found, using defaults and environment variables", true);
   }
 
+  // Extract secrets for separate return
+  const secrets: ShipSpecSecrets = {
+    llmApiKey:
+      env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY ?? env.MISTRAL_API_KEY ?? env.GOOGLE_API_KEY,
+    embeddingApiKey: env.OPENAI_API_KEY ?? env.GOOGLE_API_KEY,
+    tavilyApiKey: env.TAVILY_API_KEY,
+  };
+
+  const overrideLlmApiKey = (overrides.llm as { apiKey?: string } | undefined)?.apiKey;
+  const overrideEmbeddingApiKey = (overrides.embedding as { apiKey?: string } | undefined)?.apiKey;
+  const overrideWebSearchApiKey = (
+    overrides.productionalize?.webSearch as { apiKey?: string } | undefined
+  )?.apiKey;
+
+  const fileLlmApiKey = (fileConfig.llm as { apiKey?: string } | undefined)?.apiKey;
+  const fileEmbeddingApiKey = (fileConfig.embedding as { apiKey?: string } | undefined)?.apiKey;
+  const fileWebSearchApiKey = (
+    fileConfig.productionalize?.webSearch as { apiKey?: string } | undefined
+  )?.apiKey;
+
+  secrets.llmApiKey = pickFirstDefined(overrideLlmApiKey, secrets.llmApiKey, fileLlmApiKey);
+  secrets.embeddingApiKey = pickFirstDefined(
+    overrideEmbeddingApiKey,
+    secrets.embeddingApiKey,
+    fileEmbeddingApiKey
+  );
+  secrets.tavilyApiKey = pickFirstDefined(
+    overrideWebSearchApiKey,
+    secrets.tavilyApiKey,
+    fileWebSearchApiKey
+  );
+
+  // Final config object should NOT contain secrets from env
   const envConfig: DeepPartial<ShipSpecConfig> = {
     llm: {
-      apiKey:
-        env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY ?? env.MISTRAL_API_KEY ?? env.GOOGLE_API_KEY,
       baseUrl: env.OLLAMA_BASE_URL,
     },
     embedding: {
-      apiKey: env.OPENAI_API_KEY ?? env.GOOGLE_API_KEY,
       baseUrl: env.OLLAMA_BASE_URL,
-    },
-    productionalize: {
-      webSearch: {
-        apiKey: env.TAVILY_API_KEY,
-      },
     },
   };
 
@@ -205,7 +294,9 @@ export async function loadConfig(
     fileConfig as Record<string, unknown>,
     envConfig as Record<string, unknown>,
     overrides as Record<string, unknown>
-  );
+  ) as DeepPartial<ShipSpecConfig>;
+
+  stripConfigSecrets(merged);
 
   // Apply Ollama-specific defaults only if values are unset (undefined)
   // This must happen before Zod parsing to override OpenAI defaults with Ollama defaults
@@ -216,7 +307,8 @@ export async function loadConfig(
   }
 
   try {
-    return ShipSpecConfigSchema.parse(merged);
+    const config = ShipSpecConfigSchema.parse(merged);
+    return { config, secrets };
   } catch (err) {
     if (err instanceof ZodError) {
       const msg = `Final merged configuration is invalid:\n${err.issues

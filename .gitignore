@@ -1,7 +1,13 @@
 node_modules/
 dist/
 .env
-.ship-spec/
+.ship-spec/outputs/
+.ship-spec/lancedb/
+.ship-spec/project.json
+.ship-spec/index-manifest
+.ship-spec/consent.json
+.ship-spec/latest-report.md
+.ship-spec/latest-task-prompts.md
 *.log
 .cursor/
 implementation-plan.md

@@ -24,7 +24,7 @@ export async function resolveCliConfig(params: ResolveCliConfigParams): Promise<
     resolvedConfigPath = resolve(cwd, resolvedConfigPath);
   }
 
-  return loadConfig(
+  const { config } = await loadConfig(
     configCwd,
     {},
     {
@@ -32,4 +32,5 @@ export async function resolveCliConfig(params: ResolveCliConfigParams): Promise<
       configPath: resolvedConfigPath,
     }
   );
+  return config;
 }

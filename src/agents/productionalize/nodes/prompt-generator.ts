@@ -2,12 +2,18 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { ProductionalizeStateType } from "../state.js";
 import { PROMPT_GENERATOR_TEMPLATE, PromptsOutputSchema } from "../../prompts/index.js";
+import { redactObject } from "../../../utils/redaction.js";
 
-export function createPromptGeneratorNode(model: BaseChatModel) {
+export function createPromptGeneratorNode(model: BaseChatModel, shouldRedact = false) {
   const structuredModel = model.withStructuredOutput(PromptsOutputSchema);
 
   return async (state: ProductionalizeStateType) => {
-    const { findings, signals } = state;
+    let { findings, signals } = state;
+
+    if (shouldRedact) {
+      findings = redactObject(findings);
+      signals = redactObject(signals);
+    }
 
     const userPrompt = `Project Signals:
 ${JSON.stringify(signals, null, 2)}
