@@ -37,7 +37,7 @@ interface ProductionalizeOptions {
   reindex: boolean;
   resolvedConfig?: ShipSpecConfig;
   noSave: boolean;
-  keepOutputs: number;
+  keepOutputs?: number; // Optional for defensive programming; default is 10
   cloudOk: boolean;
   localOnly: boolean;
 }
@@ -394,7 +394,7 @@ async function productionalizeAction(
     logger.success(`Task prompts written to: ${chalk.cyan(promptsPath)}`);
 
     // 5. Prune old outputs
-    await pruneOutputs(outputsDir, options.keepOutputs);
+    await pruneOutputs(outputsDir, options.keepOutputs ?? 10);
   } catch (err) {
     throw new CliRuntimeError("Failed to write output files.", err);
   }
@@ -407,7 +407,8 @@ async function productionalizeAction(
  */
 async function pruneOutputs(outputsDir: string, limit: number): Promise<void> {
   // Defense-in-depth: guard against invalid limits that would delete all files
-  if (limit < 1) {
+  // Note: typeof check catches undefined, isNaN catches NaN from coercion
+  if (typeof limit !== "number" || Number.isNaN(limit) || limit < 1) {
     logger.warn(`Invalid keep-outputs limit (${String(limit)}), skipping pruning`);
     return;
   }

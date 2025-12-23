@@ -59,4 +59,3 @@ export function truncateTextByTokenBudget(text: string, budget: number): string 
 export function getAvailableContextBudget(budget: TokenBudget): number {
   return Math.max(0, budget.maxContextTokens - budget.reservedOutputTokens);
 }
-
