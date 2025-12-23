@@ -35,16 +35,32 @@ interface MockInquirer {
 describe("initCommand", () => {
   let tempDir: string;
   let originalCwd: string;
+  let originalOpenaiKey: string | undefined;
+  let originalTavilyKey: string | undefined;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     originalCwd = process.cwd();
+    originalOpenaiKey = process.env.OPENAI_API_KEY;
+    originalTavilyKey = process.env.TAVILY_API_KEY;
     process.chdir(tempDir);
     vi.clearAllMocks();
     initCommand.exitOverride();
   });
 
   afterEach(async () => {
+    if (originalOpenaiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = originalOpenaiKey;
+    }
+
+    if (originalTavilyKey === undefined) {
+      delete process.env.TAVILY_API_KEY;
+    } else {
+      process.env.TAVILY_API_KEY = originalTavilyKey;
+    }
+
     process.chdir(originalCwd);
     await cleanupTempDir(tempDir);
   });
@@ -86,9 +102,6 @@ describe("initCommand", () => {
 
     expect(mockSecrets.set).toHaveBeenCalledWith("OPENAI_API_KEY", "sk-env-openai");
     expect(mockSecrets.set).toHaveBeenCalledWith("TAVILY_API_KEY", "tvly-env-tavily");
-
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.TAVILY_API_KEY;
   });
 
   it("should fail in non-interactive mode if keys are missing", async () => {
@@ -140,8 +153,5 @@ describe("initCommand", () => {
     expect(new Date(projectState.updatedAt).getTime()).toBeGreaterThanOrEqual(
       new Date(parentInitializedAt).getTime()
     );
-
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.TAVILY_API_KEY;
   });
 });
