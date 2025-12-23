@@ -8,18 +8,19 @@ export function createPromptGeneratorNode(model: BaseChatModel, shouldRedact = f
   const structuredModel = model.withStructuredOutput(PromptsOutputSchema);
 
   return async (state: ProductionalizeStateType) => {
-    let { findings, signals } = state;
+    const { findings, signals } = state;
 
-    if (shouldRedact) {
-      findings = redactObject(findings);
-      signals = redactObject(signals);
-    }
+    // Apply redaction inline for serialization to avoid type mismatches.
+    // redactObject returns Redacted<T> which may have string values where
+    // the original had numbers/booleans/objects at sensitive keys.
+    const signalsForPrompt = shouldRedact ? redactObject(signals) : signals;
+    const findingsForPrompt = shouldRedact ? redactObject(findings) : findings;
 
     const userPrompt = `Project Signals:
-${JSON.stringify(signals, null, 2)}
+${JSON.stringify(signalsForPrompt, null, 2)}
 
 Findings:
-${JSON.stringify(findings, null, 2)}
+${JSON.stringify(findingsForPrompt, null, 2)}
 
 Generate the agent-ready system prompts in the required structured format.`;
 

@@ -7,6 +7,7 @@ import chalk from "chalk";
 
 import { redactText, redactObject, SENSITIVE_NAMES, safeTruncate } from "./redaction.js";
 export { redactText, redactObject, SENSITIVE_NAMES, safeTruncate };
+export type { Redacted } from "./redaction.js";
 
 /**
  * Strips ANSI escape codes and other non-printable control characters.
