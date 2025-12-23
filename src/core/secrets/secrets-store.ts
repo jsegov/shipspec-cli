@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 // Interface for abstraction (allows swapping implementations)
 export interface SecretsStore {
@@ -45,11 +47,22 @@ export class KeytarSecretsStore implements SecretsStore {
 
 // Factory function
 export function createSecretsStore(projectRoot?: string): SecretsStore {
-  // Use project root hash as namespace (stable per-project identifier)
   let suffix: string | undefined;
   if (projectRoot) {
-    // Use Node.js built-in crypto for hashing
-    suffix = createHash("sha256").update(projectRoot).digest("hex").slice(0, 16);
+    const normalized = resolve(projectRoot);
+
+    let canonical: string;
+    try {
+      canonical = realpathSync(normalized);
+    } catch {
+      canonical = normalized;
+    }
+
+    if (canonical.endsWith(sep) && canonical.length > 1) {
+      canonical = canonical.slice(0, -1);
+    }
+
+    suffix = createHash("sha256").update(canonical).digest("hex").slice(0, 16);
   }
   return new KeytarSecretsStore(suffix);
 }

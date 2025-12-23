@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createTempDir, cleanupTempDir } from "./fixtures.js";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
 import { resolve, join } from "path";
 import { existsSync } from "fs";
 
@@ -62,10 +62,8 @@ describe("fixtures helpers", () => {
     });
 
     it("should throw error for path outside system temp directory", async () => {
-      // Assuming /tmp is not inside a relative path to something weird,
-      // but let's use a path we know is outside.
-      // On Mac, /Users is definitely outside /var/folders/...
-      const outsidePath = "/Users/segov/some-random-dir";
+      // Use home directory which is guaranteed to be outside the system temp directory
+      const outsidePath = join(homedir(), "shipspec-test-outside-temp");
       await expect(cleanupTempDir(outsidePath)).rejects.toThrow(
         "Path is not within system temp directory"
       );

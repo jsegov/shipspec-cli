@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { writeFile as _writeFile, mkdir } from "fs/promises";
+import { mkdir } from "fs/promises";
 import { resolve, join } from "path";
 import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
@@ -13,6 +13,7 @@ import { DocumentRepository } from "../../core/storage/repository.js";
 import { createEmbeddingsModel } from "../../core/models/embeddings.js";
 import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { createProductionalizeGraph } from "../../agents/productionalize/graph.js";
+import { ProductionalizeStateType } from "../../agents/productionalize/state.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger, sanitizeError } from "../../utils/logger.js";
 import type { ProductionalizeSubtask } from "../../agents/productionalize/types.js";
@@ -338,12 +339,12 @@ async function productionalizeAction(
     }
   } else {
     try {
-      const result = await graph.invoke(
+      const result = (await graph.invoke(
         { userQuery: context ?? "Perform a full production-readiness analysis of this codebase." },
         graphConfig
-      );
-      finalReport = result.finalReport;
-      finalTaskPrompts = result.taskPrompts;
+      )) as Partial<ProductionalizeStateType>;
+      finalReport = result.finalReport ?? "";
+      finalTaskPrompts = result.taskPrompts ?? "";
     } catch (err) {
       throw new CliRuntimeError("Analysis failed", err);
     }
@@ -401,8 +402,16 @@ async function productionalizeAction(
 
 /**
  * Prunes old output files beyond the specified retention limit.
+ * @param outputsDir - Directory containing output files
+ * @param limit - Number of outputs to keep (must be >= 1)
  */
 async function pruneOutputs(outputsDir: string, limit: number): Promise<void> {
+  // Defense-in-depth: guard against invalid limits that would delete all files
+  if (limit < 1) {
+    logger.warn(`Invalid keep-outputs limit (${String(limit)}), skipping pruning`);
+    return;
+  }
+
   try {
     const files = await readdir(outputsDir);
     const reports = files
@@ -441,8 +450,17 @@ export const productionalizeCommand = new Command("productionalize")
   .option("--no-save", "Do not save reports to disk, only print to stdout")
   .option(
     "--keep-outputs <number>",
-    "Number of historical outputs to keep",
-    (val) => parseInt(val, 10),
+    "Number of historical outputs to keep (minimum: 1)",
+    (val) => {
+      const parsed = parseInt(val, 10);
+      if (Number.isNaN(parsed)) {
+        throw new CliUsageError(`--keep-outputs must be a valid number, got: "${val}"`);
+      }
+      if (parsed < 1) {
+        throw new CliUsageError(`--keep-outputs must be at least 1, got: ${String(parsed)}`);
+      }
+      return parsed;
+    },
     10
   )
   .option("--cloud-ok", "Acknowledge and consent to sending data to cloud LLM/Search providers")

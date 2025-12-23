@@ -25,7 +25,6 @@ export async function cleanupTempDir(dirPath: string): Promise<void> {
   const tempRoot = resolve(tmpdir());
   const repoRoot = resolve(process.cwd());
 
-  // Basic guardrails
   if (absolutePath === "/" || absolutePath === repoRoot) {
     throw new Error(`cleanupTempDir: Refusing to delete critical directory: ${absolutePath}`);
   }
@@ -34,7 +33,6 @@ export async function cleanupTempDir(dirPath: string): Promise<void> {
     throw new Error("cleanupTempDir: Refusing to delete the entire system temp directory");
   }
 
-  // Ensure it's within the temp directory and has our prefix
   if (!absolutePath.startsWith(tempRoot)) {
     throw new Error(`cleanupTempDir: Path is not within system temp directory: ${absolutePath}`);
   }
@@ -48,13 +46,11 @@ export async function cleanupTempDir(dirPath: string): Promise<void> {
   }
 
   try {
-    // Use realpath to resolve any symlinks before deletion for extra safety
-    // only if the path exists. If it doesn't exist, rm with force: true will handle it.
     let finalPath = absolutePath;
     try {
       finalPath = await realpath(absolutePath);
     } catch {
-      // If it doesn't exist, we'll let rm handle it (force: true)
+      // Path doesn't exist, rm will handle it
     }
 
     await rm(finalPath, { recursive: true, force: true });

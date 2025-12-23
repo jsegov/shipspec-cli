@@ -147,4 +147,61 @@ describe("Productionalize CLI Command", () => {
     expect(existsSync(join(shipSpecDir, "latest-report.md"))).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-task-prompts.md"))).toBe(true);
   });
+
+  describe("--keep-outputs validation", () => {
+    it("should reject --keep-outputs 0 to prevent deleting all historical outputs", async () => {
+      await expect(
+        productionalizeCommand.parseAsync(["node", "test", "--keep-outputs", "0"])
+      ).rejects.toThrow(/--keep-outputs must be at least 1/);
+    });
+
+    it("should reject negative --keep-outputs values", async () => {
+      await expect(
+        productionalizeCommand.parseAsync(["node", "test", "--keep-outputs", "-1"])
+      ).rejects.toThrow(/--keep-outputs must be at least 1/);
+
+      await expect(
+        productionalizeCommand.parseAsync(["node", "test", "--keep-outputs", "-5"])
+      ).rejects.toThrow(/--keep-outputs must be at least 1/);
+    });
+
+    it("should reject non-numeric --keep-outputs values", async () => {
+      await expect(
+        productionalizeCommand.parseAsync(["node", "test", "--keep-outputs", "abc"])
+      ).rejects.toThrow(/--keep-outputs must be a valid number/);
+
+      await expect(
+        productionalizeCommand.parseAsync(["node", "test", "--keep-outputs", ""])
+      ).rejects.toThrow(/--keep-outputs must be a valid number/);
+    });
+
+    it("should accept valid positive --keep-outputs values", async () => {
+      // Initialize first so we can pass the initialization check
+      await writeProjectState(tempDir, {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        initializedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        projectRoot: tempDir,
+      });
+
+      mockSecrets.get.mockImplementation((key) => {
+        if (key === "OPENAI_API_KEY") return Promise.resolve("sk-test");
+        return Promise.resolve(null);
+      });
+
+      // Should not throw for valid values (will fail later for other reasons if not fully mocked)
+      await productionalizeCommand.parseAsync([
+        "node",
+        "test",
+        "--keep-outputs",
+        "5",
+        "--no-stream",
+        "--cloud-ok",
+      ]);
+
+      // If we get here, the validation passed
+      expect(true).toBe(true);
+    });
+  });
 });

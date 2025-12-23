@@ -39,21 +39,17 @@ export class CliRuntimeError extends CliError {
     const debugEnvSet = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
     const debugAckSet = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS_ACK === "I_UNDERSTAND_SECURITY_RISK";
 
-    // Explicit option overrides environment
     if (options.debug !== undefined) {
-      // In production, explicit debug=true still requires acknowledgement
       if (isProduction && options.debug) {
         return debugAckSet;
       }
       return options.debug;
     }
 
-    // Environment-based: in production, require both env var and ack
     if (isProduction) {
       return debugEnvSet && debugAckSet;
     }
 
-    // Non-production: env var alone is sufficient
     return debugEnvSet;
   }
 
@@ -70,15 +66,12 @@ export class CliRuntimeError extends CliError {
     const isDebug = this.isDebugEnabled(options);
     const isProduction = process.env.NODE_ENV === "production";
 
-    // Always sanitize the message
     const safeMessage = sanitize(this.message);
 
-    // In production without debug, return minimal error info
     if (isProduction && !isDebug) {
       return `${safeMessage} [Error Code: ${this.name}]`;
     }
 
-    // Build result with sanitized components
     let result = safeMessage;
 
     if (this.stack && isDebug) {
