@@ -26,6 +26,7 @@ describe("Dotenv Gating", () => {
     vi.resetAllMocks();
     process.env = { ...originalEnv };
     delete process.env.NODE_ENV;
+    delete process.env.CI;
     delete process.env.SHIPSPEC_LOAD_DOTENV;
     delete process.env.SHIPSPEC_DOTENV_OVERRIDE;
     delete process.env.SHIPSPEC_DOTENV_PATH;
@@ -113,5 +114,18 @@ describe("Dotenv Gating", () => {
         override: true,
       })
     );
+  });
+
+  it("should NOT load dotenv implicitly in CI even if non-production", async () => {
+    process.env.CI = "true";
+    await loadConfig();
+    expect(loadDotenv).not.toHaveBeenCalled();
+  });
+
+  it("should load dotenv in CI if SHIPSPEC_LOAD_DOTENV=1 is set", async () => {
+    process.env.CI = "true";
+    process.env.SHIPSPEC_LOAD_DOTENV = "1";
+    await loadConfig();
+    expect(loadDotenv).toHaveBeenCalled();
   });
 });
