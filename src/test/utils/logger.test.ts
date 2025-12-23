@@ -276,5 +276,47 @@ describe("Logger Utility", () => {
       const result = redactObject(input) as { meta: { auth_token: string } };
       expect(result.meta.auth_token).toBe("[REDACTED]");
     });
+
+    describe("AUTH pattern anchoring", () => {
+      it("should redact legitimate AUTH-related sensitive keys", () => {
+        const input = {
+          AUTH: "secret-auth-value",
+          BASIC_AUTH: "basic-auth-secret",
+          OAUTH_AUTH: "oauth-secret",
+          AUTH_TOKEN: "auth-token-value",
+          AUTH_KEY: "auth-key-value",
+          AUTHORIZATION: "Bearer token",
+          authorization: "bearer lowercase",
+        };
+        const result = redactObject(input) as Record<string, string>;
+        expect(result.AUTH).toBe("[REDACTED]");
+        expect(result.BASIC_AUTH).toBe("[REDACTED]");
+        expect(result.OAUTH_AUTH).toBe("[REDACTED]");
+        expect(result.AUTH_TOKEN).toBe("[REDACTED]");
+        expect(result.AUTH_KEY).toBe("[REDACTED]");
+        expect(result.AUTHORIZATION).toBe("[REDACTED]");
+        expect(result.authorization).toBe("[REDACTED]");
+      });
+
+      it("should NOT redact false positives like author, authorName, authenticated", () => {
+        const input = {
+          author: "John Doe",
+          authorName: "Jane Smith",
+          authorEmail: "test@example.com",
+          authenticated: true,
+          authorized: false,
+          authority: "admin",
+          isAuthenticated: true,
+        };
+        const result = redactObject(input) as Record<string, unknown>;
+        expect(result.author).toBe("John Doe");
+        expect(result.authorName).toBe("Jane Smith");
+        expect(result.authorEmail).toBe("test@example.com");
+        expect(result.authenticated).toBe(true);
+        expect(result.authorized).toBe(false);
+        expect(result.authority).toBe("admin");
+        expect(result.isAuthenticated).toBe(true);
+      });
+    });
   });
 });

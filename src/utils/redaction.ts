@@ -49,7 +49,11 @@ export const SENSITIVE_NAMES = [
   /PRIVATE_KEY$/i,
   /CLIENT_SECRET$/i,
   /BEARER$/i,
-  /AUTH/i,
+  // AUTH patterns - anchored to avoid false positives (author, authorName, etc.)
+  /^AUTH$/i, // exact match: AUTH
+  /_AUTH$/i, // ends with _AUTH: BASIC_AUTH, OAUTH_AUTH
+  /^AUTH_/i, // starts with AUTH_: AUTH_TOKEN, AUTH_KEY
+  /AUTHORIZATION/i, // AUTHORIZATION header/key names
   /COOKIE/i,
   /SESSION/i,
   /SIGNING/i,
