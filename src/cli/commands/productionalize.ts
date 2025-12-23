@@ -120,7 +120,7 @@ async function productionalizeAction(
 
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
-  const embeddings = createEmbeddingsModel(config.embedding);
+  const embeddings = await createEmbeddingsModel(config.embedding);
   const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
 
   const manifestPath = join(resolve(config.vectorDbPath), "index-manifest");
