@@ -158,6 +158,72 @@ describe("CliRuntimeError", () => {
       expect(output).toContain("Yellow cause");
       expect(output).not.toContain("\x1b[");
     });
+
+    it("should strip OSC hyperlink sequences (clickjacking prevention)", () => {
+      process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+
+      // OSC 8 hyperlink sequence - could be used for clickjacking attacks
+      const error = new CliRuntimeError(
+        "Click \x1b]8;;https://evil.com\x07here\x1b]8;;\x07 to continue",
+        new Error("Nested \x1b]8;;file:///etc/passwd\x1b\\link\x1b]8;;\x1b\\ error")
+      );
+      const output = error.toPublicString();
+
+      // Text should remain but hyperlink sequences should be stripped
+      expect(output).toContain("Click here to continue");
+      expect(output).toContain("Nested link error");
+      expect(output).not.toContain("evil.com");
+      expect(output).not.toContain("passwd");
+      expect(output).not.toContain("\x1b]");
+      expect(output).not.toContain("\x07");
+    });
+
+    it("should strip OSC window title sequences", () => {
+      process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+
+      // OSC 0/1/2 - window/icon title manipulation
+      const error = new CliRuntimeError(
+        "Error\x1b]0;Malicious Title\x07 occurred",
+        new Error("Cause\x1b]2;Evil Window Name\x07 here")
+      );
+      const output = error.toPublicString();
+
+      expect(output).toContain("Error occurred");
+      expect(output).toContain("Cause here");
+      expect(output).not.toContain("Malicious Title");
+      expect(output).not.toContain("Evil Window Name");
+      expect(output).not.toContain("\x1b]");
+    });
+
+    it("should strip CSI cursor and screen manipulation sequences", () => {
+      process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+
+      // CSI sequences for cursor positioning and screen clearing
+      const error = new CliRuntimeError(
+        "Before\x1b[2JAfter", // Clear screen
+        new Error("At\x1b[1;1HHome") // Move cursor to home position
+      );
+      const output = error.toPublicString();
+
+      expect(output).toContain("BeforeAfter");
+      expect(output).toContain("AtHome");
+      expect(output).not.toContain("\x1b[2J");
+      expect(output).not.toContain("\x1b[1;1H");
+    });
+
+    it("should strip C1 control sequences", () => {
+      process.env.SHIPSPEC_DEBUG_DIAGNOSTICS = "1";
+
+      // Single ESC sequences (C1 control codes)
+      const error = new CliRuntimeError(
+        "Text\x1bMReverse\x1b7Save", // Reverse index and save cursor
+        new Error("More\x1b8Restore") // Restore cursor
+      );
+      const output = error.toPublicString();
+
+      expect(output).toContain("TextReverseSave");
+      expect(output).toContain("MoreRestore");
+    });
   });
 
   describe("edge cases", () => {

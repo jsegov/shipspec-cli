@@ -1,10 +1,13 @@
-import { redactText, stripAnsi } from "../utils/logger.js";
+import { redactText } from "../utils/logger.js";
+import { sanitizeForTerminal } from "../utils/terminal-sanitize.js";
 
 /**
- * Sanitizes a string by redacting secrets and stripping ANSI codes.
+ * Sanitizes a string by redacting secrets and removing dangerous terminal escape sequences.
+ * Uses sanitizeForTerminal which handles a broader set of sequences than basic ANSI stripping,
+ * including OSC hyperlinks (clickjacking prevention), window title changes, and CSI sequences.
  */
 function sanitize(text: string): string {
-  return stripAnsi(redactText(text));
+  return sanitizeForTerminal(redactText(text));
 }
 
 export class CliError extends Error {

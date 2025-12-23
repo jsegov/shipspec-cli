@@ -6,12 +6,16 @@ import chalk from "chalk";
  */
 
 import { redactText, redactObject, SENSITIVE_NAMES, safeTruncate } from "./redaction.js";
+import { sanitizeForTerminal } from "./terminal-sanitize.js";
 export { redactText, redactObject, SENSITIVE_NAMES, safeTruncate };
 export type { Redacted } from "./redaction.js";
 
 /**
  * Strips ANSI escape codes and other non-printable control characters.
  * Keeps newlines and tabs.
+ *
+ * @deprecated Use sanitizeForTerminal from terminal-sanitize.ts instead, which handles
+ * a broader set of dangerous escape sequences including OSC hyperlinks and window title changes.
  */
 export function stripAnsi(text: string): string {
   return (
@@ -35,16 +39,18 @@ export function redactEnvValue(name: string, value: string): string {
 }
 
 /**
- * Sanitizes an error for logging, redacting secrets and optionally including the stack trace.
- * Recursively redacts the 'cause' property if present.
+ * Sanitizes an error for logging, redacting secrets and removing dangerous terminal escape sequences.
+ * Uses sanitizeForTerminal which handles a broader set of sequences than basic ANSI stripping,
+ * including OSC hyperlinks (clickjacking prevention), window title changes, and CSI sequences.
+ * Recursively sanitizes the 'cause' property if present.
  */
 export function sanitizeError(err: unknown, verbose = false): string {
   if (err instanceof Error) {
-    const message = stripAnsi(redactText(err.message));
+    const message = sanitizeForTerminal(redactText(err.message));
     let result = message;
 
     if (verbose && err.stack) {
-      result += `\n${stripAnsi(redactText(err.stack))}`;
+      result += `\n${sanitizeForTerminal(redactText(err.stack))}`;
     }
 
     if (err.cause) {
@@ -53,7 +59,7 @@ export function sanitizeError(err: unknown, verbose = false): string {
 
     return result;
   }
-  return stripAnsi(redactText(String(err)));
+  return sanitizeForTerminal(redactText(String(err)));
 }
 
 /**

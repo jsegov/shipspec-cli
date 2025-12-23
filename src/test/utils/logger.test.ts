@@ -163,12 +163,14 @@ describe("Logger Utility", () => {
     });
   });
 
-  describe("stripAnsi", () => {
+  describe("stripAnsi (deprecated - testing backward compatibility)", () => {
     it("should strip ANSI escape codes", () => {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       expect(stripAnsi("\x1b[31mRed Text\x1b[0m")).toBe("Red Text");
     });
 
     it("should strip non-printable characters except newline and tab", () => {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       expect(stripAnsi("Line 1\nLine 2\tTabbed\x07Alert")).toBe("Line 1\nLine 2\tTabbedAlert");
     });
   });
@@ -193,6 +195,58 @@ describe("Logger Utility", () => {
       const err = new Error("Auth failed");
       err.stack = "Error: Auth failed\n  at Object.<anonymous> (file.ts:1:1)";
       expect(sanitizeError(err, false)).toBe("Auth failed");
+    });
+
+    it("should strip OSC hyperlink sequences (clickjacking prevention)", () => {
+      // OSC 8 hyperlink sequence - could be used for clickjacking attacks
+      const err = new Error("Click \x1b]8;;https://evil.com\x07here\x1b]8;;\x07 to continue");
+      const sanitized = sanitizeError(err);
+      expect(sanitized).toBe("Click here to continue");
+      expect(sanitized).not.toContain("evil.com");
+      expect(sanitized).not.toContain("\x1b]");
+      expect(sanitized).not.toContain("\x07");
+    });
+
+    it("should strip OSC window title sequences", () => {
+      // OSC 0/1/2 - window/icon title manipulation
+      const err = new Error("Error\x1b]0;Malicious Title\x07 occurred");
+      const sanitized = sanitizeError(err);
+      expect(sanitized).toBe("Error occurred");
+      expect(sanitized).not.toContain("Malicious Title");
+      expect(sanitized).not.toContain("\x1b]");
+    });
+
+    it("should strip CSI cursor and screen manipulation sequences", () => {
+      // CSI sequences for cursor positioning and screen clearing
+      const err = new Error("Before\x1b[2JAfter");
+      const sanitized = sanitizeError(err);
+      expect(sanitized).toBe("BeforeAfter");
+      expect(sanitized).not.toContain("\x1b[2J");
+    });
+
+    it("should strip C1 control sequences", () => {
+      // Single ESC sequences (C1 control codes)
+      const err = new Error("Text\x1bMReverse\x1b7Save");
+      const sanitized = sanitizeError(err);
+      expect(sanitized).toBe("TextReverseSave");
+    });
+
+    it("should handle errors with malicious escape sequences in cause chain", () => {
+      const cause = new Error("Cause\x1b]8;;file:///etc/passwd\x07link\x1b]8;;\x07");
+      const err = new Error("Main\x1b[2Jerror");
+      (err as Error & { cause: Error }).cause = cause;
+      const sanitized = sanitizeError(err, true);
+      expect(sanitized).toContain("Mainerror");
+      expect(sanitized).toContain("[Cause]: Causelink");
+      expect(sanitized).not.toContain("passwd");
+      expect(sanitized).not.toContain("\x1b");
+    });
+
+    it("should handle non-Error objects with escape sequences", () => {
+      const maliciousString = "String error\x1b]8;;https://evil.com\x07click\x1b]8;;\x07";
+      const sanitized = sanitizeError(maliciousString);
+      expect(sanitized).toBe("String errorclick");
+      expect(sanitized).not.toContain("evil.com");
     });
   });
 
