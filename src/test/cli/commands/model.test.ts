@@ -57,6 +57,45 @@ describe("modelCommand", () => {
         expect.stringContaining("anthropic/claude-sonnet-4.5")
       );
     });
+
+    it("should show configured model from .shipspecrc", async () => {
+      const configPath = join(tempDir, ".shipspecrc");
+      await writeFile(configPath, JSON.stringify({ llm: { modelName: "openai/gpt-5.2-pro" } }));
+
+      await modelCommand.parseAsync(["node", "test", "current"]);
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("openai/gpt-5.2-pro"));
+    });
+
+    it("should show configured model from .shipspecrc.json", async () => {
+      const configPath = join(tempDir, ".shipspecrc.json");
+      await writeFile(
+        configPath,
+        JSON.stringify({ llm: { modelName: "google/gemini-3-flash-preview" } })
+      );
+
+      await modelCommand.parseAsync(["node", "test", "current"]);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("google/gemini-3-flash-preview")
+      );
+    });
+
+    it("should prefer shipspec.json over .shipspecrc", async () => {
+      // Create both config files with different models
+      await writeFile(
+        join(tempDir, "shipspec.json"),
+        JSON.stringify({ llm: { modelName: "anthropic/claude-sonnet-4.5" } })
+      );
+      await writeFile(
+        join(tempDir, ".shipspecrc"),
+        JSON.stringify({ llm: { modelName: "openai/gpt-5.2-pro" } })
+      );
+
+      await modelCommand.parseAsync(["node", "test", "current"]);
+      // shipspec.json should take precedence
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("anthropic/claude-sonnet-4.5")
+      );
+    });
   });
 
   describe("set", () => {
@@ -146,6 +185,68 @@ describe("modelCommand", () => {
       await expect(
         modelCommand.parseAsync(["node", "test", "set", "invalid-model"])
       ).rejects.toThrow(/Invalid model: "invalid-model"/);
+    });
+
+    it("should update existing .shipspecrc instead of creating shipspec.json", async () => {
+      const rcPath = join(tempDir, ".shipspecrc");
+      await writeFile(rcPath, JSON.stringify({ llm: { temperature: 0.7 } }));
+
+      await modelCommand.parseAsync(["node", "test", "set", "claude-sonnet"]);
+
+      // Should update .shipspecrc, not create shipspec.json
+      expect(existsSync(join(tempDir, "shipspec.json"))).toBe(false);
+      expect(existsSync(rcPath)).toBe(true);
+
+      const content = JSON.parse(await readFile(rcPath, "utf-8")) as {
+        llm: { temperature: number; modelName: string; provider: string };
+      };
+      expect(content.llm.temperature).toBe(0.7);
+      expect(content.llm.modelName).toBe("anthropic/claude-sonnet-4.5");
+      expect(content.llm.provider).toBe("openrouter");
+    });
+
+    it("should update existing .shipspecrc.json instead of creating shipspec.json", async () => {
+      const rcJsonPath = join(tempDir, ".shipspecrc.json");
+      await writeFile(rcJsonPath, JSON.stringify({ projectPath: "./src" }));
+
+      await modelCommand.parseAsync(["node", "test", "set", "gpt-pro"]);
+
+      // Should update .shipspecrc.json, not create shipspec.json
+      expect(existsSync(join(tempDir, "shipspec.json"))).toBe(false);
+      expect(existsSync(rcJsonPath)).toBe(true);
+
+      const content = JSON.parse(await readFile(rcJsonPath, "utf-8")) as {
+        projectPath: string;
+        llm: { modelName: string; provider: string };
+      };
+      expect(content.projectPath).toBe("./src");
+      expect(content.llm.modelName).toBe("openai/gpt-5.2-pro");
+      expect(content.llm.provider).toBe("openrouter");
+    });
+
+    it("should update shipspec.json when it exists alongside .shipspecrc", async () => {
+      // When multiple config files exist, should update the highest priority one (shipspec.json)
+      await writeFile(
+        join(tempDir, "shipspec.json"),
+        JSON.stringify({ llm: { modelName: "old-model" } })
+      );
+      await writeFile(
+        join(tempDir, ".shipspecrc"),
+        JSON.stringify({ llm: { modelName: "other" } })
+      );
+
+      await modelCommand.parseAsync(["node", "test", "set", "gemini-flash"]);
+
+      const content = JSON.parse(await readFile(join(tempDir, "shipspec.json"), "utf-8")) as {
+        llm: { modelName: string };
+      };
+      expect(content.llm.modelName).toBe("google/gemini-3-flash-preview");
+
+      // .shipspecrc should remain unchanged
+      const rcContent = JSON.parse(await readFile(join(tempDir, ".shipspecrc"), "utf-8")) as {
+        llm: { modelName: string };
+      };
+      expect(rcContent.llm.modelName).toBe("other");
     });
   });
 });

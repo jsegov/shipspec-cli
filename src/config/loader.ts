@@ -21,7 +21,7 @@ function formatPathForLog(path: string, verbose = false): string {
   return path;
 }
 
-const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"];
+export const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"] as const;
 const ENV_BOOL = z
   .enum(["0", "1"])
   .optional()

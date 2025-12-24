@@ -5,11 +5,32 @@ import { join } from "path";
 import chalk from "chalk";
 
 import { SUPPORTED_CHAT_MODELS } from "../../config/schema.js";
+import { CONFIG_FILES } from "../../config/loader.js";
 import { findProjectRoot } from "../../core/project/project-state.js";
 import { logger } from "../../utils/logger.js";
 import { CliUsageError } from "../errors.js";
 
-const CONFIG_FILE = "shipspec.json";
+/**
+ * Finds the first existing config file in the given directory.
+ * Returns the path if found, or null if no config file exists.
+ */
+function findExistingConfigFile(directory: string): string | null {
+  for (const filename of CONFIG_FILES) {
+    const filepath = join(directory, filename);
+    if (existsSync(filepath)) {
+      return filepath;
+    }
+  }
+  return null;
+}
+
+/**
+ * Gets the config file path to use for reading/writing.
+ * Returns the existing config file if found, otherwise defaults to shipspec.json.
+ */
+function getConfigPath(directory: string): string {
+  return findExistingConfigFile(directory) ?? join(directory, CONFIG_FILES[0]);
+}
 
 // Subcommand: list
 const listCommand = new Command("list").description("List available models").action(() => {
@@ -23,18 +44,16 @@ const listCommand = new Command("list").description("List available models").act
 const currentCommand = new Command("current")
   .description("Show currently configured model")
   .action(async () => {
-    const projectRoot = findProjectRoot(process.cwd());
-    const configPath = projectRoot
-      ? join(projectRoot, CONFIG_FILE)
-      : join(process.cwd(), CONFIG_FILE);
+    const projectRoot = findProjectRoot(process.cwd()) ?? process.cwd();
+    const existingConfig = findExistingConfigFile(projectRoot);
 
-    if (!existsSync(configPath)) {
+    if (!existingConfig) {
       logger.info(`Current model: ${chalk.cyan("google/gemini-3-flash-preview")} (default)`);
       return;
     }
 
     try {
-      const content = JSON.parse(await readFile(configPath, "utf-8")) as {
+      const content = JSON.parse(await readFile(existingConfig, "utf-8")) as {
         llm?: { modelName?: string };
       };
       const currentModel = content.llm?.modelName ?? "google/gemini-3-flash-preview";
@@ -61,7 +80,7 @@ const setCommand = new Command("set")
     }
 
     const projectRoot = findProjectRoot(process.cwd()) ?? process.cwd();
-    const configPath = join(projectRoot, CONFIG_FILE);
+    const configPath = getConfigPath(projectRoot);
 
     let config: Record<string, unknown> = {};
     if (existsSync(configPath)) {
