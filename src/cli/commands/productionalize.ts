@@ -237,7 +237,8 @@ async function productionalizeAction(
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
 
-  // Step 4: Add runtime embedding dimension resolution
+  // Step 4: Resolve embedding dimensions (avoid mutating global config)
+  let resolvedDimensions: number;
   if (config.embedding.dimensions === "auto") {
     logger.progress("Probing embedding dimensions...");
     const probeEmbeddings = await createEmbeddingsModel(
@@ -245,18 +246,24 @@ async function productionalizeAction(
       resolvedSecrets.embeddingApiKey
     );
     const probeVector = await probeEmbeddings.embedQuery("dimension probe");
-    config.embedding.dimensions = probeVector.length;
-    logger.info(`Detected embedding dimensions: ${String(config.embedding.dimensions)}`);
+    resolvedDimensions = probeVector.length;
+    logger.info(`Detected embedding dimensions: ${String(resolvedDimensions)}`);
+  } else {
+    resolvedDimensions = config.embedding.dimensions;
   }
 
+  // Create a scoped config with resolved dimensions for indexing
+  const resolvedEmbeddingConfig = { ...config.embedding, dimensions: resolvedDimensions };
+  const resolvedConfig = { ...config, embedding: resolvedEmbeddingConfig };
+
   const embeddings = await createEmbeddingsModel(config.embedding, resolvedSecrets.embeddingApiKey);
-  const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
+  const repository = new DocumentRepository(vectorStore, embeddings, resolvedDimensions);
 
   const manifestPath = join(resolve(config.vectorDbPath), "index-manifest");
   logger.progress("Checking codebase index freshness...");
   try {
     const indexResult = await ensureIndex({
-      config,
+      config: resolvedConfig,
       repository,
       vectorStore,
       manifestPath,

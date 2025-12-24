@@ -3,8 +3,21 @@ import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import chalk from "chalk";
+import { z } from "zod";
 
 import { SUPPORTED_CHAT_MODELS } from "../../config/schema.js";
+
+// Minimal schema for reading config file - only extracts llm.modelName
+const PartialConfigSchema = z
+  .object({
+    llm: z
+      .object({
+        modelName: z.string().optional(),
+      })
+      .loose()
+      .optional(),
+  })
+  .loose();
 import { CONFIG_FILES } from "../../config/loader.js";
 import { findProjectRoot } from "../../core/project/project-state.js";
 import { logger } from "../../utils/logger.js";
@@ -53,10 +66,11 @@ const currentCommand = new Command("current")
     }
 
     try {
-      const content = JSON.parse(await readFile(existingConfig, "utf-8")) as {
-        llm?: { modelName?: string };
-      };
-      const currentModel = content.llm?.modelName ?? "google/gemini-3-flash-preview";
+      const raw: unknown = JSON.parse(await readFile(existingConfig, "utf-8"));
+      const parsed = PartialConfigSchema.safeParse(raw);
+      const currentModel = parsed.success
+        ? (parsed.data.llm?.modelName ?? "google/gemini-3-flash-preview")
+        : "google/gemini-3-flash-preview";
       logger.info(`Current model: ${chalk.cyan(currentModel)}`);
     } catch {
       logger.info(`Current model: ${chalk.cyan("google/gemini-3-flash-preview")} (default)`);
@@ -85,10 +99,18 @@ const setCommand = new Command("set")
     let config: Record<string, unknown> = {};
     if (existsSync(configPath)) {
       try {
-        config = JSON.parse(await readFile(configPath, "utf-8")) as Record<string, unknown>;
-      } catch {
-        // Fallback if file is corrupted
-        config = {};
+        const raw: unknown = JSON.parse(await readFile(configPath, "utf-8"));
+        // Validate structure with Zod - .loose() preserves unknown properties for write-back
+        const parsed = PartialConfigSchema.safeParse(raw);
+        if (!parsed.success) {
+          throw new CliUsageError(
+            `Invalid config file at ${configPath}: ${parsed.error.issues.map((i) => i.message).join(", ")}`
+          );
+        }
+        config = raw as Record<string, unknown>;
+      } catch (err) {
+        if (err instanceof CliUsageError) throw err;
+        throw new CliUsageError(`Failed to read config file at ${configPath}: invalid JSON`);
       }
     }
 

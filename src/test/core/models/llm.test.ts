@@ -115,6 +115,7 @@ describe("LLM Factory", () => {
           model: "llama2",
           temperature: 0,
           baseUrl: "http://localhost:11434",
+          maxRetries: 3,
         })
       );
     });
