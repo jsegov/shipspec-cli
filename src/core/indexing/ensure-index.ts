@@ -24,7 +24,8 @@ const IndexManifestSchema = z.object({
   embeddingSignature: z.object({
     provider: z.string(),
     modelName: z.string(),
-    dimensions: z.union([z.number().int().positive(), z.literal("auto")]),
+    // Only accept numeric dimensions - "auto" must be resolved before saving
+    dimensions: z.number().int().positive(),
   }),
   files: z.record(
     z.string(),
@@ -177,6 +178,14 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
   const { config, repository, vectorStore, manifestPath, forceReindex = false } = options;
   const projectPath = resolve(config.projectPath);
 
+  // Validate dimensions is resolved to a number - callers must probe "auto" before calling ensureIndex
+  if (config.embedding.dimensions === "auto") {
+    throw new Error(
+      "Embedding dimensions must be resolved to a number before calling ensureIndex. " +
+        "Probe the embedding model to determine actual dimensions."
+    );
+  }
+
   let manifest: IndexManifest | null = null;
   try {
     const content = await readFile(manifestPath, "utf-8");
@@ -188,7 +197,8 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     // Manifest missing or invalid
   }
 
-  const currentSignature = {
+  // After the type guard above, TypeScript knows dimensions is a number
+  const currentSignature: { provider: string; modelName: string; dimensions: number } = {
     provider: config.embedding.provider,
     modelName: config.embedding.modelName,
     dimensions: config.embedding.dimensions,
@@ -211,17 +221,11 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
       successfulFiles.has(getRelativePath(f, projectPath))
     );
 
-    // dimensions is guaranteed to be a number at this point by DocumentRepository initialization
-    const finalSignature = {
-      ...currentSignature,
-      dimensions: currentSignature.dimensions as number,
-    };
-
     await saveManifest(manifestPath, {
       schemaVersion: 1,
       projectRoot: projectPath,
       lastIndexedCommit: await getGitHead(projectPath),
-      embeddingSignature: finalSignature,
+      embeddingSignature: currentSignature,
       files: await getFileStats(projectPath, successfulAbsolutePaths),
       updatedAt: new Date().toISOString(),
     });

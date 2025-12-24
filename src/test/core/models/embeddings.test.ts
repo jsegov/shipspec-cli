@@ -102,11 +102,12 @@ describe("embeddings", () => {
       }
     });
 
-    it("passes explicit dimensions to OpenAIEmbeddings when not 'auto'", async () => {
+    it("does NOT pass dimensions to OpenAIEmbeddings (OpenRouter doesn't support it)", async () => {
+      // OpenRouter doesn't support the dimensions parameter - we use it only for LanceDB config
       const config: EmbeddingConfig = {
         provider: "openrouter",
         modelName: "mistralai/codestral-embed-2505",
-        dimensions: 512,
+        dimensions: 512, // Numeric value, but should NOT be passed to API
         apiKey: "test-api-key",
         maxRetries: 3,
       };
@@ -114,13 +115,9 @@ describe("embeddings", () => {
       const { OpenAIEmbeddings } = await import("@langchain/openai");
       await createEmbeddingsModel(config);
 
-      expect(OpenAIEmbeddings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: "mistralai/codestral-embed-2505",
-          dimensions: 512,
-          apiKey: "test-api-key",
-        })
-      );
+      // Verify dimensions is NOT passed even when explicitly set to a number
+      const callArgs = vi.mocked(OpenAIEmbeddings).mock.calls[0]?.[0] as { dimensions?: number };
+      expect(callArgs.dimensions).toBeUndefined();
     });
 
     it("omits dimensions from OpenAIEmbeddings when set to 'auto'", async () => {
