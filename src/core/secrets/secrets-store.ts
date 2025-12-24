@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { resolve, sep } from "node:path";
+
 // Interface for abstraction (allows swapping implementations)
 export interface SecretsStore {
   get(key: string): Promise<string | null>;
@@ -12,9 +16,13 @@ interface KeytarModule {
   default?: KeytarModule;
 }
 
-// Keytar implementation
+// Keytar implementation with per-project namespacing
 export class KeytarSecretsStore implements SecretsStore {
-  private readonly service = "ship-spec";
+  private readonly service: string;
+
+  constructor(serviceSuffix?: string) {
+    this.service = serviceSuffix ? `ship-spec:${serviceSuffix}` : "ship-spec";
+  }
 
   private async getKeytar(): Promise<KeytarModule> {
     const keytar = (await import("keytar")) as unknown as KeytarModule;
@@ -38,6 +46,23 @@ export class KeytarSecretsStore implements SecretsStore {
 }
 
 // Factory function
-export function createSecretsStore(): SecretsStore {
-  return new KeytarSecretsStore();
+export function createSecretsStore(projectRoot?: string): SecretsStore {
+  let suffix: string | undefined;
+  if (projectRoot) {
+    const normalized = resolve(projectRoot);
+
+    let canonical: string;
+    try {
+      canonical = realpathSync(normalized);
+    } catch {
+      canonical = normalized;
+    }
+
+    if (canonical.endsWith(sep) && canonical.length > 1) {
+      canonical = canonical.slice(0, -1);
+    }
+
+    suffix = createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+  }
+  return new KeytarSecretsStore(suffix);
 }

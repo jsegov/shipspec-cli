@@ -21,11 +21,9 @@ const BaseUrlSchema = z
         if (url.protocol !== "http:" && url.protocol !== "https:") return false;
         if (url.username || url.password) return false;
         if (url.hostname === "169.254.169.254") return false;
-        if (
-          (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
-          process.env.ALLOW_LOCALHOST_LLM !== "1"
-        ) {
-          return false;
+        if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+          if (process.env.NODE_ENV === "production") return false;
+          if (process.env.ALLOW_LOCALHOST_LLM !== "1") return false;
         }
         return true;
       } catch {
@@ -34,7 +32,7 @@ const BaseUrlSchema = z
     },
     {
       message:
-        "Invalid baseUrl. Must be http/https, no credentials, not a restricted IP, and localhost requires ALLOW_LOCALHOST_LLM=1",
+        "Invalid baseUrl. Must be http/https, no credentials, not a restricted IP, and localhost is strictly prohibited in production (requires ALLOW_LOCALHOST_LLM=1 in development)",
     }
   )
   .transform((val) => (val.endsWith("/") ? val.slice(0, -1) : val));

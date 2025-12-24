@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { redact } from "../../utils/logger.js";
+import { redactText } from "../../utils/logger.js";
 
 /**
  * ReDoS Protection Tests
@@ -18,7 +18,7 @@ describe("ReDoS Protection", () => {
       const malicious = "-----BEGIN -----".repeat(1000);
       const start = Date.now();
 
-      redact(malicious);
+      redactText(malicious);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100); // Must complete in <100ms
@@ -29,7 +29,7 @@ describe("ReDoS Protection", () => {
       const malicious = "-----BEGIN RSA PRIVATE KEY -----BEGIN ".repeat(500);
       const start = Date.now();
 
-      redact(malicious);
+      redactText(malicious);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100);
@@ -41,7 +41,7 @@ MIIEpAIBAAKCAQEAwhatever12345abcdefgh
 ijklmnopqrstuvwxyzABCDEFGHIJKLMNOP
 -----END RSA PRIVATE KEY-----`;
 
-      expect(redact(validPEM)).toBe("[REDACTED]");
+      expect(redactText(validPEM)).toBe("[REDACTED]");
     });
 
     it("should redact PEM blocks with multi-word types", () => {
@@ -49,7 +49,7 @@ ijklmnopqrstuvwxyzABCDEFGHIJKLMNOP
 MIIEpAIBAAKCAQEAwhatever
 -----END ENCRYPTED PRIVATE KEY-----`;
 
-      expect(redact(validPEM)).toBe("[REDACTED]");
+      expect(redactText(validPEM)).toBe("[REDACTED]");
     });
   });
 
@@ -59,7 +59,7 @@ MIIEpAIBAAKCAQEAwhatever
       const malicious = "//.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.:.".repeat(500);
       const start = Date.now();
 
-      redact(malicious);
+      redactText(malicious);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100);
@@ -70,7 +70,7 @@ MIIEpAIBAAKCAQEAwhatever
       const malicious = "//user:pass:extra:more:stuff:".repeat(500);
       const start = Date.now();
 
-      redact(malicious);
+      redactText(malicious);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100);
@@ -78,7 +78,7 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should still redact URL credentials", () => {
       const url = "https://user:password@example.com/path";
-      const result = redact(url);
+      const result = redactText(url);
 
       expect(result).toContain("//[REDACTED]@");
       expect(result).not.toContain("user");
@@ -87,7 +87,7 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should redact complex URL credentials", () => {
       const url = "postgresql://admin:Sup3rS3cr3t!@db.example.com:5432/mydb";
-      const result = redact(url);
+      const result = redactText(url);
 
       expect(result).toContain("//[REDACTED]@");
       expect(result).not.toContain("admin");
@@ -99,7 +99,7 @@ MIIEpAIBAAKCAQEAwhatever
     it("should truncate extremely long inputs", () => {
       // Create a string longer than MAX_REDACTION_LENGTH (50000)
       const veryLong = "a".repeat(100000);
-      const result = redact(veryLong);
+      const result = redactText(veryLong);
 
       expect(result).toContain("[... truncated for security]");
       expect(result.length).toBeLessThan(100000);
@@ -107,7 +107,7 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should not truncate inputs within limit", () => {
       const normal = "a".repeat(1000);
-      const result = redact(normal);
+      const result = redactText(normal);
 
       expect(result).not.toContain("[... truncated for security]");
       expect(result).toBe(normal);
@@ -115,7 +115,7 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should truncate at exactly 50KB boundary", () => {
       const exactly50KB = "a".repeat(50001);
-      const result = redact(exactly50KB);
+      const result = redactText(exactly50KB);
 
       expect(result).toContain("[... truncated for security]");
     });
@@ -128,7 +128,7 @@ MIIEpAIBAAKCAQEAwhatever
         "eyJ" + "A".repeat(10000) + "." + "B".repeat(10000) + "." + "C".repeat(10000);
       const start = Date.now();
 
-      redact(malicious);
+      redactText(malicious);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100);
@@ -137,7 +137,7 @@ MIIEpAIBAAKCAQEAwhatever
     it("should still redact valid JWTs", () => {
       const jwt =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U";
-      const result = redact(jwt);
+      const result = redactText(jwt);
 
       expect(result).toBe("[REDACTED]");
     });
@@ -146,7 +146,7 @@ MIIEpAIBAAKCAQEAwhatever
       const longBase64 = "A".repeat(5000) + "=";
       const start = Date.now();
 
-      redact(longBase64);
+      redactText(longBase64);
 
       const elapsed = Date.now() - start;
       expect(elapsed).toBeLessThan(100);
@@ -154,14 +154,14 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should redact API keys with bounded length", () => {
       const apiKey = "sk-" + "a".repeat(50);
-      const result = redact(apiKey);
+      const result = redactText(apiKey);
 
       expect(result).toBe("[REDACTED]");
     });
 
     it("should redact Authorization headers", () => {
       const auth = "Authorization: Bearer " + "t".repeat(200);
-      const result = redact(auth);
+      const result = redactText(auth);
 
       expect(result).toBe("[REDACTED]");
       expect(result).not.toContain("Bearer");
@@ -169,21 +169,21 @@ MIIEpAIBAAKCAQEAwhatever
 
     it("should redact Authorization headers with short tokens that don't match Bearer pattern", () => {
       const auth = "Authorization: Bearer token123";
-      const result = redact(auth);
+      const result = redactText(auth);
 
       expect(result).toBe("[REDACTED]");
     });
 
     it("should redact Authorization headers with custom schemes", () => {
       const auth = "Authorization: CustomScheme some-long-token-value";
-      const result = redact(auth);
+      const result = redactText(auth);
 
       expect(result).toBe("[REDACTED]");
     });
 
     it("should redact Proxy-Authorization headers", () => {
       const auth = "Proxy-Authorization: Basic dXNlcjpwYXNz";
-      const result = redact(auth);
+      const result = redactText(auth);
 
       expect(result).toBe("[REDACTED]");
     });
@@ -199,7 +199,7 @@ MIIEpAIBAAKCAQEAwhatever
       `;
 
       const start = Date.now();
-      const result = redact(combined);
+      const result = redactText(combined);
       const elapsed = Date.now() - start;
 
       expect(elapsed).toBeLessThan(100);
@@ -209,17 +209,17 @@ MIIEpAIBAAKCAQEAwhatever
     });
 
     it("should handle edge case: empty string", () => {
-      expect(redact("")).toBe("");
+      expect(redactText("")).toBe("");
     });
 
     it("should handle edge case: only whitespace", () => {
       const whitespace = "   \n\t  \r\n  ";
-      expect(redact(whitespace)).toBe(whitespace);
+      expect(redactText(whitespace)).toBe(whitespace);
     });
 
     it("should handle edge case: no secrets present", () => {
       const normal = "This is just a normal log message with no secrets";
-      expect(redact(normal)).toBe(normal);
+      expect(redactText(normal)).toBe(normal);
     });
   });
 });

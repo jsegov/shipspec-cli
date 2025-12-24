@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import { ShipSpecConfig } from "../../config/schema.js";
-import { loadConfig } from "../../config/loader.js";
+import { loadConfig, stripConfigSecrets } from "../../config/loader.js";
 import { logger } from "../../utils/logger.js";
 
 interface ConfigOptions {
@@ -13,7 +13,10 @@ export const configCommand = new Command("config")
   .addOption(new Option("--resolved-config").hideHelp())
   .option("--json", "Output as JSON")
   .action(async (options: ConfigOptions) => {
-    const config = options.resolvedConfig ?? (await loadConfig());
+    const { config } = options.resolvedConfig
+      ? { config: options.resolvedConfig }
+      : await loadConfig();
+    stripConfigSecrets(config);
 
     if (options.json) {
       logger.output(JSON.stringify(config, null, 2));

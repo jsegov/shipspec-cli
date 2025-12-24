@@ -3,7 +3,10 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { OllamaEmbeddings } from "@langchain/ollama";
 import type { EmbeddingConfig } from "../../config/schema.js";
 
-export function createEmbeddingsModel(config: EmbeddingConfig): Promise<Embeddings> {
+export function createEmbeddingsModel(
+  config: EmbeddingConfig,
+  apiKey?: string
+): Promise<Embeddings> {
   const maxRetries = config.maxRetries;
 
   switch (config.provider) {
@@ -12,7 +15,7 @@ export function createEmbeddingsModel(config: EmbeddingConfig): Promise<Embeddin
         new OpenAIEmbeddings({
           model: config.modelName,
           dimensions: config.dimensions,
-          apiKey: config.apiKey ?? process.env.OPENAI_API_KEY,
+          apiKey: apiKey ?? config.apiKey ?? process.env.OPENAI_API_KEY,
           maxRetries,
         })
       );

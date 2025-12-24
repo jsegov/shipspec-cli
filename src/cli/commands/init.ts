@@ -19,7 +19,6 @@ import { CliUsageError, CliRuntimeError } from "../errors.js";
 
 async function initAction(options: { nonInteractive?: boolean }): Promise<void> {
   const cwd = process.cwd();
-  const secretsStore = createSecretsStore();
 
   logger.info(chalk.bold("\n🚀 Initializing Ship Spec..."));
 
@@ -54,6 +53,8 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
     // Fresh initialization in current directory
     projectRoot = cwd;
   }
+
+  const secretsStore = createSecretsStore(projectRoot);
 
   let openaiKey: string | undefined;
   let tavilyKey: string | undefined;

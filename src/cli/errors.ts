@@ -1,3 +1,15 @@
+import { redactText } from "../utils/logger.js";
+import { sanitizeForTerminal } from "../utils/terminal-sanitize.js";
+
+/**
+ * Sanitizes a string by redacting secrets and removing dangerous terminal escape sequences.
+ * Uses sanitizeForTerminal which handles a broader set of sequences than basic ANSI stripping,
+ * including OSC hyperlinks (clickjacking prevention), window title changes, and CSI sequences.
+ */
+function sanitize(text: string): string {
+  return sanitizeForTerminal(redactText(text));
+}
+
 export class CliError extends Error {
   constructor(public message: string) {
     super(message);
@@ -22,30 +34,60 @@ export class CliRuntimeError extends CliError {
   }
 
   /**
+   * Checks if debug diagnostics are enabled.
+   * In production, requires explicit acknowledgement via SHIPSPEC_DEBUG_DIAGNOSTICS_ACK.
+   */
+  private isDebugEnabled(options: { debug?: boolean }): boolean {
+    const isProduction = process.env.NODE_ENV === "production";
+    const debugEnvSet = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
+    const debugAckSet = process.env.SHIPSPEC_DEBUG_DIAGNOSTICS_ACK === "I_UNDERSTAND_SECURITY_RISK";
+
+    if (options.debug !== undefined) {
+      if (isProduction && options.debug) {
+        return debugAckSet;
+      }
+      return options.debug;
+    }
+
+    if (isProduction) {
+      return debugEnvSet && debugAckSet;
+    }
+
+    return debugEnvSet;
+  }
+
+  /**
    * Returns a sanitized error message suitable for production output.
+   * All output is sanitized (secrets redacted, ANSI stripped) regardless of mode.
+   *
    * In production mode (without debug), only shows the message and error code.
-   * In debug mode, includes stack traces and nested error details.
+   * In debug mode:
+   *   - Non-production: includes sanitized stack traces and nested error details
+   *   - Production: requires SHIPSPEC_DEBUG_DIAGNOSTICS_ACK=I_UNDERSTAND_SECURITY_RISK
    */
   toPublicString(options: { debug?: boolean } = {}): string {
-    const isDebug = options.debug ?? process.env.SHIPSPEC_DEBUG_DIAGNOSTICS === "1";
+    const isDebug = this.isDebugEnabled(options);
     const isProduction = process.env.NODE_ENV === "production";
 
-    // In production without debug, return minimal error info
+    const safeMessage = sanitize(this.message);
+
     if (isProduction && !isDebug) {
-      return `${this.message} [Error Code: ${this.name}]`;
+      return `${safeMessage} [Error Code: ${this.name}]`;
     }
 
-    // In debug mode or non-production, include full details
-    let result = this.message;
+    let result = safeMessage;
+
     if (this.stack && isDebug) {
-      result += `\n${this.stack}`;
+      result += `\n${sanitize(this.stack)}`;
     }
+
     if (this.originalError instanceof Error && isDebug) {
-      result += `\nCaused by: ${this.originalError.message}`;
+      result += `\nCaused by: ${sanitize(this.originalError.message)}`;
       if (this.originalError.stack) {
-        result += `\n${this.originalError.stack}`;
+        result += `\n${sanitize(this.originalError.stack)}`;
       }
     }
+
     return result;
   }
 }

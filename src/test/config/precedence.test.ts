@@ -27,7 +27,7 @@ describe("Configuration Precedence", () => {
     await writeFile(configPath, JSON.stringify({ llm: { baseUrl: "https://file.com" } }));
     process.env.OLLAMA_BASE_URL = "https://env.com";
 
-    const config = await loadConfig(testCwd, { llm: { baseUrl: "https://cli.com" } });
+    const { config } = await loadConfig(testCwd, { llm: { baseUrl: "https://cli.com" } });
     expect(config.llm.baseUrl).toBe("https://cli.com");
   });
 
@@ -35,20 +35,20 @@ describe("Configuration Precedence", () => {
     await writeFile(configPath, JSON.stringify({ llm: { baseUrl: "https://file.com" } }));
     process.env.OLLAMA_BASE_URL = "https://env.com";
 
-    const config = await loadConfig(testCwd, {});
+    const { config } = await loadConfig(testCwd, {});
     expect(config.llm.baseUrl).toBe("https://env.com");
   });
 
   it("should favor file config over defaults", async () => {
     await writeFile(configPath, JSON.stringify({ llm: { baseUrl: "http://file.com" } }));
 
-    const config = await loadConfig(testCwd, {});
+    const { config } = await loadConfig(testCwd, {});
     expect(config.llm.baseUrl).toBe("http://file.com");
   });
 
   it("should use defaults if nothing else is provided", async () => {
     // defaults for llm.provider is 'openai', no baseUrl by default
-    const config = await loadConfig(testCwd, {});
+    const { config } = await loadConfig(testCwd, {});
     expect(config.llm.provider).toBe("openai");
     expect(config.llm.baseUrl).toBeUndefined();
   });

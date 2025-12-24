@@ -15,7 +15,8 @@
   <a href="#-installation">Installation</a> •
   <a href="#-usage">Usage</a> •
   <a href="#-configuration">Configuration</a> •
-  <a href="#-contributing">Contributing</a>
+  <a href="#-contributing">Contributing</a> •
+  <a href="SECURITY.md">Security</a>
 </p>
 
 > [!WARNING]
@@ -109,7 +110,8 @@ npx ship-spec --help
 ```bash
 git clone https://github.com/your-org/shipspec-cli.git
 cd shipspec-cli
-npm install
+# Recommendation: use npm ci for deterministic installs
+npm ci
 npm run build
 npm link
 ```
@@ -180,6 +182,15 @@ ship-spec -v, --verbose # Enable verbose logging
 ship-spec -c, --config <path>  # Use custom config file
 ```
 
+### Configuration Precedence
+
+Ship Spec resolves configuration in the following order (highest priority first):
+
+1. **CLI Flags**: Explicitly passed arguments when running a command.
+2. **Environment Variables**: `OPENAI_API_KEY`, `OLLAMA_BASE_URL`, etc.
+3. **Configuration File**: `ship-spec.json` (or `.ship-spec.json`) in the project root.
+4. **Default Values**: Built-in defaults as defined in the schema.
+
 ---
 
 ## 🤝 Contributing
@@ -191,7 +202,7 @@ We welcome contributions! Here's how to get started:
 ```bash
 git clone https://github.com/your-org/shipspec-cli.git
 cd shipspec-cli
-npm install
+npm ci
 npm run build
 ```
 

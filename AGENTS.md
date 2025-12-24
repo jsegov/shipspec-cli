@@ -311,6 +311,29 @@ ReDoS (Regular Expression Denial of Service) is a vulnerability where certain re
    }
    ```
 
+## Security Guardrails
+
+### Cloud Consent
+
+Ship Spec requires explicit consent before sending data to cloud-based LLMs or Search providers.
+- Use `--cloud-ok` to acknowledge and persist consent.
+- Use `--local-only` to strictly enforce local execution.
+
+### Secret Redaction
+
+The engine automatically redacts secrets using the centralized `redaction.ts` utility. This utility:
+- Applies bounded patterns to prevent ReDoS.
+- Recursively traverses objects for redaction.
+- Truncates excessively large inputs before processing.
+
+## Native Dependencies
+
+The CLI uses several native components for performance:
+- `better-sqlite3`: For checkpoint persistence (requires `node-gyp`).
+- `lancedb`: For vector storage (requires platform-specific binaries).
+
+Ensure your environment has the necessary build tools (e.g., `build-essential` on Linux, Xcode Command Line Tools on macOS) for successful installation.
+
 #### Mandatory Testing for ReDoS
 
 **When adding or modifying any regex pattern, you MUST add timing-based tests:**
@@ -477,13 +500,15 @@ SHIPSPEC_STRICT_CONFIG=1                  # Fail on malformed config (auto-enabl
 
 # Development & Debugging
 SHIPSPEC_DEBUG_DIAGNOSTICS=1              # Enable verbose logging
+SHIPSPEC_DEBUG_DIAGNOSTICS_ACK=I_UNDERSTAND_SECURITY_RISK  # Required in production if SHIPSPEC_DEBUG_DIAGNOSTICS=1
 ALLOW_LOCALHOST_LLM=1                     # Allow localhost LLM URLs (dev only)
-SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK  # Required in production if ALLOW_LOCALHOST_LLM=1
 NODE_ENV=production                       # Environment mode
 ```
 
 > [!CAUTION]
-> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. Only use in trusted development environments. In production, this flag requires explicit acknowledgement via `SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK=I_UNDERSTAND_SSRF_RISK`.
+> `ALLOW_LOCALHOST_LLM=1` disables security checks that prevent SSRF attacks. This flag is **strictly prohibited in production** and can only be used in trusted development environments. Any attempt to use it in production will result in a hard failure.
+>
+> Enabling `SHIPSPEC_DEBUG_DIAGNOSTICS=1` in production requires `SHIPSPEC_DEBUG_DIAGNOSTICS_ACK=I_UNDERSTAND_SECURITY_RISK` to avoid leaking sensitive information.
 
 ### Config Schema (src/config/schema.ts)
 

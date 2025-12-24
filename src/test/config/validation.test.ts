@@ -90,12 +90,25 @@ describe("Base URL Validation", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should accept localhost when ALLOW_LOCALHOST_LLM=1", () => {
+    it("should accept localhost when ALLOW_LOCALHOST_LLM=1 in non-production", () => {
+      process.env.NODE_ENV = "development";
       process.env.ALLOW_LOCALHOST_LLM = "1";
       const result = ShipSpecConfigSchema.safeParse({
         llm: { baseUrl: "http://localhost:11434" },
       });
       expect(result.success).toBe(true);
+    });
+
+    it("should reject localhost in production even if ALLOW_LOCALHOST_LLM=1", () => {
+      process.env.NODE_ENV = "production";
+      process.env.ALLOW_LOCALHOST_LLM = "1";
+      const result = ShipSpecConfigSchema.safeParse({
+        llm: { baseUrl: "http://localhost:11434" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain("strictly prohibited in production");
+      }
     });
   });
 
@@ -108,7 +121,7 @@ describe("Base URL Validation", () => {
     it("should allow OLLAMA_BASE_URL localhost with opt-in", async () => {
       process.env.OLLAMA_BASE_URL = "http://localhost:11434";
       process.env.ALLOW_LOCALHOST_LLM = "1";
-      const config = await loadConfig(tempDir);
+      const { config } = await loadConfig(tempDir);
       expect(config.llm.baseUrl).toBe("http://localhost:11434");
     });
   });
