@@ -74,10 +74,11 @@ const setCommand = new Command("set")
     }
 
     const llmConfig = (config.llm as Record<string, unknown> | undefined) ?? {};
-    config.llm = { ...llmConfig, modelName: fullModelName };
+    // All SUPPORTED_CHAT_MODELS are OpenRouter slugs, so ensure provider is set correctly
+    config.llm = { ...llmConfig, provider: "openrouter", modelName: fullModelName };
     await writeFile(configPath, JSON.stringify(config, null, 2));
 
-    logger.success(`Model set to: ${chalk.cyan(fullModelName)}`);
+    logger.success(`Model set to: ${chalk.cyan(fullModelName)} (provider: openrouter)`);
   });
 
 export const modelCommand = new Command("model")

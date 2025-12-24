@@ -102,6 +102,44 @@ describe("embeddings", () => {
       }
     });
 
+    it("passes explicit dimensions to OpenAIEmbeddings when not 'auto'", async () => {
+      const config: EmbeddingConfig = {
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: 512,
+        apiKey: "test-api-key",
+        maxRetries: 3,
+      };
+
+      const { OpenAIEmbeddings } = await import("@langchain/openai");
+      await createEmbeddingsModel(config);
+
+      expect(OpenAIEmbeddings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "mistralai/codestral-embed-2505",
+          dimensions: 512,
+          apiKey: "test-api-key",
+        })
+      );
+    });
+
+    it("omits dimensions from OpenAIEmbeddings when set to 'auto'", async () => {
+      const config: EmbeddingConfig = {
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: "auto",
+        apiKey: "test-api-key",
+        maxRetries: 3,
+      };
+
+      const { OpenAIEmbeddings } = await import("@langchain/openai");
+      await createEmbeddingsModel(config);
+
+      // Verify dimensions is NOT passed when "auto"
+      const callArgs = vi.mocked(OpenAIEmbeddings).mock.calls[0]?.[0] as { dimensions?: number };
+      expect(callArgs.dimensions).toBeUndefined();
+    });
+
     it("returns OllamaEmbeddings when provider is 'ollama'", async () => {
       const config: EmbeddingConfig = {
         provider: "ollama",

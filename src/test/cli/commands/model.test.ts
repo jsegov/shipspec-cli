@@ -60,16 +60,17 @@ describe("modelCommand", () => {
   });
 
   describe("set", () => {
-    it("should set model by alias", async () => {
+    it("should set model by alias and provider to openrouter", async () => {
       await modelCommand.parseAsync(["node", "test", "set", "claude-sonnet"]);
 
       const configPath = join(tempDir, "shipspec.json");
       expect(existsSync(configPath)).toBe(true);
 
       const content = JSON.parse(await readFile(configPath, "utf-8")) as {
-        llm: { modelName: string };
+        llm: { modelName: string; provider: string };
       };
       expect(content.llm.modelName).toBe("anthropic/claude-sonnet-4.5");
+      expect(content.llm.provider).toBe("openrouter");
       expect(logger.success).toHaveBeenCalledWith(
         expect.stringContaining("anthropic/claude-sonnet-4.5")
       );
@@ -80,9 +81,10 @@ describe("modelCommand", () => {
 
       const configPath = join(tempDir, "shipspec.json");
       const content = JSON.parse(await readFile(configPath, "utf-8")) as {
-        llm: { modelName: string };
+        llm: { modelName: string; provider: string };
       };
       expect(content.llm.modelName).toBe("openai/gpt-5.2-pro");
+      expect(content.llm.provider).toBe("openrouter");
     });
 
     it("should create shipspec.json if it doesn't exist", async () => {
@@ -93,9 +95,10 @@ describe("modelCommand", () => {
 
       expect(existsSync(configPath)).toBe(true);
       const content = JSON.parse(await readFile(configPath, "utf-8")) as {
-        llm: { modelName: string };
+        llm: { modelName: string; provider: string };
       };
       expect(content.llm.modelName).toBe("google/gemini-3-flash-preview");
+      expect(content.llm.provider).toBe("openrouter");
     });
 
     it("should preserve other config fields when setting model", async () => {
@@ -109,11 +112,34 @@ describe("modelCommand", () => {
 
       const content = JSON.parse(await readFile(configPath, "utf-8")) as {
         projectPath: string;
-        llm: { temperature: number; modelName: string };
+        llm: { temperature: number; modelName: string; provider: string };
       };
       expect(content.projectPath).toBe("./custom");
       expect(content.llm.temperature).toBe(0.5);
       expect(content.llm.modelName).toBe("openai/gpt-5.2-pro");
+      expect(content.llm.provider).toBe("openrouter");
+    });
+
+    it("should override ollama provider when setting OpenRouter model", async () => {
+      const configPath = join(tempDir, "shipspec.json");
+      // Pre-existing config with Ollama provider
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          llm: { provider: "ollama", modelName: "llama3", baseUrl: "http://localhost:11434" },
+        })
+      );
+
+      await modelCommand.parseAsync(["node", "test", "set", "gemini-flash"]);
+
+      const content = JSON.parse(await readFile(configPath, "utf-8")) as {
+        llm: { provider: string; modelName: string; baseUrl?: string };
+      };
+      // Provider should be overridden to openrouter
+      expect(content.llm.provider).toBe("openrouter");
+      expect(content.llm.modelName).toBe("google/gemini-3-flash-preview");
+      // baseUrl should be preserved (though it won't affect openrouter)
+      expect(content.llm.baseUrl).toBe("http://localhost:11434");
     });
 
     it("should throw error for unsupported model", async () => {

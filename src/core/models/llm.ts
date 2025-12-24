@@ -26,6 +26,7 @@ export function createChatModel(config: LLMConfig, apiKey?: string): Promise<Bas
           model: config.modelName,
           temperature: config.temperature,
           baseUrl: config.baseUrl ?? "http://localhost:11434",
+          maxRetries: config.maxRetries,
         })
       );
     default: {

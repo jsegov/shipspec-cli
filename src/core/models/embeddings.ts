@@ -16,7 +16,9 @@ export function createEmbeddingsModel(
       return Promise.resolve(
         new OpenAIEmbeddings({
           model: config.modelName,
-          // dimensions omitted here - resolved at runtime if "auto" in productionalize.ts
+          // Only pass dimensions when explicitly set (not "auto")
+          // "auto" is resolved at runtime in productionalize.ts before this is called
+          ...(typeof config.dimensions === "number" && { dimensions: config.dimensions }),
           apiKey: apiKey ?? config.apiKey ?? process.env.OPENROUTER_API_KEY,
           configuration: {
             baseURL: OPENROUTER_BASE_URL,
