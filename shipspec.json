@@ -1,0 +1,5 @@
+{
+  "llm": {
+    "modelName": "google/gemini-3-flash-preview"
+  }
+}

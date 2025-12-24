@@ -13,6 +13,7 @@ export function createChatModel(config: LLMConfig, apiKey?: string): Promise<Bas
           model: config.modelName,
           temperature: config.temperature,
           maxRetries: config.maxRetries,
+          maxTokens: config.reservedOutputTokens,
           ...(config.timeout && { timeout: config.timeout }),
           apiKey: apiKey ?? config.apiKey ?? process.env.OPENROUTER_API_KEY,
           configuration: {
