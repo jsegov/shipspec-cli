@@ -5,11 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ship-spec": "./dist/cli/index.js"
+    "ship-spec": "dist/cli/index.js"
   },
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
+    "!dist/test/**",
+    "!dist/**/*.test.*",
     "!dist/**/*.map",
     "!dist/**/*.d.ts.map",
     "README.md",
@@ -26,11 +28,30 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run format:check && npm run build && npm test",
+    "prepack": "npm run build"
   },
   "engines": {
     "node": "^20.17.0 || ^22.13.0 || >=23.5.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/segov/shipspec-cli.git"
+  },
+  "keywords": [
+    "cli",
+    "code-analysis",
+    "rag",
+    "langgraph",
+    "production-readiness"
+  ],
+  "author": "segov",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/segov/shipspec-cli/issues"
+  },
+  "homepage": "https://github.com/segov/shipspec-cli#readme",
   "dependencies": {
     "@inquirer/prompts": "^8.1.0",
     "@lancedb/lancedb": "^0.23.0",
