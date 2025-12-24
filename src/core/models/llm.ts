@@ -36,9 +36,14 @@ export function createChatModel(config: LLMConfig, apiKey?: string): Promise<Bas
                 controller.abort();
               }, config.timeout);
 
+              const signals = [controller.signal];
+              if (init?.signal) {
+                signals.push(init.signal);
+              }
+
               return fetch(input, {
                 ...init,
-                signal: controller.signal,
+                signal: AbortSignal.any(signals),
               }).finally(() => {
                 clearTimeout(timeoutId);
               });
