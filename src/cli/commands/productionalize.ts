@@ -64,33 +64,33 @@ async function productionalizeAction(
 
   // 2. Load keys from keychain as fallback (only if not already configured)
   const secretsStore = createSecretsStore(projectRoot);
-  const openaiProviders = ["openai", "azure-openai"];
+  const openrouterProviders = ["openrouter"];
 
   const resolvedSecrets: ShipSpecSecrets = { ...loadedSecrets };
 
   // For LLM: use existing apiKey from config/env, fallback to keychain
-  if (openaiProviders.includes(config.llm.provider)) {
+  if (openrouterProviders.includes(config.llm.provider)) {
     if (!resolvedSecrets.llmApiKey) {
-      const openaiKey = await secretsStore.get("OPENAI_API_KEY");
-      if (!openaiKey) {
+      const openrouterKey = await secretsStore.get("OPENROUTER_API_KEY");
+      if (!openrouterKey) {
         throw new CliUsageError(
-          "OpenAI API key not found. Run `ship-spec init` or set OPENAI_API_KEY."
+          "OpenRouter API key not found. Run `ship-spec init` or set OPENROUTER_API_KEY."
         );
       }
-      resolvedSecrets.llmApiKey = openaiKey;
+      resolvedSecrets.llmApiKey = openrouterKey;
     }
   }
 
   // For embeddings: use existing apiKey from config/env, fallback to keychain
-  if (openaiProviders.includes(config.embedding.provider)) {
+  if (openrouterProviders.includes(config.embedding.provider)) {
     if (!resolvedSecrets.embeddingApiKey) {
-      const openaiKey = await secretsStore.get("OPENAI_API_KEY");
-      if (!openaiKey) {
+      const openrouterKey = await secretsStore.get("OPENROUTER_API_KEY");
+      if (!openrouterKey) {
         throw new CliUsageError(
-          "OpenAI API key not found. Run `ship-spec init` or set OPENAI_API_KEY."
+          "OpenRouter API key not found. Run `ship-spec init` or set OPENROUTER_API_KEY."
         );
       }
-      resolvedSecrets.embeddingApiKey = openaiKey;
+      resolvedSecrets.embeddingApiKey = openrouterKey;
     }
   }
 
@@ -144,7 +144,7 @@ async function productionalizeAction(
   );
 
   // 3. LLM Data Sharing Consent
-  const cloudProviders = ["openai", "anthropic", "google-vertexai", "mistralai", "azure-openai"];
+  const cloudProviders = ["openrouter"];
   const isCloudLLM = cloudProviders.includes(config.llm.provider);
   const isCloudEmbedding = cloudProviders.includes(config.embedding.provider);
   // Tavily is used when: provider !== "duckduckgo" AND a Tavily API key is available
@@ -236,6 +236,19 @@ async function productionalizeAction(
 
   logger.progress("Initializing vector store...");
   const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
+
+  // Step 4: Add runtime embedding dimension resolution
+  if (config.embedding.dimensions === "auto") {
+    logger.progress("Probing embedding dimensions...");
+    const probeEmbeddings = await createEmbeddingsModel(
+      config.embedding,
+      resolvedSecrets.embeddingApiKey
+    );
+    const probeVector = await probeEmbeddings.embedQuery("dimension probe");
+    config.embedding.dimensions = probeVector.length;
+    logger.info(`Detected embedding dimensions: ${String(config.embedding.dimensions)}`);
+  }
+
   const embeddings = await createEmbeddingsModel(config.embedding, resolvedSecrets.embeddingApiKey);
   const repository = new DocumentRepository(vectorStore, embeddings, config.embedding.dimensions);
 

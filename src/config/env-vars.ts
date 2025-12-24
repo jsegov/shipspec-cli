@@ -1,10 +1,7 @@
 export const ENV_VAR_NAMES = {
   NODE_ENV: "NODE_ENV",
 
-  OPENAI_API_KEY: "OPENAI_API_KEY",
-  ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY",
-  MISTRAL_API_KEY: "MISTRAL_API_KEY",
-  GOOGLE_API_KEY: "GOOGLE_API_KEY",
+  OPENROUTER_API_KEY: "OPENROUTER_API_KEY",
   TAVILY_API_KEY: "TAVILY_API_KEY",
 
   OLLAMA_BASE_URL: "OLLAMA_BASE_URL",
@@ -24,7 +21,7 @@ export const ENV_VAR_NAMES = {
 export const ALL_ENV_VARS = Object.values(ENV_VAR_NAMES);
 
 export const CONDITIONAL_REQUIRED_VARS = {
-  OPENAI_API_KEY: ["llm.provider=openai", "embedding.provider=openai"],
+  OPENROUTER_API_KEY: ["llm.provider=openrouter", "embedding.provider=openrouter"],
   TAVILY_API_KEY: ["productionalize.webSearch.provider=tavily"],
   SHIPSPEC_DOTENV_PATH: ["NODE_ENV=production && SHIPSPEC_LOAD_DOTENV=1"],
   SHIPSPEC_DOTENV_OVERRIDE_ACK: ["NODE_ENV=production && SHIPSPEC_DOTENV_OVERRIDE=1"],

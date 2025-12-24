@@ -1,16 +1,18 @@
 import { z } from "zod";
 
-// Providers supported by LangChain's initChatModel
-export const ModelProviderSchema = z.enum([
-  "openai",
-  "anthropic",
-  "ollama",
-  "google-vertexai",
-  "mistralai",
-  "azure-openai",
-]);
+// Providers supported for LLM and Embeddings
+export const LLMProviderSchema = z.enum(["openrouter", "ollama"]);
+export const EmbeddingProviderSchema = z.enum(["openrouter", "ollama"]);
 
-export type ModelProvider = z.infer<typeof ModelProviderSchema>;
+export type LLMProvider = z.infer<typeof LLMProviderSchema>;
+export type EmbeddingProvider = z.infer<typeof EmbeddingProviderSchema>;
+
+// Add supported models constant for validation
+export const SUPPORTED_CHAT_MODELS = {
+  "gemini-flash": "google/gemini-3-flash-preview",
+  "claude-sonnet": "anthropic/claude-sonnet-4.5",
+  "gpt-pro": "openai/gpt-5.2-pro",
+} as const;
 
 const BaseUrlSchema = z
   .url()
@@ -38,8 +40,8 @@ const BaseUrlSchema = z
   .transform((val) => (val.endsWith("/") ? val.slice(0, -1) : val));
 
 export const LLMConfigSchema = z.object({
-  provider: ModelProviderSchema.default("openai"),
-  modelName: z.string().default("gpt-5.2-2025-12-11"),
+  provider: LLMProviderSchema.default("openrouter"),
+  modelName: z.string().default("google/gemini-3-flash-preview"),
   temperature: z.number().min(0).max(2).default(0),
   baseUrl: BaseUrlSchema.optional(),
   apiKey: z.string().optional(),
@@ -50,9 +52,9 @@ export const LLMConfigSchema = z.object({
 });
 
 export const EmbeddingConfigSchema = z.object({
-  provider: ModelProviderSchema.default("openai"),
-  modelName: z.string().default("text-embedding-3-large"),
-  dimensions: z.number().int().positive().default(3072),
+  provider: EmbeddingProviderSchema.default("openrouter"),
+  modelName: z.string().default("mistralai/codestral-embed-2505"),
+  dimensions: z.union([z.number().int().positive(), z.literal("auto")]).default("auto"),
   baseUrl: BaseUrlSchema.optional(),
   apiKey: z.string().optional(),
   maxRetries: z.number().int().min(0).max(10).default(3),
@@ -97,17 +99,17 @@ export const ShipSpecConfigSchema = z
         "**/.ship-spec/**",
       ]),
     llm: LLMConfigSchema.default({
-      provider: "openai",
-      modelName: "gpt-5.2-2025-12-11",
+      provider: "openrouter",
+      modelName: "google/gemini-3-flash-preview",
       temperature: 0,
       maxRetries: 3,
       maxContextTokens: 16000,
       reservedOutputTokens: 4000,
     }),
     embedding: EmbeddingConfigSchema.default({
-      provider: "openai",
-      modelName: "text-embedding-3-large",
-      dimensions: 3072,
+      provider: "openrouter",
+      modelName: "mistralai/codestral-embed-2505",
+      dimensions: "auto",
       maxRetries: 3,
     }),
     checkpoint: CheckpointConfigSchema.default({

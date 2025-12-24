@@ -23,7 +23,9 @@ vi.mock("../../../core/storage/vector-store.js", () => ({
 }));
 
 vi.mock("../../../core/models/embeddings.js", () => ({
-  createEmbeddingsModel: vi.fn().mockResolvedValue({}),
+  createEmbeddingsModel: vi.fn().mockResolvedValue({
+    embedQuery: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
+  }),
 }));
 
 vi.mock("../../../core/storage/repository.js", () => ({
@@ -49,12 +51,12 @@ vi.mock("../../../core/secrets/secrets-store.js", () => ({
 describe("Productionalize CLI Command", () => {
   let tempDir: string;
   let originalCwd: string;
-  let originalOpenaiKey: string | undefined;
+  let originalOpenrouterKey: string | undefined;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     originalCwd = process.cwd();
-    originalOpenaiKey = process.env.OPENAI_API_KEY;
+    originalOpenrouterKey = process.env.OPENROUTER_API_KEY;
     process.chdir(tempDir);
     vi.clearAllMocks();
 
@@ -66,11 +68,11 @@ describe("Productionalize CLI Command", () => {
     process.chdir(originalCwd);
     await cleanupTempDir(tempDir);
 
-    // Restore or delete OPENAI_API_KEY to prevent env leakage
-    if (originalOpenaiKey === undefined) {
-      delete process.env.OPENAI_API_KEY;
+    // Restore or delete OPENROUTER_API_KEY to prevent env leakage
+    if (originalOpenrouterKey === undefined) {
+      delete process.env.OPENROUTER_API_KEY;
     } else {
-      process.env.OPENAI_API_KEY = originalOpenaiKey;
+      process.env.OPENROUTER_API_KEY = originalOpenrouterKey;
     }
   });
 
@@ -80,7 +82,7 @@ describe("Productionalize CLI Command", () => {
     );
   });
 
-  it("should fail if OpenAI API key is missing from both env and keychain", async () => {
+  it("should fail if OpenRouter API key is missing from both env and keychain", async () => {
     // Initialize
     await writeProjectState(tempDir, {
       schemaVersion: 1,
@@ -94,7 +96,7 @@ describe("Productionalize CLI Command", () => {
     // No key in env either (default state)
 
     await expect(productionalizeCommand.parseAsync(["node", "test"])).rejects.toThrow(
-      /OpenAI API key not found/
+      /OpenRouter API key not found/
     );
   });
 
@@ -109,7 +111,7 @@ describe("Productionalize CLI Command", () => {
     });
 
     // Set API key via environment variable
-    process.env.OPENAI_API_KEY = "sk-env-test-key";
+    process.env.OPENROUTER_API_KEY = "sk-env-test-key";
 
     mockSecrets.get.mockResolvedValue(null); // No key in keychain
 
@@ -133,7 +135,7 @@ describe("Productionalize CLI Command", () => {
     });
 
     mockSecrets.get.mockImplementation((key) => {
-      if (key === "OPENAI_API_KEY") return Promise.resolve("sk-test");
+      if (key === "OPENROUTER_API_KEY") return Promise.resolve("sk-test");
       if (key === "TAVILY_API_KEY") return Promise.resolve("tvly-test");
       return Promise.resolve(null);
     });
@@ -186,7 +188,7 @@ describe("Productionalize CLI Command", () => {
       });
 
       mockSecrets.get.mockImplementation((key) => {
-        if (key === "OPENAI_API_KEY") return Promise.resolve("sk-test");
+        if (key === "OPENROUTER_API_KEY") return Promise.resolve("sk-test");
         return Promise.resolve(null);
       });
 

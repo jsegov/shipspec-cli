@@ -136,12 +136,12 @@ describe("Config Loader", () => {
       JSON.stringify({
         projectPath: "./custom",
         llm: {
-          provider: "openai",
+          provider: "openrouter",
           customOption: "should-be-stripped", // Unknown nested key
           anotherUnknown: 123,
         },
         embedding: {
-          provider: "openai",
+          provider: "openrouter",
           futureFeature: true, // Unknown nested key
         },
       })
@@ -151,8 +151,8 @@ describe("Config Loader", () => {
 
     // Config should load successfully
     expect(config.projectPath).toBe("./custom");
-    expect(config.llm.provider).toBe("openai");
-    expect(config.embedding.provider).toBe("openai");
+    expect(config.llm.provider).toBe("openrouter");
+    expect(config.embedding.provider).toBe("openrouter");
 
     // Unknown keys should be stripped (not present in result)
     expect("customOption" in config.llm).toBe(false);
@@ -188,7 +188,7 @@ describe("Config Loader", () => {
 
   it("should hide dotenv path in production logs", async () => {
     const dotenvPath = join(tempDir, ".env");
-    await writeFile(dotenvPath, "OPENAI_API_KEY=test");
+    await writeFile(dotenvPath, "OPENROUTER_API_KEY=test");
 
     process.env.NODE_ENV = "production";
     process.env.SHIPSPEC_LOAD_DOTENV = "1";
@@ -211,8 +211,8 @@ describe("Config Loader", () => {
       await writeFile(
         configPath,
         JSON.stringify({
-          llm: { apiKey: "file-llm-key" },
-          embedding: { apiKey: "file-embedding-key" },
+          llm: { apiKey: "file-llm-key", provider: "openrouter" },
+          embedding: { apiKey: "file-embedding-key", provider: "openrouter" },
           productionalize: { webSearch: { apiKey: "file-search-key" } },
         })
       );
@@ -233,19 +233,19 @@ describe("Config Loader", () => {
       await writeFile(
         configPath,
         JSON.stringify({
-          llm: { apiKey: "file-llm-key" },
-          embedding: { apiKey: "file-embedding-key" },
+          llm: { apiKey: "file-llm-key", provider: "openrouter" },
+          embedding: { apiKey: "file-embedding-key", provider: "openrouter" },
           productionalize: { webSearch: { apiKey: "file-search-key" } },
         })
       );
 
-      process.env.OPENAI_API_KEY = "env-openai-key";
+      process.env.OPENROUTER_API_KEY = "env-openrouter-key";
       process.env.TAVILY_API_KEY = "env-tavily-key";
 
       const overrides: ShipSpecConfig = {
         llm: {
           apiKey: "override-llm-key",
-          provider: "openai",
+          provider: "openrouter",
           modelName: "model",
           temperature: 0,
           maxRetries: 1,
@@ -254,9 +254,9 @@ describe("Config Loader", () => {
         },
         embedding: {
           apiKey: "override-embedding-key",
-          provider: "openai",
+          provider: "openrouter",
           modelName: "model",
-          dimensions: 1,
+          dimensions: "auto",
           maxRetries: 1,
         },
         productionalize: {

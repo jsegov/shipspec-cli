@@ -24,7 +24,7 @@ const IndexManifestSchema = z.object({
   embeddingSignature: z.object({
     provider: z.string(),
     modelName: z.string(),
-    dimensions: z.number(),
+    dimensions: z.union([z.number().int().positive(), z.literal("auto")]),
   }),
   files: z.record(
     z.string(),
@@ -211,11 +211,17 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
       successfulFiles.has(getRelativePath(f, projectPath))
     );
 
+    // dimensions is guaranteed to be a number at this point by DocumentRepository initialization
+    const finalSignature = {
+      ...currentSignature,
+      dimensions: currentSignature.dimensions as number,
+    };
+
     await saveManifest(manifestPath, {
       schemaVersion: 1,
       projectRoot: projectPath,
       lastIndexedCommit: await getGitHead(projectPath),
-      embeddingSignature: currentSignature,
+      embeddingSignature: finalSignature,
       files: await getFileStats(projectPath, successfulAbsolutePaths),
       updatedAt: new Date().toISOString(),
     });

@@ -3,6 +3,8 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { OllamaEmbeddings } from "@langchain/ollama";
 import type { EmbeddingConfig } from "../../config/schema.js";
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
 export function createEmbeddingsModel(
   config: EmbeddingConfig,
   apiKey?: string
@@ -10,12 +12,15 @@ export function createEmbeddingsModel(
   const maxRetries = config.maxRetries;
 
   switch (config.provider) {
-    case "openai":
+    case "openrouter":
       return Promise.resolve(
         new OpenAIEmbeddings({
           model: config.modelName,
-          dimensions: config.dimensions,
-          apiKey: apiKey ?? config.apiKey ?? process.env.OPENAI_API_KEY,
+          // dimensions omitted here - resolved at runtime if "auto" in productionalize.ts
+          apiKey: apiKey ?? config.apiKey ?? process.env.OPENROUTER_API_KEY,
+          configuration: {
+            baseURL: OPENROUTER_BASE_URL,
+          },
           maxRetries,
         })
       );
@@ -27,7 +32,11 @@ export function createEmbeddingsModel(
           maxRetries,
         })
       );
-    default:
-      return Promise.reject(new Error(`Unsupported embedding provider: ${config.provider}`));
+    default: {
+      const exhaustiveCheck: never = config.provider;
+      return Promise.reject(
+        new Error(`Unsupported embedding provider: ${String(exhaustiveCheck)}`)
+      );
+    }
   }
 }

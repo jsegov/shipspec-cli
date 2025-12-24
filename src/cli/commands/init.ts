@@ -56,36 +56,36 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
 
   const secretsStore = createSecretsStore(projectRoot);
 
-  let openaiKey: string | undefined;
+  let openrouterKey: string | undefined;
   let tavilyKey: string | undefined;
 
   if (options.nonInteractive) {
     // Non-interactive mode: read from environment
-    openaiKey = process.env.OPENAI_API_KEY;
+    openrouterKey = process.env.OPENROUTER_API_KEY;
     tavilyKey = process.env.TAVILY_API_KEY;
 
-    if (!openaiKey) {
+    if (!openrouterKey) {
       throw new CliUsageError(
-        "OPENAI_API_KEY environment variable is required in non-interactive mode."
+        "OPENROUTER_API_KEY environment variable is required in non-interactive mode."
       );
     }
   } else {
     // Interactive mode: check existing keys first
-    const existingOpenai = await secretsStore.get("OPENAI_API_KEY");
+    const existingOpenrouter = await secretsStore.get("OPENROUTER_API_KEY");
     const existingTavily = await secretsStore.get("TAVILY_API_KEY");
 
-    if (existingOpenai) {
+    if (existingOpenrouter) {
       const reuse = await confirm({
-        message: "Found existing OpenAI API key in keychain. Use it?",
+        message: "Found existing OpenRouter API key in keychain. Use it?",
         default: true,
       });
       if (reuse) {
-        openaiKey = existingOpenai;
+        openrouterKey = existingOpenrouter;
       }
     }
 
-    openaiKey ??= await password({
-      message: "Enter your OpenAI API key:",
+    openrouterKey ??= await password({
+      message: "Enter your OpenRouter API key:",
       validate: (val) => (val.length > 0 ? true : "API key cannot be empty"),
     });
 
@@ -110,8 +110,8 @@ async function initAction(options: { nonInteractive?: boolean }): Promise<void> 
 
   // 2. Store keys in keychain
   try {
-    if (openaiKey) {
-      await secretsStore.set("OPENAI_API_KEY", openaiKey);
+    if (openrouterKey) {
+      await secretsStore.set("OPENROUTER_API_KEY", openrouterKey);
     }
     if (tavilyKey) {
       await secretsStore.set("TAVILY_API_KEY", tavilyKey);
