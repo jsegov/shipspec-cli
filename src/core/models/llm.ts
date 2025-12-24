@@ -28,6 +28,22 @@ export function createChatModel(config: LLMConfig, apiKey?: string): Promise<Bas
           temperature: config.temperature,
           baseUrl: config.baseUrl ?? "http://localhost:11434",
           maxRetries: config.maxRetries,
+          // ChatOllama doesn't have a native timeout parameter, so we implement it via custom fetch
+          ...(config.timeout && {
+            fetch: (input: string | URL | Request, init?: RequestInit) => {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => {
+                controller.abort();
+              }, config.timeout);
+
+              return fetch(input, {
+                ...init,
+                signal: controller.signal,
+              }).finally(() => {
+                clearTimeout(timeoutId);
+              });
+            },
+          }),
         })
       );
     default: {
