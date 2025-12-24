@@ -47,9 +47,9 @@ describe("Configuration Precedence", () => {
   });
 
   it("should use defaults if nothing else is provided", async () => {
-    // defaults for llm.provider is 'openai', no baseUrl by default
+    // defaults for llm.provider is 'openrouter', no baseUrl by default
     const { config } = await loadConfig(testCwd, {});
-    expect(config.llm.provider).toBe("openai");
+    expect(config.llm.provider).toBe("openrouter");
     expect(config.llm.baseUrl).toBeUndefined();
   });
 });

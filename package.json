@@ -1,6 +1,6 @@
 {
   "name": "shipspec-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Autonomous semantic engine for technical documentation and specification generation",
   "type": "module",
   "main": "dist/index.js",

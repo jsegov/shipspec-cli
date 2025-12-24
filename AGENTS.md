@@ -4,7 +4,7 @@
 
 Ship Spec CLI is an autonomous semantic engine for codebase analysis and production readiness evaluation. It's a Retrieval-Augmented Generation (RAG) system that ingests source code, constructs vector embeddings, and uses LangGraph.js to orchestrate agentic workflows for analyzing technical debt and security.
 
-**Core Philosophy:** Local-First, Cloud-Optional — supports both local inference (Ollama) and cloud providers (OpenAI, Anthropic).
+**Core Philosophy:** Local-First, Cloud-Optional — supports both local inference (Ollama) and cloud providers via OpenRouter (Gemini, Claude, GPT).
 
 ## Tech Stack
 
@@ -78,6 +78,28 @@ ship-spec productionalize --enable-scans
 6. **Workers** - Parallel analysis with code/web/scan routing.
 7. **Aggregator** - Synthesize findings into Markdown report.
 8. **Prompt Generator** - Generate agent-ready system prompts.
+
+### `ship-spec model <subcommand>`
+
+Manage chat model selection via OpenRouter.
+
+```bash
+# List available models and aliases
+ship-spec model list
+
+# Show currently configured model
+ship-spec model current
+
+# Set model by alias or full name
+ship-spec model set gemini-flash
+ship-spec model set claude-sonnet
+ship-spec model set gpt-pro
+```
+
+**Subcommands:**
+- `list` - Shows available model aliases (`gemini-flash`, `claude-sonnet`, `gpt-pro`) and their OpenRouter slugs.
+- `current` - Displays the model currently configured in `shipspec.json`.
+- `set <alias|name>` - Updates `shipspec.json` with the selected model.
 
 ### `ship-spec config`
 
@@ -479,10 +501,7 @@ The CLI supports multiple configuration sources in the following priority order:
 
 **Provider API Keys:**
 ```bash
-OPENAI_API_KEY=         # For OpenAI embeddings/LLM
-ANTHROPIC_API_KEY=      # For Anthropic LLM (alternative)
-MISTRAL_API_KEY=        # For Mistral LLM (alternative)
-GOOGLE_API_KEY=         # For Google LLM/embeddings (alternative)
+OPENROUTER_API_KEY=     # Unified key for all cloud models (OpenRouter)
 TAVILY_API_KEY=         # For web search (Tavily provider)
 OLLAMA_BASE_URL=        # Default: http://localhost:11434
 ```
@@ -533,8 +552,8 @@ The `ShipSpecConfigSchema` defines:
     "**/*.test.ts"
   ],
   "llm": {
-    "provider": "openai",
-    "modelName": "gpt-5.2-2025-12-11",
+    "provider": "openrouter",
+    "modelName": "google/gemini-3-flash-preview",
     "temperature": 0,
     "maxRetries": 3,
     "timeout": 60000,
@@ -542,9 +561,9 @@ The `ShipSpecConfigSchema` defines:
     "reservedOutputTokens": 4000
   },
   "embedding": {
-    "provider": "openai",
-    "modelName": "text-embedding-3-large",
-    "dimensions": 3072,
+    "provider": "openrouter",
+    "modelName": "mistralai/codestral-embed-2505",
+    "dimensions": "auto",
     "maxRetries": 3
   },
   "checkpoint": {
@@ -747,7 +766,7 @@ it("should update manifest with current embedding signature during incremental i
 // src/core/models/embeddings.ts
 export async function createEmbeddingsModel(config: EmbeddingConfig): Promise<Embeddings> {
   switch (config.provider) {
-    case "openai":
+    case "openrouter":
       return new OpenAIEmbeddings({ ... });
     case "ollama":
       return new OllamaEmbeddings({ ... });

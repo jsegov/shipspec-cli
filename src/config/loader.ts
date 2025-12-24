@@ -21,7 +21,7 @@ function formatPathForLog(path: string, verbose = false): string {
   return path;
 }
 
-const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"];
+export const CONFIG_FILES = ["shipspec.json", ".shipspecrc", ".shipspecrc.json"] as const;
 const ENV_BOOL = z
   .enum(["0", "1"])
   .optional()
@@ -29,10 +29,7 @@ const ENV_BOOL = z
 
 export const ShipSpecEnvSchema = z.object({
   NODE_ENV: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  MISTRAL_API_KEY: z.string().optional(),
-  GOOGLE_API_KEY: z.string().optional(),
+  OPENROUTER_API_KEY: z.string().optional(),
   TAVILY_API_KEY: z.string().optional(),
   OLLAMA_BASE_URL: z.url().optional(),
   SHIPSPEC_LOAD_DOTENV: ENV_BOOL,
@@ -250,9 +247,8 @@ export async function loadConfig(
 
   // Extract secrets for separate return
   const secrets: ShipSpecSecrets = {
-    llmApiKey:
-      env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY ?? env.MISTRAL_API_KEY ?? env.GOOGLE_API_KEY,
-    embeddingApiKey: env.OPENAI_API_KEY ?? env.GOOGLE_API_KEY,
+    llmApiKey: env.OPENROUTER_API_KEY,
+    embeddingApiKey: env.OPENROUTER_API_KEY,
     tavilyApiKey: env.TAVILY_API_KEY,
   };
 

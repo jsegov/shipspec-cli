@@ -43,10 +43,11 @@ That's it. Ship Spec handles the rest—parsing your code into semantic chunks, 
 ## ✨ Features
 
 - **🔍 Semantic Code Understanding** — Uses Tree-sitter for AST-based parsing across TypeScript, JavaScript, Python, Go, and Rust
+- **☁️ Unified Model Gateway** — Access Gemini, Claude, and GPT models through a single OpenRouter endpoint
 - **🧠 Agentic Workflow** — LangGraph.js orchestrates a Map-Reduce pattern with planning, parallel analysis, and synthesis
 - **🛡️ Production Readiness Analysis** — Hybrid planner combines deterministic signals with dynamic research and SAST scans
 - **🗄️ Local-First Vector Store** — Embedded LanceDB for fast similarity search without external dependencies
-- **☁️ Multi-Provider Support** — Works with OpenAI, Anthropic, Ollama (local), Google Vertex AI, Mistral, and Azure OpenAI
+- **🏠 Local Inference Support** — Maintains local-first philosophy with optional Ollama integration
 - **🔐 Secure Credential Management** — Stores API keys in your OS keychain (macOS Keychain, Windows Credential Vault, Linux Secret Service)
 - **⚡ High Performance** — Concurrent file processing with configurable parallelism and batching
 
@@ -57,7 +58,8 @@ That's it. Ship Spec handles the rest—parsing your code into semantic chunks, 
 ### Prerequisites
 
 - **Node.js 20+** required
-- An API key from OpenAI and Tavily (optional but recommended for web research)
+- **OpenRouter API Key**: Required for cloud models. Get one at [openrouter.ai/keys](https://openrouter.ai/keys).
+- **Tavily API Key**: Required for web research. Get one at [app.tavily.com](https://app.tavily.com/) (free tier available).
 
 ### 1. Install
 
@@ -73,7 +75,7 @@ ship-spec init
 ```
 
 The `init` command will:
-- Prompt you for your OpenAI and Tavily API keys
+- Prompt you for your **OpenRouter** and **Tavily** API keys
 - Store them securely in your OS keychain (one-time setup per machine)
 - Create a `.ship-spec/` directory in your project for tracking state and outputs
 
@@ -129,7 +131,22 @@ Initialize Ship Spec in the current directory and configure global API keys.
 ship-spec init
 
 # Non-interactive setup (for CI/CD)
-OPENAI_API_KEY=sk-... TAVILY_API_KEY=tvly-... ship-spec init --non-interactive
+OPENROUTER_API_KEY=sk-or-... TAVILY_API_KEY=tvly-... ship-spec init --non-interactive
+```
+
+### `ship-spec model <subcommand>`
+
+Manage your chat model selection.
+
+```bash
+# List available model aliases
+ship-spec model list
+
+# Show currently configured model
+ship-spec model current
+
+# Set model (gemini-flash, claude-sonnet, or gpt-pro)
+ship-spec model set gemini-flash
 ```
 
 ### `ship-spec productionalize [context]`
@@ -187,8 +204,8 @@ ship-spec -c, --config <path>  # Use custom config file
 Ship Spec resolves configuration in the following order (highest priority first):
 
 1. **CLI Flags**: Explicitly passed arguments when running a command.
-2. **Environment Variables**: `OPENAI_API_KEY`, `OLLAMA_BASE_URL`, etc.
-3. **Configuration File**: `ship-spec.json` (or `.ship-spec.json`) in the project root.
+2. **Environment Variables**: `OPENROUTER_API_KEY`, `TAVILY_API_KEY`, `OLLAMA_BASE_URL`, etc.
+3. **Configuration File**: `shipspec.json` (or `.shipspec.json`) in the project root.
 4. **Default Values**: Built-in defaults as defined in the schema.
 
 ---

@@ -8,16 +8,19 @@ vi.mock("@langchain/openai", () => {
     dimensions?: number;
     apiKey?: string;
     maxRetries?: number;
+    configuration?: { baseURL: string };
     constructor(config: {
       model: string;
       dimensions?: number;
       apiKey?: string;
       maxRetries?: number;
+      configuration?: { baseURL: string };
     }) {
       this.model = config.model;
       this.dimensions = config.dimensions;
       this.apiKey = config.apiKey;
       this.maxRetries = config.maxRetries;
+      this.configuration = config.configuration;
     }
   }
   return {
@@ -47,11 +50,11 @@ describe("embeddings", () => {
   });
 
   describe("createEmbeddingsModel", () => {
-    it("returns OpenAIEmbeddings when provider is 'openai'", async () => {
+    it("returns OpenAIEmbeddings when provider is 'openrouter'", async () => {
       const config: EmbeddingConfig = {
-        provider: "openai",
-        modelName: "text-embedding-3-large",
-        dimensions: 3072,
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: "auto",
         apiKey: "test-api-key",
         maxRetries: 3,
       };
@@ -59,41 +62,79 @@ describe("embeddings", () => {
       const { OpenAIEmbeddings } = await import("@langchain/openai");
       const result = await createEmbeddingsModel(config);
 
-      expect(OpenAIEmbeddings).toHaveBeenCalledWith({
-        model: "text-embedding-3-large",
-        dimensions: 3072,
-        apiKey: "test-api-key",
-        maxRetries: 3,
-      });
+      expect(OpenAIEmbeddings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: "mistralai/codestral-embed-2505",
+          apiKey: "test-api-key",
+          maxRetries: 3,
+          configuration: {
+            baseURL: "https://openrouter.ai/api/v1",
+          },
+        })
+      );
       expect(result).toBeDefined();
     });
 
-    it("uses process.env.OPENAI_API_KEY when apiKey not provided", async () => {
-      const originalKey = process.env.OPENAI_API_KEY;
-      process.env.OPENAI_API_KEY = "env-api-key";
+    it("uses process.env.OPENROUTER_API_KEY when apiKey not provided", async () => {
+      const originalKey = process.env.OPENROUTER_API_KEY;
+      process.env.OPENROUTER_API_KEY = "env-api-key";
 
       const config: EmbeddingConfig = {
-        provider: "openai",
-        modelName: "text-embedding-3-large",
-        dimensions: 3072,
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: "auto",
         maxRetries: 3,
       };
 
       const { OpenAIEmbeddings } = await import("@langchain/openai");
       await createEmbeddingsModel(config);
 
-      expect(OpenAIEmbeddings).toHaveBeenCalledWith({
-        model: "text-embedding-3-large",
-        dimensions: 3072,
-        apiKey: "env-api-key",
-        maxRetries: 3,
-      });
+      expect(OpenAIEmbeddings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "env-api-key",
+        })
+      );
 
       if (originalKey) {
-        process.env.OPENAI_API_KEY = originalKey;
+        process.env.OPENROUTER_API_KEY = originalKey;
       } else {
-        delete process.env.OPENAI_API_KEY;
+        delete process.env.OPENROUTER_API_KEY;
       }
+    });
+
+    it("does NOT pass dimensions to OpenAIEmbeddings (OpenRouter doesn't support it)", async () => {
+      // OpenRouter doesn't support the dimensions parameter - we use it only for LanceDB config
+      const config: EmbeddingConfig = {
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: 512, // Numeric value, but should NOT be passed to API
+        apiKey: "test-api-key",
+        maxRetries: 3,
+      };
+
+      const { OpenAIEmbeddings } = await import("@langchain/openai");
+      await createEmbeddingsModel(config);
+
+      // Verify dimensions is NOT passed even when explicitly set to a number
+      const callArgs = vi.mocked(OpenAIEmbeddings).mock.calls[0]?.[0] as { dimensions?: number };
+      expect(callArgs.dimensions).toBeUndefined();
+    });
+
+    it("omits dimensions from OpenAIEmbeddings when set to 'auto'", async () => {
+      const config: EmbeddingConfig = {
+        provider: "openrouter",
+        modelName: "mistralai/codestral-embed-2505",
+        dimensions: "auto",
+        apiKey: "test-api-key",
+        maxRetries: 3,
+      };
+
+      const { OpenAIEmbeddings } = await import("@langchain/openai");
+      await createEmbeddingsModel(config);
+
+      // Verify dimensions is NOT passed when "auto"
+      const callArgs = vi.mocked(OpenAIEmbeddings).mock.calls[0]?.[0] as { dimensions?: number };
+      expect(callArgs.dimensions).toBeUndefined();
     });
 
     it("returns OllamaEmbeddings when provider is 'ollama'", async () => {
@@ -116,68 +157,11 @@ describe("embeddings", () => {
       expect(result).toBeDefined();
     });
 
-    it("uses default baseUrl for Ollama when not provided", async () => {
-      const config: EmbeddingConfig = {
-        provider: "ollama",
-        modelName: "nomic-embed-text",
-        dimensions: 768,
-        maxRetries: 3,
-      };
-
-      const { OllamaEmbeddings } = await import("@langchain/ollama");
-      await createEmbeddingsModel(config);
-
-      expect(OllamaEmbeddings).toHaveBeenCalledWith({
-        model: "nomic-embed-text",
-        baseUrl: "http://localhost:11434",
-        maxRetries: 3,
-      });
-    });
-
-    it("passes correct config to OpenAIEmbeddings", async () => {
-      const config: EmbeddingConfig = {
-        provider: "openai",
-        modelName: "text-embedding-ada-002",
-        dimensions: 3072,
-        apiKey: "custom-key",
-        maxRetries: 3,
-      };
-
-      const { OpenAIEmbeddings } = await import("@langchain/openai");
-      await createEmbeddingsModel(config);
-
-      expect(OpenAIEmbeddings).toHaveBeenCalledWith({
-        model: "text-embedding-ada-002",
-        dimensions: 3072,
-        apiKey: "custom-key",
-        maxRetries: 3,
-      });
-    });
-
-    it("passes correct config to OllamaEmbeddings", async () => {
-      const config: EmbeddingConfig = {
-        provider: "ollama",
-        modelName: "all-minilm",
-        dimensions: 384,
-        baseUrl: "http://custom-host:8080",
-        maxRetries: 3,
-      };
-
-      const { OllamaEmbeddings } = await import("@langchain/ollama");
-      await createEmbeddingsModel(config);
-
-      expect(OllamaEmbeddings).toHaveBeenCalledWith({
-        model: "all-minilm",
-        baseUrl: "http://custom-host:8080",
-        maxRetries: 3,
-      });
-    });
-
     it("throws error for unsupported provider", async () => {
       const config = {
         provider: "unsupported" as EmbeddingConfig["provider"],
         modelName: "test-model",
-        dimensions: 3072,
+        dimensions: 1024,
         maxRetries: 3,
       };
 

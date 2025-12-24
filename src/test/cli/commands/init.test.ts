@@ -26,6 +26,7 @@ vi.mock("../../../core/secrets/secrets-store.js", () => ({
 interface MockInquirer {
   password: {
     mockResolvedValueOnce: (v: string) => void;
+    mockResolvedValue: (v: string) => void;
   };
   confirm: {
     mockResolvedValue: (v: boolean) => void;
@@ -35,13 +36,13 @@ interface MockInquirer {
 describe("initCommand", () => {
   let tempDir: string;
   let originalCwd: string;
-  let originalOpenaiKey: string | undefined;
+  let originalOpenrouterKey: string | undefined;
   let originalTavilyKey: string | undefined;
 
   beforeEach(async () => {
     tempDir = await createTempDir();
     originalCwd = process.cwd();
-    originalOpenaiKey = process.env.OPENAI_API_KEY;
+    originalOpenrouterKey = process.env.OPENROUTER_API_KEY;
     originalTavilyKey = process.env.TAVILY_API_KEY;
     process.chdir(tempDir);
     vi.clearAllMocks();
@@ -49,10 +50,10 @@ describe("initCommand", () => {
   });
 
   afterEach(async () => {
-    if (originalOpenaiKey === undefined) {
-      delete process.env.OPENAI_API_KEY;
+    if (originalOpenrouterKey === undefined) {
+      delete process.env.OPENROUTER_API_KEY;
     } else {
-      process.env.OPENAI_API_KEY = originalOpenaiKey;
+      process.env.OPENROUTER_API_KEY = originalOpenrouterKey;
     }
 
     if (originalTavilyKey === undefined) {
@@ -69,7 +70,7 @@ describe("initCommand", () => {
     const inquirer = (await import("@inquirer/prompts")) as unknown as MockInquirer;
 
     inquirer.confirm.mockResolvedValue(true);
-    inquirer.password.mockResolvedValueOnce("sk-test-openai");
+    inquirer.password.mockResolvedValueOnce("sk-or-test-openrouter");
     inquirer.password.mockResolvedValueOnce("tvly-test-tavily");
     mockSecrets.get.mockResolvedValue(null);
 
@@ -87,12 +88,12 @@ describe("initCommand", () => {
     const resolvedTemp = await realpath(tempDir);
     expect(resolvedRoot).toBe(resolvedTemp);
 
-    expect(mockSecrets.set).toHaveBeenCalledWith("OPENAI_API_KEY", "sk-test-openai");
+    expect(mockSecrets.set).toHaveBeenCalledWith("OPENROUTER_API_KEY", "sk-or-test-openrouter");
     expect(mockSecrets.set).toHaveBeenCalledWith("TAVILY_API_KEY", "tvly-test-tavily");
   });
 
   it("should initialize a project in non-interactive mode", async () => {
-    process.env.OPENAI_API_KEY = "sk-env-openai";
+    process.env.OPENROUTER_API_KEY = "sk-env-openrouter";
     process.env.TAVILY_API_KEY = "tvly-env-tavily";
 
     await initCommand.parseAsync(["node", "test", "--non-interactive"]);
@@ -100,12 +101,12 @@ describe("initCommand", () => {
     const projectFilePath = join(tempDir, ".ship-spec", "project.json");
     expect(existsSync(projectFilePath)).toBe(true);
 
-    expect(mockSecrets.set).toHaveBeenCalledWith("OPENAI_API_KEY", "sk-env-openai");
+    expect(mockSecrets.set).toHaveBeenCalledWith("OPENROUTER_API_KEY", "sk-env-openrouter");
     expect(mockSecrets.set).toHaveBeenCalledWith("TAVILY_API_KEY", "tvly-env-tavily");
   });
 
   it("should fail in non-interactive mode if keys are missing", async () => {
-    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
 
     await expect(initCommand.parseAsync(["node", "test", "--non-interactive"])).rejects.toThrow();
   });
@@ -127,7 +128,7 @@ describe("initCommand", () => {
     await mkdir(subDir, { recursive: true });
     process.chdir(subDir);
 
-    process.env.OPENAI_API_KEY = "sk-env-openai";
+    process.env.OPENROUTER_API_KEY = "sk-env-openrouter";
     process.env.TAVILY_API_KEY = "tvly-env-tavily";
 
     await initCommand.parseAsync(["node", "test", "--non-interactive"]);
