@@ -19,7 +19,7 @@ const program = new Command();
 program
   .name("ship-spec")
   .description("Autonomous semantic engine for codebase analysis and spec generation")
-  .version("0.1.0")
+  .version("0.1.1")
   .option("-v, --verbose", "Enable verbose logging")
   .option("-c, --config <path>", "Path to config file")
   .option("--strict-config", "Fail on malformed or invalid config files")
