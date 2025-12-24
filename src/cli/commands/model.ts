@@ -8,16 +8,13 @@ import { z } from "zod";
 import { SUPPORTED_CHAT_MODELS } from "../../config/schema.js";
 
 // Minimal schema for reading config file - only extracts llm.modelName
-const PartialConfigSchema = z
-  .object({
-    llm: z
-      .object({
-        modelName: z.string().optional(),
-      })
-      .loose()
-      .optional(),
-  })
-  .loose();
+const PartialConfigSchema = z.looseObject({
+  llm: z
+    .looseObject({
+      modelName: z.string().optional(),
+    })
+    .optional(),
+});
 import { CONFIG_FILES } from "../../config/loader.js";
 import { findProjectRoot } from "../../core/project/project-state.js";
 import { logger } from "../../utils/logger.js";
