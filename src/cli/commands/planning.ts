@@ -299,16 +299,23 @@ async function planningAction(
       );
       repository = new DocumentRepository(vectorStore, embeddings, resolvedDimensions);
 
-      // Ensure index is fresh
-      if (options.reindex || !existsSync(join(config.vectorDbPath, "index-manifest"))) {
-        const manifestPath = join(config.vectorDbPath, "index-manifest");
-        await ensureIndex({
-          config: resolvedConfig,
-          repository,
-          vectorStore,
-          manifestPath,
-          forceReindex: options.reindex,
-        });
+      // Ensure index is fresh (always call ensureIndex for incremental change detection)
+      const manifestPath = join(config.vectorDbPath, "index-manifest");
+      logger.progress("Checking codebase index freshness...");
+      const indexResult = await ensureIndex({
+        config: resolvedConfig,
+        repository,
+        vectorStore,
+        manifestPath,
+        forceReindex: options.reindex,
+      });
+
+      if (indexResult.added > 0 || indexResult.modified > 0 || indexResult.removed > 0) {
+        logger.info(
+          `Index updated: ${String(indexResult.added)} added, ${String(indexResult.modified)} modified, ${String(indexResult.removed)} removed.`
+        );
+      } else {
+        logger.info("Index is up to date.");
       }
     } catch (err) {
       logger.warn(`Failed to initialize code search: ${sanitizeError(err)}`);
