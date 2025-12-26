@@ -61,9 +61,10 @@ export function createSpecGeneratorNode(model: BaseChatModel) {
         };
       }
 
-      // User provided feedback - clear pending spec to trigger regeneration
+      // User provided feedback - save pending spec as revision base, then clear to trigger regeneration
       logger.info("Feedback received. Revising tech spec...");
       return {
+        techSpec: state.pendingTechSpec, // Save as revision base for buildSpecPrompt (will be replaced on approval)
         pendingTechSpec: "", // Clear to trigger Phase 1 regeneration
         userFeedback: feedbackStr,
         // phase stays at "spec_review" to loop back
@@ -78,7 +79,7 @@ export function createSpecGeneratorNode(model: BaseChatModel) {
       state.prd,
       state.signals,
       state.codeContext,
-      state.techSpec, // Previous approved spec (for revision context)
+      state.techSpec, // Previous spec (revision base if feedback provided, or empty for first generation)
       state.userFeedback
     );
 

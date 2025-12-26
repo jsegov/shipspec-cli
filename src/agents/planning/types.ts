@@ -3,6 +3,8 @@
  * Defines interfaces for planning state, interrupt payloads, and track metadata.
  */
 
+import { z } from "zod";
+
 /**
  * Planning phase states for the workflow.
  */
@@ -65,12 +67,17 @@ export interface TrackMetadata {
 }
 
 /**
+ * Zod schema for CLI options for the planning command.
+ */
+export const PlanningOptionsSchema = z.object({
+  track: z.string().optional(),
+  reindex: z.boolean(),
+  noSave: z.boolean(),
+  cloudOk: z.boolean(),
+  localOnly: z.boolean(),
+});
+
+/**
  * CLI options for the planning command.
  */
-export interface PlanningOptions {
-  track?: string;
-  reindex: boolean;
-  noSave: boolean;
-  cloudOk: boolean;
-  localOnly: boolean;
-}
+export type PlanningOptions = z.infer<typeof PlanningOptionsSchema>;

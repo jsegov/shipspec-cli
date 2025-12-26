@@ -6,7 +6,7 @@
 
 import { Command } from "commander";
 import { mkdir, readFile } from "fs/promises";
-import { resolve, join } from "path";
+import { resolve, join, basename, sep } from "path";
 import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
 import chalk from "chalk";
@@ -21,12 +21,13 @@ import { createEmbeddingsModel } from "../../core/models/embeddings.js";
 import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { createPlanningGraph } from "../../agents/planning/graph.js";
 import type { PlanningStateType } from "../../agents/planning/state.js";
-import type {
-  TrackMetadata,
-  PlanningOptions,
-  InterruptPayload,
-  ClarificationInterruptPayload,
-  DocumentReviewInterruptPayload,
+import {
+  PlanningOptionsSchema,
+  type TrackMetadata,
+  type PlanningOptions,
+  type InterruptPayload,
+  type ClarificationInterruptPayload,
+  type DocumentReviewInterruptPayload,
 } from "../../agents/planning/types.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger, sanitizeError } from "../../utils/logger.js";
@@ -36,6 +37,77 @@ import { createSecretsStore } from "../../core/secrets/secrets-store.js";
 import { redactText } from "../../utils/redaction.js";
 import { writeFileAtomicNoFollow } from "../../utils/safe-write.js";
 import { z } from "zod";
+
+/**
+ * Maximum length for track IDs (UUIDs are 36 chars, allow some margin).
+ */
+const MAX_TRACK_ID_LENGTH = 128;
+
+/**
+ * Pattern for valid track IDs: alphanumeric, hyphens, and underscores only.
+ * This prevents path traversal attacks via `..`, `/`, `\`, etc.
+ */
+const SAFE_TRACK_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * Validates a track ID to prevent path traversal attacks.
+ * Track IDs must:
+ * - Contain only alphanumeric characters, hyphens, and underscores
+ * - Not exceed the maximum length
+ * - Not be empty
+ *
+ * @param trackId - The track ID to validate
+ * @throws CliUsageError if the track ID is invalid
+ */
+export function validateTrackId(trackId: string): void {
+  if (!trackId || trackId.length === 0) {
+    throw new CliUsageError("Track ID cannot be empty.");
+  }
+
+  if (trackId.length > MAX_TRACK_ID_LENGTH) {
+    throw new CliUsageError(
+      `Track ID exceeds maximum length of ${String(MAX_TRACK_ID_LENGTH)} characters.`
+    );
+  }
+
+  if (!SAFE_TRACK_ID_PATTERN.test(trackId)) {
+    throw new CliUsageError(
+      "Invalid track ID. Track IDs must contain only alphanumeric characters, hyphens, and underscores."
+    );
+  }
+}
+
+/**
+ * Validates that the resolved track directory is within the expected parent directory.
+ * This is a defense-in-depth check against path traversal.
+ *
+ * @param trackDir - The resolved track directory path
+ * @param expectedParent - The expected parent directory
+ * @throws CliRuntimeError if the path escapes the expected parent
+ */
+export function validateTrackPath(trackDir: string, expectedParent: string): void {
+  const resolvedTrackDir = resolve(trackDir);
+  const resolvedParent = resolve(expectedParent);
+
+  // Ensure the resolved path starts with the expected parent + separator
+  // This prevents escape via symlinks or other path manipulation
+  if (!resolvedTrackDir.startsWith(resolvedParent + sep) && resolvedTrackDir !== resolvedParent) {
+    throw new CliRuntimeError(
+      "Track directory path escapes the expected planning directory. This may indicate a path traversal attempt.",
+      new Error(`Expected: ${resolvedParent}, Got: ${resolvedTrackDir}`)
+    );
+  }
+
+  // Additional check: basename should match the track ID (no directory components)
+  const trackDirBasename = basename(resolvedTrackDir);
+  const expectedBasename = basename(trackDir);
+  if (trackDirBasename !== expectedBasename) {
+    throw new CliRuntimeError(
+      "Track directory path manipulation detected.",
+      new Error(`Expected basename: ${expectedBasename}, Got: ${trackDirBasename}`)
+    );
+  }
+}
 
 /** Planning outputs directory within .ship-spec/ */
 const PLANNING_DIR = "planning";
@@ -49,13 +121,16 @@ const UNTRUSTED_BANNER =
 
 /**
  * Track metadata schema for validation.
+ * Note: initialIdea must be non-empty. If metadata has an empty initialIdea,
+ * validation fails and the checkpoint recovery path is triggered, which properly
+ * handles corrupted or incomplete track data.
  */
 const TrackMetadataSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
   phase: z.enum(["clarifying", "prd_review", "spec_review", "complete"]),
-  initialIdea: z.string(),
+  initialIdea: z.string().min(1, "initialIdea cannot be empty"),
   prdApproved: z.boolean(),
   specApproved: z.boolean(),
 });
@@ -88,13 +163,23 @@ async function planningAction(
   cmdOpts: CommanderPlanningOptions
 ): Promise<void> {
   // Normalize Commander's `save` to our `noSave` convention
-  const options: PlanningOptions = {
-    ...cmdOpts,
+  const rawOptions = {
+    track: cmdOpts.track,
     noSave: cmdOpts.save === false,
     reindex: cmdOpts.reindex ?? false,
     cloudOk: cmdOpts.cloudOk ?? false,
     localOnly: cmdOpts.localOnly ?? false,
   };
+
+  // Validate options with Zod schema
+  const parseResult = PlanningOptionsSchema.safeParse(rawOptions);
+  if (!parseResult.success) {
+    const errorMessages = parseResult.error.issues
+      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join(", ");
+    throw new CliUsageError(`Invalid planning options: ${errorMessages}`);
+  }
+  const options: PlanningOptions = parseResult.data;
 
   // 1. Fail-fast if not initialized
   const projectRoot = findProjectRoot(process.cwd());
@@ -140,13 +225,25 @@ async function planningAction(
   // 5. Check cloud consent
   await checkCloudConsent(config, options, projectRoot);
 
-  // 6. Set up track directory
+  // 6. Set up track directory with path traversal protection
   const trackId = options.track ?? randomUUID();
-  const trackDir = join(projectRoot, PROJECT_DIR, PLANNING_DIR, trackId);
+
+  // Validate user-provided track IDs to prevent path traversal attacks
+  if (options.track) {
+    validateTrackId(trackId);
+  }
+
+  const planningParentDir = join(projectRoot, PROJECT_DIR, PLANNING_DIR);
+  const trackDir = join(planningParentDir, trackId);
+
+  // Defense-in-depth: verify the resolved path doesn't escape the parent directory
+  validateTrackPath(trackDir, planningParentDir);
 
   // Load existing track metadata if resuming
   let trackMetadata: TrackMetadata | null = null;
   const trackMetadataPath = join(trackDir, "track.json");
+  // Flag to indicate if we should attempt checkpoint resume even without valid metadata
+  let attemptCheckpointResume = false;
 
   if (options.track && existsSync(trackMetadataPath)) {
     try {
@@ -156,11 +253,20 @@ async function planningAction(
         trackMetadata = parsed.data;
         logger.info(`Resuming planning track: ${chalk.cyan(trackId)}`);
       } else {
-        logger.warn("Invalid track metadata, starting fresh.");
+        // Metadata exists but is invalid - will check checkpoint below
+        logger.warn("Invalid track metadata format.");
+        attemptCheckpointResume = true;
       }
     } catch {
-      logger.warn("Could not read track metadata, starting fresh.");
+      // File exists but couldn't be read/parsed - will check checkpoint below
+      logger.warn("Could not read track metadata.");
+      attemptCheckpointResume = true;
     }
+  } else if (options.track && !existsSync(trackMetadataPath)) {
+    // User explicitly provided --track but metadata file doesn't exist
+    // Will check checkpoint below
+    logger.warn(`Track metadata not found at ${trackMetadataPath}`);
+    attemptCheckpointResume = true;
   }
 
   // 7. Initialize repository for RAG (optional)
@@ -231,8 +337,59 @@ async function planningAction(
   // Planning always uses checkpointing for interrupt() support
   const graphConfig = { configurable: { thread_id: trackId } };
 
-  // 10. Get initial idea
+  // 10. Determine initial idea and resumption state
+  // Order of precedence:
+  // 1. CLI argument (explicit user input)
+  // 2. Track metadata (from track.json)
+  // 3. Checkpoint state (if attempting checkpoint resume)
+  // 4. Prompt user (only if none of the above)
   let initialIdea = idea ?? trackMetadata?.initialIdea;
+  let isResuming = Boolean(options.track && trackMetadata);
+
+  // If --track was provided but metadata failed, check if checkpoint exists BEFORE prompting user
+  if (attemptCheckpointResume && !isResuming) {
+    try {
+      const existingState = await graph.getState(graphConfig);
+      // Check if checkpoint has meaningful state (initialIdea is a good indicator)
+      if (existingState.values && typeof existingState.values === "object") {
+        const stateValues = existingState.values as Partial<PlanningStateType>;
+        if (stateValues.initialIdea && stateValues.initialIdea.trim() !== "") {
+          // Checkpoint exists with state - we can resume
+          logger.info(
+            `Found existing checkpoint for track ${chalk.cyan(trackId)}. Resuming from checkpoint.`
+          );
+          isResuming = true;
+          // Use the initialIdea from checkpoint if user didn't provide one via CLI
+          initialIdea ??= stateValues.initialIdea;
+        } else {
+          // Checkpoint exists but has no initialIdea - corrupted or empty
+          throw new CliUsageError(
+            `Track '${trackId}' has corrupted or empty checkpoint data. ` +
+              `Cannot resume this session. Start a new session without --track.`
+          );
+        }
+      } else {
+        // No checkpoint found for this track ID
+        throw new CliUsageError(
+          `No checkpoint found for track '${trackId}'. ` +
+            `The session may have been deleted or never existed. ` +
+            `Start a new session without --track.`
+        );
+      }
+    } catch (err) {
+      // If it's already a CliUsageError, rethrow it
+      if (err instanceof CliUsageError) {
+        throw err;
+      }
+      // Otherwise, wrap the error
+      throw new CliUsageError(
+        `Failed to check checkpoint for track '${trackId}': ${sanitizeError(err)}. ` +
+          `Start a new session without --track.`
+      );
+    }
+  }
+
+  // 11. Prompt user for initial idea if not obtained from CLI, metadata, or checkpoint
   if (!initialIdea) {
     initialIdea = await input({
       message: "Describe what you want to build:",
@@ -244,15 +401,12 @@ async function planningAction(
 
   logger.progress(chalk.bold("\n🚀 Starting planning workflow...\n"));
 
-  // 11. Create track directory (only if saving)
+  // 12. Create track directory (only if saving)
   if (!options.noSave) {
     await mkdir(trackDir, { recursive: true, mode: 0o700 });
   }
 
-  // 12. Run graph with interrupt handling loop
-  // When resuming (options.track is set), pass null to let LangGraph load checkpointed state
-  // When starting fresh, pass { initialIdea } to initialize the workflow
-  const isResuming = Boolean(options.track && trackMetadata);
+  // 13. Run graph with interrupt handling loop
   let result = (await graph.invoke(
     isResuming ? null : { initialIdea },
     graphConfig

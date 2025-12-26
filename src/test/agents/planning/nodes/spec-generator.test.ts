@@ -169,8 +169,8 @@ describe("Spec Generator Node", () => {
       expect(result.pendingTechSpec).toBe("");
       // Should store feedback
       expect(result.userFeedback).toBe("Add more details about error handling");
-      // Should NOT update final techSpec
-      expect(result.techSpec).toBeUndefined();
+      // Should save pending as revision base (bug fix: enables feedback to be included in prompt)
+      expect(result.techSpec).toBe("# Tech Spec v1\n\nNeeds revision");
       // Phase should NOT change (stays at spec_review to loop back)
       expect(result.phase).toBeUndefined();
     });

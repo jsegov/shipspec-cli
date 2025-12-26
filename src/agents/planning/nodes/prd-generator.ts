@@ -61,9 +61,10 @@ export function createPRDGeneratorNode(model: BaseChatModel) {
         };
       }
 
-      // User provided feedback - clear pending PRD to trigger regeneration
+      // User provided feedback - save pending PRD as revision base, then clear to trigger regeneration
       logger.info("Feedback received. Revising PRD...");
       return {
+        prd: state.pendingPrd, // Save as revision base for buildPRDPrompt (will be replaced on approval)
         pendingPrd: "", // Clear to trigger Phase 1 regeneration
         userFeedback: feedbackStr,
         // phase stays at "prd_review" to loop back
@@ -79,7 +80,7 @@ export function createPRDGeneratorNode(model: BaseChatModel) {
       state.clarificationHistory,
       state.signals,
       state.codeContext,
-      state.prd, // Previous approved PRD (for revision context)
+      state.prd, // Previous PRD (revision base if feedback provided, or empty for first generation)
       state.userFeedback
     );
 

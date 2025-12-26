@@ -169,8 +169,8 @@ describe("PRD Generator Node", () => {
       expect(result.pendingPrd).toBe("");
       // Should store feedback
       expect(result.userFeedback).toBe("Add more details about user authentication");
-      // Should NOT update final prd
-      expect(result.prd).toBeUndefined();
+      // Should save pending as revision base (bug fix: enables feedback to be included in prompt)
+      expect(result.prd).toBe("# PRD v1\n\nNeeds revision");
       // Phase should NOT change (stays at prd_review to loop back)
       expect(result.phase).toBeUndefined();
     });
