@@ -6,6 +6,7 @@ import { setMaxListeners } from "events";
 import { configCommand } from "./commands/config.js";
 import { initCommand } from "./commands/init.js";
 import { modelCommand } from "./commands/model.js";
+import { planningCommand } from "./commands/planning.js";
 import { productionalizeCommand } from "./commands/productionalize.js";
 import { resolveCliConfig } from "./config-resolver.js";
 
@@ -19,7 +20,7 @@ const program = new Command();
 program
   .name("ship-spec")
   .description("Autonomous semantic engine for codebase analysis and spec generation")
-  .version("0.1.1")
+  .version("0.2.0")
   .option("-v, --verbose", "Enable verbose logging")
   .option("-c, --config <path>", "Path to config file")
   .option("--strict-config", "Fail on malformed or invalid config files")
@@ -39,6 +40,7 @@ program
 program.addCommand(configCommand);
 program.addCommand(initCommand);
 program.addCommand(modelCommand);
+program.addCommand(planningCommand);
 program.addCommand(productionalizeCommand);
 
 async function main() {

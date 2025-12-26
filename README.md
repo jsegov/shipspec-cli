@@ -26,25 +26,32 @@
 
 ## Why Ship Spec?
 
-Understanding a codebase's production readiness is hard. Manual security and reliability audits are tedious. **Ship Spec** bridges the gap by using AI to analyze your code semantically and generate comprehensive production reports on demand.
+Planning new features and evaluating production readiness are complex tasks that require deep codebase understanding. **Ship Spec** uses AI to streamline both:
+
+- **Spec-Driven Development** — Interactively plan features with AI-generated PRDs, tech specs, and implementation tasks
+- **Production Readiness Analysis** — Semantic code analysis, security audits, and compliance evaluation on demand
 
 ```bash
 # Initialize project and set API keys
 ship-spec init
 
+# Plan a new feature with guided workflow
+ship-spec planning "Add OAuth authentication" --cloud-ok
+
 # Analyze production readiness
-ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2"
+ship-spec productionalize "B2B SaaS handling PII, targeting SOC 2" --cloud-ok
 ```
 
-That's it. Ship Spec handles the rest—parsing your code into semantic chunks, automatically building a searchable vector index, and orchestrating AI agents to evaluate your project against industry standards.
+Ship Spec handles the heavy lifting—parsing your code into semantic chunks, building a searchable vector index, and orchestrating AI agents to either guide feature planning or evaluate your project against industry standards.
 
 ---
 
 ## ✨ Features
 
+- **📋 Interactive Planning Workflow** — Spec-driven development with AI-guided clarification, PRD generation, tech specs, and task breakdowns
 - **🔍 Semantic Code Understanding** — Uses Tree-sitter for AST-based parsing across TypeScript, JavaScript, Python, Go, and Rust
 - **☁️ Unified Model Gateway** — Access Gemini, Claude, and GPT models through a single OpenRouter endpoint
-- **🧠 Agentic Workflow** — LangGraph.js orchestrates a Map-Reduce pattern with planning, parallel analysis, and synthesis
+- **🧠 Agentic Workflow** — LangGraph.js orchestrates workflows with human-in-the-loop review cycles
 - **🛡️ Production Readiness Analysis** — Hybrid planner combines deterministic signals with dynamic research and SAST scans
 - **🗄️ Local-First Vector Store** — Embedded LanceDB for fast similarity search without external dependencies
 - **🏠 Local Inference Support** — Maintains local-first philosophy with optional Ollama integration
@@ -79,10 +86,22 @@ The `init` command will:
 - Store them securely in your OS keychain (one-time setup per machine)
 - Create a `.ship-spec/` directory in your project for tracking state and outputs
 
-### 3. Analyze production readiness
+### 3. Plan features or analyze production readiness
 
+**Plan a new feature:**
 ```bash
-ship-spec productionalize
+ship-spec planning "Add user authentication" --cloud-ok
+```
+
+The tool will:
+- Guide you through clarifying questions
+- Generate PRD and tech spec with your approval
+- Create actionable implementation tasks
+- Save all artifacts to `.ship-spec/planning/<track-id>/`
+
+**Analyze production readiness:**
+```bash
+ship-spec productionalize --cloud-ok
 ```
 
 The tool will:
@@ -147,6 +166,79 @@ ship-spec model current
 
 # Set model (gemini-flash, claude-sonnet, or gpt-pro)
 ship-spec model set gemini-flash
+```
+
+### `ship-spec planning [idea]`
+
+Guide you through spec-driven development to plan new features or bootstrap new projects. This interactive command uses AI to help clarify requirements, generate a Product Requirements Document (PRD), create a Technical Specification, and produce actionable implementation tasks.
+
+```bash
+# Interactive mode - you'll be prompted for your idea
+ship-spec planning
+
+# Provide idea upfront
+ship-spec planning "Build a user authentication system with email/password"
+
+# Resume an existing planning session
+ship-spec planning --track <track-id>
+
+# Force re-indexing of codebase for better context
+ship-spec planning --reindex
+```
+
+**Workflow:**
+
+The planning command follows an interactive, iterative workflow:
+
+1. **Clarification** — AI asks follow-up questions to understand your requirements
+2. **PRD Generation** — Creates a Product Requirements Document based on clarified needs
+3. **PRD Review** — You review and approve or provide feedback for revision
+4. **Tech Spec Generation** — Generates a technical specification from the approved PRD
+5. **Tech Spec Review** — You review and approve or provide feedback for revision
+6. **Task Generation** — Produces implementation task prompts ready for coding agents
+
+**Outputs:**
+
+All planning artifacts are saved to `.ship-spec/planning/<track-id>/`:
+- `prd.md` — Product Requirements Document
+- `tech-spec.md` — Technical Specification
+- `tasks.md` — Implementation task prompts
+- `context.md` — Project signals and code context used
+- `track.json` — Session metadata for resumption
+
+**Options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--track <id>` | Resume an existing planning session | Creates new |
+| `--reindex` | Force full re-index of the codebase | `false` |
+| `--no-save` | Don't save artifacts to disk | `false` |
+| `--cloud-ok` | Acknowledge sending data to cloud LLMs | Required |
+| `--local-only` | Use only local models (Ollama) | `false` |
+
+**Example Session:**
+
+```bash
+$ ship-spec planning --cloud-ok
+? Describe what you want to build: Add rate limiting to our API
+
+📝 Clarifying questions:
+1. What type of rate limiting do you want? (e.g., per-user, per-IP, per-endpoint)
+> Per-user, based on API key
+
+2. What are the rate limits? (e.g., requests per minute/hour)
+> 1000 requests per hour, 100 per minute
+
+✓ PRD generated. Awaiting review...
+PRD written to: .ship-spec/planning/abc123/prd.md
+? Review the PRD and reply 'approve' or provide feedback: approve
+
+✓ Tech spec generated. Awaiting review...
+Tech Spec written to: .ship-spec/planning/abc123/tech-spec.md
+? Review and reply 'approve' or provide feedback: approve
+
+✓ Generated 5 implementation tasks.
+All artifacts saved to: .ship-spec/planning/abc123/
 ```
 
 ### `ship-spec productionalize [context]`

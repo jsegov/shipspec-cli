@@ -1,0 +1,9 @@
+{
+  "id": "f39389be-185a-4f03-be67-870d77efa5eb",
+  "createdAt": "2025-12-26T19:28:47.227Z",
+  "updatedAt": "2025-12-26T19:28:47.227Z",
+  "phase": "complete",
+  "initialIdea": "add evals to test the planning and productionalize commands and all their sub agents",
+  "prdApproved": true,
+  "specApproved": true
+}

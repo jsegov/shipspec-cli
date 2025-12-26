@@ -4,7 +4,7 @@ import { loadConfig } from "../config/loader.js";
 import type { ShipSpecConfig } from "../config/schema.js";
 import { findProjectRoot } from "../core/project/project-state.js";
 
-const ROOT_AWARE_COMMANDS = new Set(["productionalize", "config"]);
+const ROOT_AWARE_COMMANDS = new Set(["productionalize", "config", "planning"]);
 
 interface ResolveCliConfigParams {
   actionName: string;
