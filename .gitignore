@@ -3,6 +3,7 @@ dist/
 .env
 .ship-spec/outputs/
 .ship-spec/lancedb/
+.ship-spec/planning/
 .ship-spec/project.json
 .ship-spec/index-manifest
 .ship-spec/consent.json

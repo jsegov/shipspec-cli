@@ -1,6 +1,14 @@
 /**
  * Tech Spec Generator Node
  * Generates Technical Specifications and uses interrupt() for user review.
+ *
+ * This node uses a two-phase pattern to handle LangGraph's interrupt behavior:
+ * - Phase 1: LLM generates spec, stores in pendingTechSpec, returns (saves to state). Graph loops back.
+ * - Phase 2: Detect pendingTechSpec, call interrupt() to get user review.
+ *   On resume, interrupt() returns the feedback, which we process and clear pendingTechSpec.
+ *
+ * This ensures the LLM is only called once per generation cycle and the user
+ * always reviews the same document that gets saved (no regeneration on resume).
  */
 
 import { interrupt } from "@langchain/langgraph";
@@ -19,6 +27,50 @@ import { logger } from "../../../utils/logger.js";
  */
 export function createSpecGeneratorNode(model: BaseChatModel) {
   return async (state: PlanningStateType): Promise<Partial<PlanningStateType>> => {
+    // Phase 2: We have a pending spec awaiting review - interrupt for user feedback.
+    // When interrupt() is called, execution stops. On resume, the node re-executes
+    // from the beginning with the same state, but interrupt() returns the user's feedback.
+    if (state.pendingTechSpec) {
+      logger.progress("Tech spec pending review...");
+
+      const interruptPayload: DocumentReviewInterruptPayload = {
+        type: "spec_review",
+        document: state.pendingTechSpec,
+        instructions:
+          "Review the technical specification. Reply 'approve' to continue or provide feedback for revision.",
+      };
+
+      // First call: stops execution, returns spec to CLI for review
+      // Resume call: returns the feedback passed via Command({ resume: ... })
+      const rawFeedback: unknown = interrupt(interruptPayload);
+
+      // Validate that we received a string
+      if (typeof rawFeedback !== "string") {
+        throw new Error("Invalid interrupt response: expected string feedback");
+      }
+      const feedbackStr = rawFeedback.trim();
+
+      // Check if user approved
+      if (feedbackStr.toLowerCase() === "approve") {
+        logger.success("Tech spec approved. Moving to task generation.");
+        return {
+          techSpec: state.pendingTechSpec, // Move pending to final
+          pendingTechSpec: "", // Clear pending
+          phase: "complete" as const,
+          userFeedback: "", // Clear feedback
+        };
+      }
+
+      // User provided feedback - clear pending spec to trigger regeneration
+      logger.info("Feedback received. Revising tech spec...");
+      return {
+        pendingTechSpec: "", // Clear to trigger Phase 1 regeneration
+        userFeedback: feedbackStr,
+        // phase stays at "spec_review" to loop back
+      };
+    }
+
+    // Phase 1: Generate tech spec with LLM
     logger.progress("Generating Technical Specification...");
 
     // Build the prompt with PRD and codebase context
@@ -26,7 +78,7 @@ export function createSpecGeneratorNode(model: BaseChatModel) {
       state.prd,
       state.signals,
       state.codeContext,
-      state.techSpec,
+      state.techSpec, // Previous approved spec (for revision context)
       state.userFeedback
     );
 
@@ -39,41 +91,14 @@ export function createSpecGeneratorNode(model: BaseChatModel) {
     const specContent =
       typeof response.content === "string" ? response.content : JSON.stringify(response.content);
 
-    logger.success("Tech spec generated. Awaiting review...");
+    logger.success("Tech spec generated. Storing for review...");
 
-    // INTERRUPT: Return spec for user review
-    const interruptPayload: DocumentReviewInterruptPayload = {
-      type: "spec_review",
-      document: specContent,
-      instructions:
-        "Review the technical specification. Reply 'approve' to continue or provide feedback for revision.",
-    };
-
-    // This pauses execution and returns control to the CLI
-    const rawFeedback: unknown = interrupt(interruptPayload);
-
-    // Validate that we received a string
-    if (typeof rawFeedback !== "string") {
-      throw new Error("Invalid interrupt response: expected string feedback");
-    }
-    const feedbackStr = rawFeedback.trim();
-
-    // Check if user approved
-    if (feedbackStr.toLowerCase() === "approve") {
-      logger.success("Tech spec approved. Moving to task generation.");
-      return {
-        techSpec: specContent,
-        phase: "complete" as const,
-        userFeedback: "", // Clear feedback
-      };
-    }
-
-    // User provided feedback - loop back for revision
-    logger.info("Feedback received. Revising tech spec...");
+    // Store spec in pendingTechSpec. Graph will loop back to this node,
+    // and the next invocation will detect pendingTechSpec and call interrupt().
+    // This ensures the user reviews the exact document that will be saved.
     return {
-      techSpec: specContent,
-      userFeedback: feedbackStr,
-      // phase stays at "spec_review" to loop back
+      pendingTechSpec: specContent,
+      userFeedback: "", // Clear feedback after regeneration
     };
   };
 }

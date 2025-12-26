@@ -69,7 +69,6 @@ export interface TrackMetadata {
  */
 export interface PlanningOptions {
   track?: string;
-  checkpoint: boolean;
   reindex: boolean;
   noSave: boolean;
   cloudOk: boolean;

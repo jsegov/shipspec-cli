@@ -38,7 +38,6 @@ describe("planningCommand", () => {
     const optionNames = options.map((opt) => opt.long);
 
     expect(optionNames).toContain("--track");
-    expect(optionNames).toContain("--checkpoint");
     expect(optionNames).toContain("--reindex");
     expect(optionNames).toContain("--no-save");
     expect(optionNames).toContain("--cloud-ok");

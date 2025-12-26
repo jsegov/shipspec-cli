@@ -32,7 +32,10 @@ export function messagesReducer(x: BaseMessage[], y: BaseMessage[]): BaseMessage
  */
 export const PlanningState = Annotation.Root({
   // User input
-  initialIdea: Annotation<string>(),
+  initialIdea: Annotation<string>({
+    reducer: (_x, y) => y,
+    default: () => "",
+  }),
 
   // Phase tracking
   phase: Annotation<PlanningPhase>({
@@ -63,6 +66,17 @@ export const PlanningState = Annotation.Root({
   pendingQuestions: Annotation<string[]>({
     reducer: (_x, y) => y,
     default: () => [],
+  }),
+
+  // Pending documents awaiting review (two-phase interrupt pattern)
+  // These store generated documents before interrupt() to prevent regeneration on resume
+  pendingPrd: Annotation<string>({
+    reducer: (_x, y) => y,
+    default: () => "",
+  }),
+  pendingTechSpec: Annotation<string>({
+    reducer: (_x, y) => y,
+    default: () => "",
   }),
 
   // Documents

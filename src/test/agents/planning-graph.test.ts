@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { MemorySaver } from "@langchain/langgraph-checkpoint";
 import { createPlanningGraph } from "../../agents/planning/graph.js";
 import type { ShipSpecConfig } from "../../config/schema.js";
 
@@ -44,9 +45,8 @@ describe("createPlanningGraph", () => {
   });
 
   it("should create a planning graph with checkpointer", async () => {
-    const graph = await createPlanningGraph(mockConfig, null, {
-      checkpointer: undefined, // Would normally be a real checkpointer
-    });
+    const checkpointer = new MemorySaver();
+    const graph = await createPlanningGraph(mockConfig, null, { checkpointer });
     expect(graph).toBeDefined();
   });
 });

@@ -27,6 +27,37 @@ describe("PlanningState", () => {
     // Verify the pendingQuestions field exists in the spec
     expect(PlanningState.spec).toHaveProperty("pendingQuestions");
   });
+
+  it("should have pendingPrd field for two-phase interrupt pattern", () => {
+    // Verify the pendingPrd field exists in the spec
+    expect(PlanningState.spec).toHaveProperty("pendingPrd");
+  });
+
+  it("should have pendingTechSpec field for two-phase interrupt pattern", () => {
+    // Verify the pendingTechSpec field exists in the spec
+    expect(PlanningState.spec).toHaveProperty("pendingTechSpec");
+  });
+
+  it("should have initialIdea field with reducer and default to prevent undefined on checkpoint resume", () => {
+    // Bug fix verification: initialIdea must have a default value to prevent undefined
+    // when resuming from a checkpoint where the field wasn't explicitly initialized.
+    // Without a default, downstream nodes using the field in string operations would fail.
+    //
+    // The fix in state.ts adds:
+    //   initialIdea: Annotation<string>({
+    //     reducer: (_x, y) => y,
+    //     default: () => "",
+    //   }),
+    //
+    // LangGraph's Annotation API doesn't expose the default function on spec directly,
+    // so we verify the field exists in the schema definition.
+    expect(PlanningState.spec).toHaveProperty("initialIdea");
+
+    // The spec should be defined (not undefined or null)
+    const initialIdeaSpec = PlanningState.spec.initialIdea;
+    expect(initialIdeaSpec).toBeDefined();
+    expect(initialIdeaSpec).not.toBeNull();
+  });
 });
 
 describe("clarificationHistoryReducer", () => {

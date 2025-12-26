@@ -71,10 +71,31 @@ const ConsentSchema = z
   })
   .strict();
 
+/** Commander options shape (--no-save produces `save`, not `noSave`) */
+interface CommanderPlanningOptions {
+  track?: string;
+  reindex?: boolean;
+  save?: boolean; // Commander's negated flag: true by default, false when --no-save
+  cloudOk?: boolean;
+  localOnly?: boolean;
+}
+
 /**
  * Main planning action handler.
  */
-async function planningAction(idea: string | undefined, options: PlanningOptions): Promise<void> {
+async function planningAction(
+  idea: string | undefined,
+  cmdOpts: CommanderPlanningOptions
+): Promise<void> {
+  // Normalize Commander's `save` to our `noSave` convention
+  const options: PlanningOptions = {
+    ...cmdOpts,
+    noSave: cmdOpts.save === false,
+    reindex: cmdOpts.reindex ?? false,
+    cloudOk: cmdOpts.cloudOk ?? false,
+    localOnly: cmdOpts.localOnly ?? false,
+  };
+
   // 1. Fail-fast if not initialized
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
@@ -260,7 +281,7 @@ async function planningAction(idea: string | undefined, options: PlanningOptions
 
   // 13. Write final artifacts (only if --no-save is not set)
   if (!options.noSave) {
-    await writeTrackArtifacts(trackDir, trackId, initialIdea, result);
+    await writeTrackArtifacts(trackDir, trackId, initialIdea, result, trackMetadata);
     logger.success(chalk.green.bold("\n✅ Planning complete!"));
     logger.info(`Track ID: ${chalk.cyan(trackId)}`);
     logger.info(`Outputs: ${chalk.cyan(trackDir)}`);
@@ -271,11 +292,11 @@ async function planningAction(idea: string | undefined, options: PlanningOptions
   } else {
     // Print to stdout only
     logger.output("\n--- PRD ---\n");
-    logger.output(redactText(result.prd));
+    logger.output(result.prd ? redactText(result.prd) : "(not generated)");
     logger.output("\n--- TECH SPEC ---\n");
-    logger.output(redactText(result.techSpec));
+    logger.output(result.techSpec ? redactText(result.techSpec) : "(not generated)");
     logger.output("\n--- TASKS ---\n");
-    logger.output(redactText(result.taskPrompts));
+    logger.output(result.taskPrompts ? redactText(result.taskPrompts) : "(not generated)");
   }
 }
 
@@ -422,17 +443,24 @@ async function handleDocumentReviewInterrupt(
 
 /**
  * Writes all track artifacts to disk.
+ *
+ * @param trackDir - Directory to write artifacts to
+ * @param trackId - Unique track identifier
+ * @param initialIdea - The initial idea/prompt from the user
+ * @param state - Current planning state
+ * @param existingMetadata - Optional existing metadata when resuming a session
  */
 async function writeTrackArtifacts(
   trackDir: string,
   trackId: string,
   initialIdea: string,
-  state: PlanningStateType
+  state: PlanningStateType,
+  existingMetadata: TrackMetadata | null
 ): Promise<void> {
-  // Write track metadata
+  // Write track metadata, preserving createdAt when resuming
   const metadata: TrackMetadata = {
     id: trackId,
-    createdAt: new Date().toISOString(),
+    createdAt: existingMetadata?.createdAt ?? new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     phase: state.phase,
     initialIdea,
@@ -490,7 +518,6 @@ export const planningCommand = new Command("planning")
   .description("Plan a new feature or project with spec-driven development")
   .argument("[idea]", "High-level description of what to build")
   .option("--track <id>", "Resume an existing planning track")
-  .option("--checkpoint", "Enable checkpointing for resumable sessions")
   .option("--reindex", "Force re-index before planning")
   .option("--no-save", "Print outputs to stdout only, do not save to disk")
   .option("--cloud-ok", "Consent to sending data to cloud LLM providers")
