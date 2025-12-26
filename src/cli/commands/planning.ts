@@ -78,23 +78,26 @@ export function validateTrackId(trackId: string): void {
 }
 
 /**
- * Validates that the resolved track directory is within the expected parent directory.
+ * Validates that the resolved track directory is a proper subdirectory of the expected parent.
+ * The track directory must be strictly inside the parent (not equal to it).
  * This is a defense-in-depth check against path traversal.
  *
- * @param trackDir - The resolved track directory path
+ * @param trackDir - The resolved track directory path (must be a subdirectory of expectedParent)
  * @param expectedParent - The expected parent directory
- * @throws CliRuntimeError if the path escapes the expected parent
+ * @throws CliRuntimeError if the path is not a proper subdirectory of the expected parent
  */
 export function validateTrackPath(trackDir: string, expectedParent: string): void {
   const resolvedTrackDir = resolve(trackDir);
   const resolvedParent = resolve(expectedParent);
 
-  // Ensure the resolved path starts with the expected parent + separator
-  // This prevents escape via symlinks or other path manipulation
-  if (!resolvedTrackDir.startsWith(resolvedParent + sep) && resolvedTrackDir !== resolvedParent) {
+  // Ensure the resolved path starts with the expected parent + separator.
+  // This requires trackDir to be a proper subdirectory - equality is rejected
+  // because production code always constructs trackDir as parent/trackId.
+  // This prevents escape via symlinks or other path manipulation.
+  if (!resolvedTrackDir.startsWith(resolvedParent + sep)) {
     throw new CliRuntimeError(
       "Track directory path escapes the expected planning directory. This may indicate a path traversal attempt.",
-      new Error(`Expected: ${resolvedParent}, Got: ${resolvedTrackDir}`)
+      new Error(`Expected subdirectory of: ${resolvedParent}, Got: ${resolvedTrackDir}`)
     );
   }
 
@@ -346,11 +349,17 @@ async function planningAction(
 
   // 10. Determine initial idea and resumption state
   // Order of precedence:
-  // 1. CLI argument (explicit user input)
+  // 1. CLI argument (explicit user input, but empty string is treated as "no input")
   // 2. Track metadata (from track.json)
   // 3. Checkpoint state (if attempting checkpoint resume)
   // 4. Prompt user (only if none of the above)
-  let initialIdea = idea ?? trackMetadata?.initialIdea;
+  //
+  // Normalize CLI input: treat empty/whitespace-only strings as "no input".
+  // This prevents the bug where "" from CLI bypasses checkpoint/metadata values
+  // but still triggers the user prompt, causing the prompted value to be discarded
+  // when isResuming is already true.
+  const normalizedIdea = idea?.trim() ? idea.trim() : undefined;
+  let initialIdea = normalizedIdea ?? trackMetadata?.initialIdea;
   let isResuming = Boolean(options.track && trackMetadata);
 
   // If --track was provided but metadata failed, check if checkpoint exists BEFORE prompting user
@@ -366,8 +375,11 @@ async function planningAction(
             `Found existing checkpoint for track ${chalk.cyan(trackId)}. Resuming from checkpoint.`
           );
           isResuming = true;
-          // Use the initialIdea from checkpoint if user didn't provide one via CLI
-          initialIdea ??= stateValues.initialIdea;
+          // Use the initialIdea from checkpoint if user didn't provide one via CLI.
+          // Explicitly check for empty string to treat it as "no input provided".
+          if (!initialIdea?.trim()) {
+            initialIdea = stateValues.initialIdea;
+          }
         } else {
           // Checkpoint exists but has no initialIdea - corrupted or empty
           throw new CliUsageError(

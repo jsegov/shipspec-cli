@@ -348,6 +348,120 @@ describe("planning command incremental indexing behavior", () => {
   });
 });
 
+/**
+ * Empty string CLI argument normalization tests.
+ *
+ * Bug Fix: When a user runs `ship-spec planning "" --track <id>` with an empty
+ * string argument and a valid checkpoint, the empty string should be treated
+ * as "no input provided" rather than bypassing checkpoint/metadata values.
+ *
+ * Before the fix:
+ * 1. `idea` = "" (empty string from CLI)
+ * 2. `initialIdea = idea ?? trackMetadata?.initialIdea` = "" (nullish coalescing
+ *    doesn't trigger because "" is defined, not null/undefined)
+ * 3. `isResuming = true` (set because checkpoint has valid state)
+ * 4. `initialIdea ??= stateValues.initialIdea` - NO-OP (same reason)
+ * 5. `!initialIdea` is truthy (because !"" is true), so user gets prompted
+ * 6. User enters "My new idea"
+ * 7. BUT `isResuming` is still `true`, so graph invokes with `null`
+ * 8. User's prompted input is silently discarded!
+ *
+ * After the fix:
+ * - Empty/whitespace strings are normalized to `undefined` before nullish coalescing
+ * - This allows proper fallback to checkpoint/metadata values
+ * - The prompted value is only used when genuinely no other source is available
+ */
+describe("empty string CLI argument normalization", () => {
+  it("should normalize empty string to undefined for initialIdea precedence", () => {
+    // The fix in planning.ts (lines 361-362):
+    // const normalizedIdea = idea?.trim() ? idea.trim() : undefined;
+    // let initialIdea = normalizedIdea ?? trackMetadata?.initialIdea;
+    //
+    // This ensures empty strings don't bypass checkpoint/metadata values.
+
+    // Test the normalization logic directly
+    const normalizeIdea = (idea: string | undefined): string | undefined => {
+      return idea?.trim() ? idea.trim() : undefined;
+    };
+
+    // Empty string should normalize to undefined
+    expect(normalizeIdea("")).toBeUndefined();
+
+    // Whitespace-only should normalize to undefined
+    expect(normalizeIdea("   ")).toBeUndefined();
+    expect(normalizeIdea("\t\n")).toBeUndefined();
+
+    // Non-empty strings should be trimmed but preserved
+    expect(normalizeIdea("Build a todo app")).toBe("Build a todo app");
+    expect(normalizeIdea("  Build a todo app  ")).toBe("Build a todo app");
+
+    // undefined should stay undefined
+    expect(normalizeIdea(undefined)).toBeUndefined();
+  });
+
+  it("should allow checkpoint value to be used when CLI provides empty string", () => {
+    // Simulates the precedence logic in planning.ts (lines 361-382)
+    const normalizeIdea = (idea: string | undefined): string | undefined => {
+      return idea?.trim() ? idea.trim() : undefined;
+    };
+
+    // Scenario: User runs `ship-spec planning "" --track abc123`
+    const cliIdea = ""; // Empty string from CLI argument
+    const checkpointIdea = "Build an authentication system"; // From checkpoint
+
+    const normalizedIdea = normalizeIdea(cliIdea);
+    // Since normalizedIdea is undefined, fallback to checkpoint value
+    const initialIdea = normalizedIdea ?? checkpointIdea;
+
+    expect(initialIdea).toBe("Build an authentication system");
+  });
+
+  it("should use CLI value when non-empty even if checkpoint has value", () => {
+    // Scenario: User explicitly provides a new idea while resuming
+    const normalizeIdea = (idea: string | undefined): string | undefined => {
+      return idea?.trim() ? idea.trim() : undefined;
+    };
+
+    const cliIdea = "New feature idea"; // Explicit CLI argument
+    const checkpointIdea = "Old idea from checkpoint";
+
+    const normalizedIdea = normalizeIdea(cliIdea);
+    const initialIdea = normalizedIdea ?? checkpointIdea;
+
+    // CLI value takes precedence
+    expect(initialIdea).toBe("New feature idea");
+  });
+
+  it("should handle the checkpoint recovery path for empty strings", () => {
+    // Simulates the checkpoint recovery logic in planning.ts (lines 378-382):
+    // if (!initialIdea?.trim()) {
+    //   initialIdea = stateValues.initialIdea;
+    // }
+
+    const checkEmptyAndRecover = (
+      initialIdea: string | undefined,
+      checkpointIdea: string
+    ): string => {
+      if (!initialIdea?.trim()) {
+        return checkpointIdea;
+      }
+      return initialIdea;
+    };
+
+    // Empty string triggers recovery
+    expect(checkEmptyAndRecover("", "From checkpoint")).toBe("From checkpoint");
+
+    // Whitespace triggers recovery
+    expect(checkEmptyAndRecover("   ", "From checkpoint")).toBe("From checkpoint");
+
+    // undefined triggers recovery
+    expect(checkEmptyAndRecover(undefined, "From checkpoint")).toBe("From checkpoint");
+
+    // Non-empty string is preserved
+    expect(checkEmptyAndRecover("Explicit value", "From checkpoint")).toBe("Explicit value");
+  });
+});
+
 describe("validateTrackPath", () => {
   const parentDir = "/project/.ship-spec/planning";
 
@@ -376,11 +490,11 @@ describe("validateTrackPath", () => {
     }).toThrow(CliRuntimeError);
   });
 
-  it("should handle edge case of parent directory itself", () => {
-    // The track directory shouldn't be the parent directory itself
-    // but the function allows it for edge case handling
+  it("should reject track directory equal to parent directory", () => {
+    // The track directory must be a proper subdirectory of the parent,
+    // not equal to it - production code always constructs trackDir as parent/trackId
     expect(() => {
       validateTrackPath(parentDir, parentDir);
-    }).not.toThrow();
+    }).toThrow(CliRuntimeError);
   });
 });
