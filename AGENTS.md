@@ -79,6 +79,53 @@ ship-spec productionalize --enable-scans
 7. **Aggregator** - Synthesize findings into Markdown report.
 8. **Prompt Generator** - Generate agent-ready system prompts.
 
+### `ship-spec planning [idea]`
+
+Guide users through spec-driven development with an interactive, human-in-the-loop workflow. Produces PRD, Technical Specification, and implementation task prompts using LangGraph interrupts for review cycles.
+
+```bash
+# Interactive mode
+ship-spec planning --cloud-ok
+
+# With initial idea
+ship-spec planning "Add OAuth authentication" --cloud-ok
+
+# Resume existing session
+ship-spec planning --track <track-id> --cloud-ok
+
+# With code context (requires index)
+ship-spec planning --reindex --cloud-ok
+```
+
+**Options:**
+- `--track <id>` - Resume an existing planning session
+- `--reindex` - Force full re-index for better code context
+- `--no-save` - Don't save artifacts to disk
+- `--cloud-ok` - Acknowledge sending data to cloud LLMs (required)
+- `--local-only` - Use only local models (Ollama)
+
+**Workflow:**
+1. **Context Gathering** - Collects project signals and relevant code via RAG (if index exists).
+2. **Clarification Loop** - AI asks follow-up questions until requirements are clear (uses `interrupt()` for user input).
+3. **PRD Generation** - Generates Product Requirements Document (uses `interrupt()` for approval/revision loop).
+4. **Tech Spec Generation** - Creates technical specification from approved PRD (uses `interrupt()` for approval/revision loop).
+5. **Task Generation** - Produces implementation task prompts in the same format as `productionalize`.
+
+**Outputs:**
+All artifacts are saved to `.ship-spec/planning/<track-id>/`:
+- `prd.md` - Product Requirements Document
+- `tech-spec.md` - Technical Specification
+- `tasks.md` - Implementation task prompts
+- `context.md` - Project signals and code context used
+- `track.json` - Session metadata for resumption
+
+**Key Implementation Details:**
+- Uses LangGraph's native `interrupt()` function for human-in-the-loop interactions
+- Requires checkpointing (always enabled for planning command)
+- Supports session resumption via track ID
+- Integrates with existing RAG infrastructure when codebase index exists
+- Reuses `PromptsOutputSchema` for task generation consistency
+
 ### `ship-spec model <subcommand>`
 
 Manage chat model selection via OpenRouter.
@@ -165,6 +212,7 @@ src/
 │   ├── index.ts               # CLI entry point (Commander.js)
 │   └── commands/
 │       ├── config.ts          # Display resolved configuration
+│       ├── planning.ts        # Spec-driven development workflow with HITL
 │       └── productionalize.ts # Production readiness analysis with auto-indexing
 ├── config/
 │   ├── schema.ts              # Zod schemas for configuration
@@ -191,7 +239,17 @@ src/
 │   └── types/
 │       └── index.ts           # Shared TypeScript interfaces
 ├── agents/
-│   ├── productionalize/       # NEW: Production readiness workflow
+│   ├── planning/              # Spec-driven development workflow with HITL
+│   │   ├── graph.ts           # Interactive planning graph with interrupt loops
+│   │   ├── state.ts           # PlanningState with phase tracking
+│   │   ├── types.ts           # Planning-specific type definitions
+│   │   └── nodes/
+│   │       ├── context-gatherer.ts  # Collect signals and code context
+│   │       ├── clarifier.ts         # Ask questions via interrupt()
+│   │       ├── prd-generator.ts     # Generate PRD with review loop
+│   │       ├── spec-generator.ts    # Generate spec with review loop
+│   │       └── task-generator.ts    # Generate implementation tasks
+│   ├── productionalize/       # Production readiness workflow
 │   │   ├── graph.ts
 │   │   ├── state.ts
 │   │   └── nodes/
@@ -200,16 +258,20 @@ src/
 │   │       ├── researcher.ts
 │   │       ├── task-generator.ts
 │   │       └── worker.ts
-│   ├── state.ts               # AgentState with Annotation.Root
-│   ├── graph.ts               # Map-Reduce workflow with Send API
+│   ├── prompts/
+│   │   ├── planning-templates.ts  # Prompt templates for planning workflow
+│   │   ├── schemas.ts             # Zod schemas for structured outputs
+│   │   └── templates.ts           # Prompt templates for productionalize
+│   ├── state.ts               # AgentState with Annotation.Root (legacy)
+│   ├── graph.ts               # Map-Reduce workflow with Send API (legacy)
 │   ├── nodes/
-│   │   ├── planner.ts         # Query decomposition
-│   │   ├── worker.ts          # Retrieval and summarization + context pruning
-│   │   └── aggregator.ts      # Specification synthesis + findings truncation
+│   │   ├── planner.ts         # Query decomposition (legacy)
+│   │   ├── worker.ts          # Retrieval and summarization + context pruning (legacy)
+│   │   └── aggregator.ts      # Specification synthesis + findings truncation (legacy)
 │   └── tools/
 │       ├── retriever.ts       # DocumentRepository tool wrapper
-│       ├── sast-scanner.ts    # NEW: SAST tool wrapper
-│       └── web-search.ts      # NEW: Web search tool (Tavily/DDG)
+│       ├── sast-scanner.ts    # SAST tool wrapper
+│       └── web-search.ts      # Web search tool (Tavily/DDG)
 ├── test/
 │   ├── fixtures.ts            # Test fixtures (sample code)
 │   ├── agents/                # Agent tests (state, nodes, tools, graph)
@@ -832,11 +894,86 @@ export const LANGUAGE_REGISTRY: Record<SupportedLanguage, LanguageConfig> = {
 
 Files with unsupported extensions (`.json`, `.yaml`, `.md`, etc.) are processed with the fallback text splitter.
 
-## Agentic Workflow
+## Agentic Workflows
 
-The system uses a **Map-Reduce pattern** implemented with LangGraph.js to orchestrate intelligent code analysis:
+The system implements two distinct LangGraph.js workflows:
 
-### Workflow Architecture
+### 1. Planning Workflow (Human-in-the-Loop)
+
+The planning workflow uses LangGraph's native `interrupt()` function for interactive spec-driven development:
+
+**Architecture:**
+
+```mermaid
+flowchart TD
+    Start[User Idea] --> Context[Context Gatherer]
+    Context --> Clarifier[Clarifier]
+    Clarifier -->|Questions| Interrupt1[INTERRUPT]
+    Interrupt1 -->|Answers| Clarifier
+    Clarifier -->|Clear| PRD[PRD Generator]
+    PRD --> Interrupt2[INTERRUPT: Review]
+    Interrupt2 -->|Approve| Spec[Spec Generator]
+    Interrupt2 -->|Feedback| PRD
+    Spec --> Interrupt3[INTERRUPT: Review]
+    Interrupt3 -->|Approve| Tasks[Task Generator]
+    Interrupt3 -->|Feedback| Spec
+    Tasks --> End[Complete]
+```
+
+**State Schema** (`src/agents/planning/state.ts`):
+
+- **`initialIdea`**: User's high-level feature description
+- **`phase`**: Current workflow phase (clarifying, prd_review, spec_review, complete)
+- **`signals`**: Project signals (tech stack, CI/CD, etc.)
+- **`codeContext`**: Relevant code chunks from RAG search
+- **`clarificationHistory`**: Q&A pairs from clarification phase
+- **`prd`**: Generated Product Requirements Document
+- **`techSpec`**: Generated Technical Specification
+- **`taskPrompts`**: Generated implementation task prompts
+- **`userFeedback`**: User feedback for document revisions
+
+**Node Responsibilities:**
+
+1. **Context Gatherer** (`src/agents/planning/nodes/context-gatherer.ts`):
+   - Gathers project signals via `gatherProjectSignals()`
+   - Performs RAG search for relevant code (if index exists)
+   - Provides context for subsequent nodes
+
+2. **Clarifier** (`src/agents/planning/nodes/clarifier.ts`):
+   - Uses structured output (Zod) to determine if more info needed
+   - Generates 0-3 follow-up questions
+   - Uses `interrupt()` to pause for user answers
+   - Loops until requirements are clear
+
+3. **PRD Generator** (`src/agents/planning/nodes/prd-generator.ts`):
+   - Generates Product Requirements Document
+   - Uses `interrupt()` to pause for user review
+   - Accepts "approve" or specific feedback
+   - Loops back for revision if feedback provided
+
+4. **Spec Generator** (`src/agents/planning/nodes/spec-generator.ts`):
+   - Generates Technical Specification from approved PRD
+   - Uses `interrupt()` to pause for user review
+   - Accepts "approve" or specific feedback
+   - Loops back for revision if feedback provided
+
+5. **Task Generator** (`src/agents/planning/nodes/task-generator.ts`):
+   - Generates implementation task prompts from approved spec
+   - Reuses `PromptsOutputSchema` for consistency with productionalize
+   - Formats tasks in markdown with code blocks
+
+**Key Implementation Notes:**
+- Planning command **always enables checkpointing** (required for `interrupt()`)
+- Uses thread ID for checkpoint tracking
+- Supports session resumption via `--track <id>`
+- Integrates with existing RAG infrastructure when index exists
+- All interrupt payloads are validated with runtime type checking
+
+### 2. Productionalize Workflow (Map-Reduce)
+
+The productionalize workflow uses a **Map-Reduce pattern** for parallel code analysis:
+
+**Architecture:**
 
 ```mermaid
 flowchart LR
@@ -850,9 +987,7 @@ flowchart LR
     Aggregator --> Result[Final Report]
 ```
 
-### State Schema
-
-The `AgentState` (defined in `src/agents/state.ts`) manages:
+**State Schema** (`src/agents/productionalize/state.ts`):
 
 - **`userQuery`**: Original user request
 - **`subtasks`**: Dynamically generated subtasks with status tracking
@@ -863,25 +998,25 @@ The `AgentState` (defined in `src/agents/state.ts`) manages:
   - Reducer appends new chunks
 - **`finalSpec`**: Generated technical specification
 
-### Node Responsibilities
+**Node Responsibilities:**
 
-1. **Planner Node** (`src/agents/nodes/planner.ts`):
+1. **Planner Node** (`src/agents/productionalize/nodes/planner.ts`):
    - Takes user query
    - Uses LLM with structured output (Zod) to decompose into 3-7 focused subtasks
    - Each subtask has an ID and specific query
 
-2. **Worker Node** (`src/agents/nodes/worker.ts`):
+2. **Worker Node** (`src/agents/productionalize/nodes/worker.ts`):
    - Receives a single subtask via `Send` API
    - Uses `retrieve_code` tool to find relevant code chunks
    - Summarizes findings for that specific subtask
    - Updates subtask status to "complete" with result
 
-3. **Aggregator Node** (`src/agents/nodes/aggregator.ts`):
+3. **Aggregator Node** (`src/agents/productionalize/nodes/aggregator.ts`):
    - Collects all completed subtask results
    - Synthesizes findings into a comprehensive markdown specification
    - Sets `finalSpec` in state
 
-### Retriever Tool
+**Retriever Tool:**
 
 The `retrieve_code` tool (`src/agents/tools/retriever.ts`) wraps `DocumentRepository.hybridSearch()` as a LangChain `DynamicStructuredTool`, enabling LLMs to semantically search the codebase during analysis.
 
