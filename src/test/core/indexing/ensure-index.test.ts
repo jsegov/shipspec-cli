@@ -109,8 +109,10 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
+    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
     const vectorStore = {
       dropTable,
+      getTableRowCount,
     } as unknown as LanceDBManager;
 
     await ensureIndex({
@@ -225,8 +227,10 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
+    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
     const vectorStore = {
       dropTable,
+      getTableRowCount,
     } as unknown as LanceDBManager;
 
     // Initial indexing with original config
@@ -331,8 +335,10 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
+    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
     const vectorStore = {
       dropTable,
+      getTableRowCount,
     } as unknown as LanceDBManager;
 
     await ensureIndex({
@@ -419,8 +425,10 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
+    const getTableRowCount = vi.fn().mockResolvedValue(0); // Empty initially, triggers full rebuild
     const vectorStore = {
       dropTable,
+      getTableRowCount,
     } as unknown as LanceDBManager;
 
     // First run - file fails, should NOT be in manifest
@@ -452,5 +460,262 @@ describe("ensureIndex", () => {
     expect(manifest.files["retry.ts"]).toBeDefined();
 
     chunkSpy.mockRestore();
+  });
+
+  describe("Vector Store Integrity", () => {
+    it("should force full rebuild when manifest exists but vector store is empty", async () => {
+      await writeFile(join(projectPath, "test.ts"), TS_FIXTURE);
+
+      const addDocuments = vi.fn().mockResolvedValue(undefined);
+      const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+      const repository = {
+        deleteByFilepath,
+        addDocuments,
+      } as unknown as DocumentRepository;
+
+      const dropTable = vi.fn().mockResolvedValue(undefined);
+      const getTableRowCount = vi.fn().mockResolvedValue(0); // Empty vector store
+      const vectorStore = {
+        dropTable,
+        getTableRowCount,
+      } as unknown as LanceDBManager;
+
+      // First indexing - creates manifest
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      vi.clearAllMocks();
+
+      // Second run - manifest exists but vector store returns 0 rows
+      const result = await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Should trigger full rebuild despite manifest existing
+      expect(result.added).toBe(1);
+      expect(dropTable).toHaveBeenCalledWith("code_chunks");
+      expect(getTableRowCount).toHaveBeenCalledWith("code_chunks", config.embedding.dimensions);
+    });
+
+    it("should force full rebuild when vector store has significantly fewer rows than manifest", async () => {
+      // Create 10 files
+      for (let i = 0; i < 10; i++) {
+        await writeFile(
+          join(projectPath, `file${String(i)}.ts`),
+          `export const x${String(i)} = ${String(i)};`
+        );
+      }
+
+      const addDocuments = vi.fn().mockResolvedValue(undefined);
+      const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+      const repository = {
+        deleteByFilepath,
+        addDocuments,
+      } as unknown as DocumentRepository;
+
+      const dropTable = vi.fn().mockResolvedValue(undefined);
+      // Return 5 rows (50% of 10 files) - below 80% threshold
+      const getTableRowCount = vi.fn().mockResolvedValue(5);
+      const vectorStore = {
+        dropTable,
+        getTableRowCount,
+      } as unknown as LanceDBManager;
+
+      // First indexing - creates manifest with 10 files
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      vi.clearAllMocks();
+
+      // Second run - manifest has 10 files but vector store only has 5 rows
+      const result = await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Should trigger full rebuild (5 < 10 * 0.8 = 8)
+      expect(result.added).toBe(10);
+      expect(dropTable).toHaveBeenCalledWith("code_chunks");
+    });
+
+    it("should allow incremental update when row count meets threshold", async () => {
+      // Create 10 files
+      for (let i = 0; i < 10; i++) {
+        await writeFile(
+          join(projectPath, `file${String(i)}.ts`),
+          `export const x${String(i)} = ${String(i)};`
+        );
+      }
+
+      const addDocuments = vi.fn().mockResolvedValue(undefined);
+      const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+      const repository = {
+        deleteByFilepath,
+        addDocuments,
+      } as unknown as DocumentRepository;
+
+      const dropTable = vi.fn().mockResolvedValue(undefined);
+      // Return 9 rows (90% of 10 files) - above 80% threshold
+      const getTableRowCount = vi.fn().mockResolvedValue(9);
+      const vectorStore = {
+        dropTable,
+        getTableRowCount,
+      } as unknown as LanceDBManager;
+
+      // First indexing - creates manifest with 10 files
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      vi.clearAllMocks();
+
+      // Second run - manifest has 10 files and vector store has 9 rows (>= 80%)
+      const result = await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Should NOT trigger full rebuild - incremental update with no changes
+      expect(result.added).toBe(0);
+      expect(result.modified).toBe(0);
+      expect(result.removed).toBe(0);
+      expect(dropTable).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Safe Chunk Deletion", () => {
+    it("should not delete old chunks if parsing fails", async () => {
+      await writeFile(join(projectPath, "test.ts"), TS_FIXTURE);
+
+      const addDocuments = vi.fn().mockResolvedValue(undefined);
+      const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+      const repository = {
+        deleteByFilepath,
+        addDocuments,
+      } as unknown as DocumentRepository;
+
+      const dropTable = vi.fn().mockResolvedValue(undefined);
+      const getTableRowCount = vi.fn().mockResolvedValue(1);
+      const vectorStore = {
+        dropTable,
+        getTableRowCount,
+      } as unknown as LanceDBManager;
+
+      // First indexing
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Modify file to trigger re-indexing
+      await new Promise((r) => setTimeout(r, 100));
+      await writeFile(join(projectPath, "test.ts"), TS_FIXTURE + "\n// Modified");
+
+      vi.clearAllMocks();
+
+      // Mock chunkSourceFile to fail
+      const chunkSpy = vi.spyOn(parsingModule, "chunkSourceFile");
+      chunkSpy.mockRejectedValue(new Error("Simulated parsing failure"));
+
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // deleteByFilepath should NOT be called because parse failed first
+      expect(deleteByFilepath).not.toHaveBeenCalled();
+
+      chunkSpy.mockRestore();
+    });
+
+    it("should delete old chunks only after successful parse", async () => {
+      await writeFile(join(projectPath, "test.ts"), TS_FIXTURE);
+
+      const addDocuments = vi.fn().mockResolvedValue(undefined);
+      const deleteByFilepath = vi.fn().mockResolvedValue(undefined);
+      const repository = {
+        deleteByFilepath,
+        addDocuments,
+      } as unknown as DocumentRepository;
+
+      const dropTable = vi.fn().mockResolvedValue(undefined);
+      const getTableRowCount = vi.fn().mockResolvedValue(1);
+      const vectorStore = {
+        dropTable,
+        getTableRowCount,
+      } as unknown as LanceDBManager;
+
+      // First indexing
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Modify file to trigger re-indexing
+      await new Promise((r) => setTimeout(r, 100));
+      await writeFile(join(projectPath, "test.ts"), TS_FIXTURE + "\n// Modified");
+
+      vi.clearAllMocks();
+
+      // Track the order of calls
+      const callOrder: string[] = [];
+      const chunkSpy = vi.spyOn(parsingModule, "chunkSourceFile");
+      chunkSpy.mockImplementation((filepath: string, content: string) => {
+        callOrder.push("parse");
+        return Promise.resolve([
+          {
+            id: "test-chunk",
+            content,
+            filepath,
+            startLine: 1,
+            endLine: 1,
+            language: "typescript",
+            type: "module",
+          },
+        ]);
+      });
+
+      deleteByFilepath.mockImplementation(() => {
+        callOrder.push("delete");
+        return Promise.resolve();
+      });
+
+      await ensureIndex({
+        config,
+        repository,
+        vectorStore,
+        manifestPath,
+      });
+
+      // Parse should happen before delete
+      expect(callOrder).toEqual(["parse", "delete"]);
+      expect(deleteByFilepath).toHaveBeenCalledWith("test.ts");
+
+      chunkSpy.mockRestore();
+    });
   });
 });

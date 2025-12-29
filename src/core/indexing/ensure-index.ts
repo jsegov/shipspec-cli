@@ -204,12 +204,28 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     dimensions: config.embedding.dimensions,
   };
 
-  const needsFullRebuild =
+  let needsFullRebuild =
     forceReindex ||
     !manifest ||
     manifest.embeddingSignature.provider !== currentSignature.provider ||
     manifest.embeddingSignature.modelName !== currentSignature.modelName ||
     manifest.embeddingSignature.dimensions !== currentSignature.dimensions;
+
+  // Verify vector store integrity - manifest may exist but vector store could be empty/corrupted
+  if (manifest && !needsFullRebuild) {
+    const rowCount = await vectorStore.getTableRowCount("code_chunks", currentSignature.dimensions);
+    const manifestFileCount = Object.keys(manifest.files).length;
+
+    if (rowCount === 0 && manifestFileCount > 0) {
+      logger.warn("Vector store empty but manifest exists - forcing full rebuild");
+      needsFullRebuild = true;
+    } else if (manifestFileCount > 0 && rowCount < manifestFileCount * 0.8) {
+      logger.warn(
+        `Vector store integrity check failed: ${String(rowCount)} rows but manifest tracks ${String(manifestFileCount)} files - forcing full rebuild`
+      );
+      needsFullRebuild = true;
+    }
+  }
 
   if (needsFullRebuild) {
     logger.progress(forceReindex ? "Force re-indexing..." : "Starting full codebase indexing...");
