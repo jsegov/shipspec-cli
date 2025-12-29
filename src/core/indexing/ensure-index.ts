@@ -315,6 +315,8 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     await repository.deleteByFilepath(relPath);
   }
 
+  // Note: chunkCount from runIndexing only covers files in toProcess (changed files).
+  // For incremental updates, we query the vector store for total count including unchanged files.
   const { successfulFiles } = await runIndexing(
     projectPath,
     toProcess.map((f) => resolve(projectPath, f)),

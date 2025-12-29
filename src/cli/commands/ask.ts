@@ -4,8 +4,8 @@
  */
 
 import { Command } from "commander";
-import { readFile } from "fs/promises";
-import { resolve, join } from "path";
+import { readFile, mkdir } from "fs/promises";
+import { resolve, join, dirname } from "path";
 import { existsSync } from "fs";
 import chalk from "chalk";
 import { input } from "@inquirer/prompts";
@@ -21,6 +21,7 @@ import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { logger, sanitizeError } from "../../utils/logger.js";
 import { CliUsageError, CliRuntimeError } from "../errors.js";
 import { findProjectRoot, PROJECT_DIR } from "../../core/project/project-state.js";
+import { writeFileAtomicNoFollow } from "../../utils/safe-write.js";
 import { createSecretsStore } from "../../core/secrets/secrets-store.js";
 import {
   pruneChunksByTokenBudget,
@@ -245,6 +246,29 @@ async function checkCloudConsent(
     logger.plain(chalk.cyan(`  ship-spec ask --cloud-ok`));
     logger.plain("");
     throw new CliUsageError("Data sharing consent required.");
+  }
+
+  // Save consent if --cloud-ok is provided
+  if (options.cloudOk && !hasSavedConsent) {
+    try {
+      await mkdir(dirname(consentPath), { recursive: true, mode: 0o700 });
+      await writeFileAtomicNoFollow(
+        consentPath,
+        JSON.stringify(
+          {
+            cloudOk: true,
+            timestamp: new Date().toISOString(),
+            version: 1,
+          },
+          null,
+          2
+        ),
+        { mode: 0o600 }
+      );
+      logger.info("Cloud data sharing consent saved to .ship-spec/consent.json");
+    } catch (err) {
+      logger.warn(`Failed to save consent: ${sanitizeError(err)}`);
+    }
   }
 }
 
