@@ -170,7 +170,8 @@ describe("askCommand", () => {
       const mockStream = (
         llmModule as unknown as { getMockStream: () => ReturnType<typeof vi.fn> }
       ).getMockStream();
-      mockStream.mockImplementation(function* () {
+      mockStream.mockImplementation(async function* () {
+        await Promise.resolve();
         yield { content: "Test answer" };
       });
 
@@ -242,7 +243,8 @@ describe("askCommand", () => {
       const mockStream = (
         llmModule as unknown as { getMockStream: () => ReturnType<typeof vi.fn> }
       ).getMockStream();
-      mockStream.mockImplementation(function* () {
+      mockStream.mockImplementation(async function* () {
+        await Promise.resolve();
         yield { content: "Test response" };
       });
 
@@ -296,7 +298,8 @@ describe("askCommand", () => {
       const mockStream = (
         llmModule as unknown as { getMockStream: () => ReturnType<typeof vi.fn> }
       ).getMockStream();
-      mockStream.mockImplementation(function* () {
+      mockStream.mockImplementation(async function* () {
+        await Promise.resolve();
         yield { content: "Test response" };
       });
 
@@ -345,7 +348,8 @@ describe("askCommand", () => {
       const mockStream = (
         llmModule as unknown as { getMockStream: () => ReturnType<typeof vi.fn> }
       ).getMockStream();
-      mockStream.mockImplementation(function* () {
+      mockStream.mockImplementation(async function* () {
+        await Promise.resolve();
         yield { content: "The " };
         yield { content: "add " };
         yield { content: "function adds two numbers." };
@@ -546,7 +550,8 @@ describe("askCommand", () => {
       const mockStream = (
         llmModule as unknown as { getMockStream: () => ReturnType<typeof vi.fn> }
       ).getMockStream();
-      mockStream.mockImplementation(function* () {
+      mockStream.mockImplementation(async function* () {
+        await Promise.resolve();
         yield { content: "Test response" };
       });
 
