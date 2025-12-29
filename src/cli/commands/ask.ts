@@ -129,11 +129,6 @@ async function askAction(
 
   // 6. Initialize repository for RAG
   const repository = await initializeRepository(config, resolvedSecrets, options.reindex);
-  if (!repository) {
-    throw new CliUsageError(
-      "No codebase index found. Run `ship-spec init` to index your codebase."
-    );
-  }
 
   // 7. Create chat model
   const model = await createChatModel(config.llm, resolvedSecrets.llmApiKey);
@@ -156,59 +151,52 @@ async function askAction(
 
 /**
  * Initializes the document repository with index freshness check.
+ * Throws CliRuntimeError with specific error details on failure.
  */
 async function initializeRepository(
   config: ShipSpecConfig,
   secrets: ShipSpecSecrets,
   forceReindex: boolean
-): Promise<DocumentRepository | null> {
-  try {
-    logger.progress("Initializing vector store...");
-    const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
+): Promise<DocumentRepository> {
+  logger.progress("Initializing vector store...");
+  const vectorStore = new LanceDBManager(resolve(config.vectorDbPath));
 
-    // Resolve embedding dimensions
-    let resolvedDimensions: number;
-    if (config.embedding.dimensions === "auto") {
-      const probeEmbeddings = await createEmbeddingsModel(
-        config.embedding,
-        secrets.embeddingApiKey
-      );
-      const probeVector = await probeEmbeddings.embedQuery("dimension probe");
-      resolvedDimensions = probeVector.length;
-    } else {
-      resolvedDimensions = config.embedding.dimensions;
-    }
-
-    const resolvedEmbeddingConfig = { ...config.embedding, dimensions: resolvedDimensions };
-    const resolvedConfig = { ...config, embedding: resolvedEmbeddingConfig };
-
-    const embeddings = await createEmbeddingsModel(config.embedding, secrets.embeddingApiKey);
-    const repository = new DocumentRepository(vectorStore, embeddings, resolvedDimensions);
-
-    // Ensure index is fresh
-    const manifestPath = join(config.vectorDbPath, "index-manifest");
-    logger.progress("Checking codebase index freshness...");
-    const indexResult = await ensureIndex({
-      config: resolvedConfig,
-      repository,
-      vectorStore,
-      manifestPath,
-      forceReindex,
-    });
-
-    if (indexResult.added > 0 || indexResult.modified > 0 || indexResult.removed > 0) {
-      logger.info(
-        `Index updated: ${String(indexResult.added)} added, ${String(indexResult.modified)} modified, ${String(indexResult.removed)} removed.`
-      );
-    } else {
-      logger.info("Index is up to date.");
-    }
-
-    return repository;
-  } catch (err) {
-    logger.warn(`Failed to initialize code search: ${sanitizeError(err)}`);
-    return null;
+  // Resolve embedding dimensions
+  let resolvedDimensions: number;
+  if (config.embedding.dimensions === "auto") {
+    const probeEmbeddings = await createEmbeddingsModel(config.embedding, secrets.embeddingApiKey);
+    const probeVector = await probeEmbeddings.embedQuery("dimension probe");
+    resolvedDimensions = probeVector.length;
+  } else {
+    resolvedDimensions = config.embedding.dimensions;
   }
+
+  const resolvedEmbeddingConfig = { ...config.embedding, dimensions: resolvedDimensions };
+  const resolvedConfig = { ...config, embedding: resolvedEmbeddingConfig };
+
+  const embeddings = await createEmbeddingsModel(config.embedding, secrets.embeddingApiKey);
+  const repository = new DocumentRepository(vectorStore, embeddings, resolvedDimensions);
+
+  // Ensure index is fresh
+  const manifestPath = join(config.vectorDbPath, "index-manifest");
+  logger.progress("Checking codebase index freshness...");
+  const indexResult = await ensureIndex({
+    config: resolvedConfig,
+    repository,
+    vectorStore,
+    manifestPath,
+    forceReindex,
+  });
+
+  if (indexResult.added > 0 || indexResult.modified > 0 || indexResult.removed > 0) {
+    logger.info(
+      `Index updated: ${String(indexResult.added)} added, ${String(indexResult.modified)} modified, ${String(indexResult.removed)} removed.`
+    );
+  } else {
+    logger.info("Index is up to date.");
+  }
+
+  return repository;
 }
 
 /**

@@ -135,6 +135,30 @@ describe("askCommand", () => {
       );
     });
 
+    it("should propagate embedding API errors with actual message instead of generic index error", async () => {
+      // Initialize project
+      await writeProjectState(tempDir, {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        initializedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        projectRoot: tempDir,
+      });
+
+      process.env.OPENROUTER_API_KEY = "sk-test";
+
+      // Mock embeddings model to fail with a specific error
+      const { createEmbeddingsModel } = await import("../../../core/models/embeddings.js");
+      vi.mocked(createEmbeddingsModel).mockRejectedValueOnce(
+        new Error("Rate limit exceeded: Please retry after 60 seconds")
+      );
+
+      // The error should propagate with the actual message, not "No codebase index found"
+      await expect(
+        askCommand.parseAsync(["node", "test", "What is this code?", "--cloud-ok"])
+      ).rejects.toThrow(/Rate limit exceeded/);
+    });
+
     it("should create index automatically when lancedb directory does not exist", async () => {
       // Initialize project
       await writeProjectState(tempDir, {
