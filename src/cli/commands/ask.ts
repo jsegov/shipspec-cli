@@ -340,7 +340,6 @@ async function runRepl(
   logger.plain(chalk.bold("\nCodebase Q&A Mode"));
   logger.plain(chalk.dim("Ask questions about your codebase. Type /help for commands.\n"));
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     let userInput: string;
 

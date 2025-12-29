@@ -154,7 +154,15 @@ describe("askCommand", () => {
         DocumentRepository as unknown as { getMock: () => ReturnType<typeof vi.fn> }
       ).getMock();
       mockHybridSearch.mockResolvedValue([
-        { content: "test content", filepath: "test.ts", startLine: 1, endLine: 10 },
+        {
+          id: "test-chunk",
+          content: "test content",
+          filepath: "test.ts",
+          startLine: 1,
+          endLine: 10,
+          language: "typescript",
+          type: "module",
+        },
       ]);
 
       // Mock the chat model stream to return content

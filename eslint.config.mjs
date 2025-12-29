@@ -40,6 +40,10 @@ export default tseslint.config(
           minimumDescriptionLength: 10,
         },
       ],
+      "@typescript-eslint/no-unnecessary-condition": [
+        "error",
+        { allowConstantLoopConditions: "only-allowed-literals" },
+      ],
       "no-console": "error",
     },
   },
@@ -51,6 +55,13 @@ export default tseslint.config(
     files: ["src/utils/logger.ts"],
     rules: {
       "no-console": "off",
+    },
+  },
+  // Allow control-regex for terminal sanitization (ANSI escape sequences)
+  {
+    files: ["src/utils/terminal-sanitize.ts"],
+    rules: {
+      "no-control-regex": "off",
     },
   }
 );

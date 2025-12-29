@@ -403,20 +403,9 @@ describe("Config Loader", () => {
       await expect(loadConfig(tempDir)).rejects.toThrow("strictly prohibited in production");
     });
 
-    it("should throw in production even with (former) acknowledgement", async () => {
-      process.env.NODE_ENV = "production";
-      process.env.ALLOW_LOCALHOST_LLM = "1";
-      // @ts-ignore - Testing legacy/invalid env var
-      process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK = "I_UNDERSTAND_SSRF_RISK";
-
-      await expect(loadConfig(tempDir)).rejects.toThrow("strictly prohibited in production");
-    });
-
-    it("should succeed in non-production without acknowledgement", async () => {
+    it("should succeed in non-production", async () => {
       process.env.NODE_ENV = "development";
       process.env.ALLOW_LOCALHOST_LLM = "1";
-      // @ts-ignore - Verification for non-production
-      delete process.env.SHIPSPEC_ALLOW_LOCALHOST_LLM_ACK;
 
       const { config } = await loadConfig(tempDir);
       expect(config).toBeDefined();

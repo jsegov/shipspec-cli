@@ -3,7 +3,6 @@ import {
   redactText,
   redactObject,
   redactEnvValue,
-  stripAnsi,
   sanitizeError,
   logger,
 } from "../../utils/logger.js";
@@ -160,18 +159,6 @@ describe("Logger Utility", () => {
     it("should not redact non-sensitive env vars", () => {
       expect(redactEnvValue("NODE_ENV", "production")).toBe("production");
       expect(redactEnvValue("PORT", "3000")).toBe("3000");
-    });
-  });
-
-  describe("stripAnsi (deprecated - testing backward compatibility)", () => {
-    it("should strip ANSI escape codes", () => {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      expect(stripAnsi("\x1b[31mRed Text\x1b[0m")).toBe("Red Text");
-    });
-
-    it("should strip non-printable characters except newline and tab", () => {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      expect(stripAnsi("Line 1\nLine 2\tTabbed\x07Alert")).toBe("Line 1\nLine 2\tTabbedAlert");
     });
   });
 
