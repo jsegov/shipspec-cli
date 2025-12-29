@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import { setMaxListeners } from "events";
 
+import { askCommand } from "./commands/ask.js";
 import { configCommand } from "./commands/config.js";
 import { initCommand } from "./commands/init.js";
 import { modelCommand } from "./commands/model.js";
@@ -37,6 +38,7 @@ program
     actionCommand.setOptionValue("resolvedConfig", resolvedConfig);
   });
 
+program.addCommand(askCommand);
 program.addCommand(configCommand);
 program.addCommand(initCommand);
 program.addCommand(modelCommand);

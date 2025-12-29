@@ -11,23 +11,6 @@ export { redactText, redactObject, SENSITIVE_NAMES, safeTruncate };
 export type { Redacted } from "./redaction.js";
 
 /**
- * Strips ANSI escape codes and other non-printable control characters.
- * Keeps newlines and tabs.
- *
- * @deprecated Use sanitizeForTerminal from terminal-sanitize.ts instead, which handles
- * a broader set of dangerous escape sequences including OSC hyperlinks and window title changes.
- */
-export function stripAnsi(text: string): string {
-  return (
-    text
-      /* eslint-disable no-control-regex */
-      .replace(/\x1b\[[0-9;]*m/g, "") // ANSI escape codes
-      .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, "")
-    /* eslint-enable no-control-regex */
-  );
-}
-
-/**
  * Redacts sensitive environment variable values if the name matches certain patterns.
  * Also applies pattern-based redaction to the value itself.
  */

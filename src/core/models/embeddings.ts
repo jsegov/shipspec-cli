@@ -22,6 +22,10 @@ export function createEmbeddingsModel(
           configuration: {
             baseURL: OPENROUTER_BASE_URL,
           },
+          // Explicitly set encoding format to avoid OpenAI SDK bug with OpenRouter
+          // See: https://github.com/openai/openai-node/issues/1542
+          // Without this, the SDK's internal base64 handling corrupts embeddings from some models
+          encodingFormat: "float",
           maxRetries,
         })
       );

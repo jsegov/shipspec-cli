@@ -164,4 +164,17 @@ export class LanceDBManager {
 
     return table;
   }
+
+  /**
+   * Gets the row count for a table. Returns 0 if the table doesn't exist or on error.
+   * Used for verifying vector store integrity against the manifest.
+   */
+  async getTableRowCount(tableName: string, dimensions: number): Promise<number> {
+    try {
+      const table = await this.getOrCreateTable(tableName, dimensions);
+      return await table.countRows();
+    } catch {
+      return 0;
+    }
+  }
 }
