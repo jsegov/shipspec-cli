@@ -174,7 +174,7 @@ async function initializeRepository(
   const resolvedEmbeddingConfig = { ...config.embedding, dimensions: resolvedDimensions };
   const resolvedConfig = { ...config, embedding: resolvedEmbeddingConfig };
 
-  const embeddings = await createEmbeddingsModel(config.embedding, secrets.embeddingApiKey);
+  const embeddings = await createEmbeddingsModel(resolvedEmbeddingConfig, secrets.embeddingApiKey);
   const repository = new DocumentRepository(vectorStore, embeddings, resolvedDimensions);
 
   // Ensure index is fresh

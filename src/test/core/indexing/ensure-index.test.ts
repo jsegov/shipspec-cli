@@ -109,7 +109,8 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
-    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
+    // TS_FIXTURE produces 6 chunks - return matching count for integrity check
+    const getTableRowCount = vi.fn().mockResolvedValue(6);
     const vectorStore = {
       dropTable,
       getTableRowCount,
@@ -227,7 +228,8 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
-    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
+    // TS_FIXTURE produces 6 chunks - return matching count for integrity check
+    const getTableRowCount = vi.fn().mockResolvedValue(6);
     const vectorStore = {
       dropTable,
       getTableRowCount,
@@ -335,7 +337,8 @@ describe("ensureIndex", () => {
     } as unknown as DocumentRepository;
 
     const dropTable = vi.fn().mockResolvedValue(undefined);
-    const getTableRowCount = vi.fn().mockResolvedValue(1); // Has data
+    // TS_FIXTURE produces 6 chunks - return matching count for integrity check
+    const getTableRowCount = vi.fn().mockResolvedValue(6);
     const vectorStore = {
       dropTable,
       getTableRowCount,
@@ -504,12 +507,12 @@ describe("ensureIndex", () => {
       expect(getTableRowCount).toHaveBeenCalledWith("code_chunks", config.embedding.dimensions);
     });
 
-    it("should force full rebuild when vector store has significantly fewer rows than manifest", async () => {
-      // Create 10 files
+    it("should force full rebuild when vector store has significantly fewer rows than manifest chunks", async () => {
+      // Create 10 files with functions (simple exports don't produce chunks)
       for (let i = 0; i < 10; i++) {
         await writeFile(
           join(projectPath, `file${String(i)}.ts`),
-          `export const x${String(i)} = ${String(i)};`
+          `export function func${String(i)}() { return ${String(i)}; }`
         );
       }
 
@@ -521,14 +524,15 @@ describe("ensureIndex", () => {
       } as unknown as DocumentRepository;
 
       const dropTable = vi.fn().mockResolvedValue(undefined);
-      // Return 5 rows (50% of 10 files) - below 80% threshold
+      // First indexing doesn't call getTableRowCount (no manifest to check integrity against)
+      // Return 5 for second run - below 80% of 10 chunks threshold
       const getTableRowCount = vi.fn().mockResolvedValue(5);
       const vectorStore = {
         dropTable,
         getTableRowCount,
       } as unknown as LanceDBManager;
 
-      // First indexing - creates manifest with 10 files
+      // First indexing - creates manifest with 10 files and 10 chunks (1 function per file)
       await ensureIndex({
         config,
         repository,
@@ -538,7 +542,7 @@ describe("ensureIndex", () => {
 
       vi.clearAllMocks();
 
-      // Second run - manifest has 10 files but vector store only has 5 rows
+      // Second run - manifest tracks 10 chunks but vector store only has 5 rows
       const result = await ensureIndex({
         config,
         repository,
@@ -552,11 +556,11 @@ describe("ensureIndex", () => {
     });
 
     it("should allow incremental update when row count meets threshold", async () => {
-      // Create 10 files
+      // Create 10 files with functions (simple exports don't produce chunks)
       for (let i = 0; i < 10; i++) {
         await writeFile(
           join(projectPath, `file${String(i)}.ts`),
-          `export const x${String(i)} = ${String(i)};`
+          `export function func${String(i)}() { return ${String(i)}; }`
         );
       }
 
@@ -568,14 +572,15 @@ describe("ensureIndex", () => {
       } as unknown as DocumentRepository;
 
       const dropTable = vi.fn().mockResolvedValue(undefined);
-      // Return 9 rows (90% of 10 files) - above 80% threshold
+      // First indexing doesn't call getTableRowCount (no manifest to check integrity against)
+      // Return 9 for second run - above 80% of 10 chunks threshold
       const getTableRowCount = vi.fn().mockResolvedValue(9);
       const vectorStore = {
         dropTable,
         getTableRowCount,
       } as unknown as LanceDBManager;
 
-      // First indexing - creates manifest with 10 files
+      // First indexing - creates manifest with 10 files and 10 chunks (1 function per file)
       await ensureIndex({
         config,
         repository,
@@ -585,7 +590,7 @@ describe("ensureIndex", () => {
 
       vi.clearAllMocks();
 
-      // Second run - manifest has 10 files and vector store has 9 rows (>= 80%)
+      // Second run - manifest tracks 10 chunks and vector store has 9 rows (>= 80%)
       const result = await ensureIndex({
         config,
         repository,
@@ -613,7 +618,8 @@ describe("ensureIndex", () => {
       } as unknown as DocumentRepository;
 
       const dropTable = vi.fn().mockResolvedValue(undefined);
-      const getTableRowCount = vi.fn().mockResolvedValue(1);
+      // TS_FIXTURE produces 6 chunks - return matching count for integrity check
+      const getTableRowCount = vi.fn().mockResolvedValue(6);
       const vectorStore = {
         dropTable,
         getTableRowCount,
@@ -661,7 +667,8 @@ describe("ensureIndex", () => {
       } as unknown as DocumentRepository;
 
       const dropTable = vi.fn().mockResolvedValue(undefined);
-      const getTableRowCount = vi.fn().mockResolvedValue(1);
+      // TS_FIXTURE produces 6 chunks - return matching count for integrity check
+      const getTableRowCount = vi.fn().mockResolvedValue(6);
       const vectorStore = {
         dropTable,
         getTableRowCount,

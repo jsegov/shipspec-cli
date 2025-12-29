@@ -34,6 +34,8 @@ const IndexManifestSchema = z.object({
       size: z.number(),
     })
   ),
+  // Total chunk count for integrity verification (files can have multiple chunks)
+  totalChunks: z.number().int().nonnegative().optional(),
   updatedAt: z.string(),
 });
 
@@ -214,12 +216,28 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
   // Verify vector store integrity - manifest may exist but vector store could be empty/corrupted
   if (manifest && !needsFullRebuild) {
     const rowCount = await vectorStore.getTableRowCount("code_chunks", currentSignature.dimensions);
+    const manifestChunkCount = manifest.totalChunks;
     const manifestFileCount = Object.keys(manifest.files).length;
 
     if (rowCount === 0 && manifestFileCount > 0) {
       logger.warn("Vector store empty but manifest exists - forcing full rebuild");
       needsFullRebuild = true;
-    } else if (manifestFileCount > 0 && rowCount < manifestFileCount * 0.8) {
+    } else if (
+      manifestChunkCount !== undefined &&
+      manifestChunkCount > 0 &&
+      rowCount < manifestChunkCount * 0.8
+    ) {
+      // Use tracked chunk count for accurate integrity check (files can have multiple chunks)
+      logger.warn(
+        `Vector store integrity check failed: ${String(rowCount)} rows but manifest tracks ${String(manifestChunkCount)} chunks - forcing full rebuild`
+      );
+      needsFullRebuild = true;
+    } else if (
+      manifestChunkCount === undefined &&
+      manifestFileCount > 0 &&
+      rowCount < manifestFileCount * 0.8
+    ) {
+      // Fallback for older manifests without totalChunks: use file count as rough minimum
       logger.warn(
         `Vector store integrity check failed: ${String(rowCount)} rows but manifest tracks ${String(manifestFileCount)} files - forcing full rebuild`
       );
@@ -232,7 +250,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     await vectorStore.dropTable("code_chunks");
 
     const files = await discoverFiles(projectPath, config.ignorePatterns);
-    const successfulFiles = await runIndexing(projectPath, files, repository);
+    const { successfulFiles, chunkCount } = await runIndexing(projectPath, files, repository);
     const successfulAbsolutePaths = files.filter((f) =>
       successfulFiles.has(getRelativePath(f, projectPath))
     );
@@ -243,6 +261,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
       lastIndexedCommit: await getGitHead(projectPath),
       embeddingSignature: currentSignature,
       files: await getFileStats(projectPath, successfulAbsolutePaths),
+      totalChunks: chunkCount,
       updatedAt: new Date().toISOString(),
     });
 
@@ -296,7 +315,7 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     await repository.deleteByFilepath(relPath);
   }
 
-  const successfulFiles = await runIndexing(
+  const { successfulFiles } = await runIndexing(
     projectPath,
     toProcess.map((f) => resolve(projectPath, f)),
     repository
@@ -321,12 +340,19 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
     }
   }
 
+  // Query actual row count from vector store for accurate chunk tracking
+  const totalChunks = await vectorStore.getTableRowCount(
+    "code_chunks",
+    currentSignature.dimensions
+  );
+
   await saveManifest(manifestPath, {
     schemaVersion: 1,
     projectRoot: manifest.projectRoot,
     embeddingSignature: currentSignature,
     lastIndexedCommit: await getGitHead(projectPath),
     files: updatedFiles,
+    totalChunks,
     updatedAt: new Date().toISOString(),
   });
 
@@ -343,11 +369,16 @@ export async function ensureIndex(options: EnsureIndexOptions): Promise<IndexRes
   };
 }
 
+interface IndexingResult {
+  successfulFiles: Set<string>;
+  chunkCount: number;
+}
+
 async function runIndexing(
   projectPath: string,
   files: string[],
   repository: DocumentRepository
-): Promise<Set<string>> {
+): Promise<IndexingResult> {
   const concurrency = 10;
   const batchSize = 50;
   const limit = pLimit(concurrency);
@@ -390,7 +421,7 @@ async function runIndexing(
     }
   }
 
-  return successfulFiles;
+  return { successfulFiles, chunkCount: allChunks.length };
 }
 
 async function getFileStats(
