@@ -429,13 +429,13 @@ async function planningAction(
   let result = (await graph.invoke(
     isResuming ? null : { initialIdea },
     graphConfig
-  )) as PlanningStateType & {
-    __interrupt__?: InterruptPayload[];
-  };
+  )) as PlanningResult;
 
   while (result.__interrupt__ && result.__interrupt__.length > 0) {
-    const interruptValue = result.__interrupt__[0];
-    if (!interruptValue) break;
+    const interruptObj = result.__interrupt__[0];
+    if (!interruptObj) break;
+
+    const interruptValue = interruptObj.value;
 
     if (interruptValue.type === "clarification") {
       // Handle clarification questions
@@ -545,7 +545,12 @@ async function checkCloudConsent(
 }
 
 /** Result type including possible interrupt */
-type PlanningResult = PlanningStateType & { __interrupt__?: InterruptPayload[] };
+type PlanningResult = PlanningStateType & {
+  __interrupt__?: {
+    id: string;
+    value: InterruptPayload;
+  }[];
+};
 
 /**
  * Handles clarification interrupt - prompts user for answers.

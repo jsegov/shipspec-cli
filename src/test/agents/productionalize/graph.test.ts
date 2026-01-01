@@ -19,9 +19,15 @@ vi.mock("../../../core/models/llm.js", () => ({
       return {
         invoke: vi.fn().mockImplementation(() => {
           return Promise.resolve({
+            // Planner output
             subtasks: [],
+            // Worker output
             findings: [],
+            // Prompt generator output
             prompts: [],
+            // Interviewer output
+            satisfied: true,
+            questions: [],
             reasoning: "mock reasoning",
           });
         }),
@@ -83,6 +89,7 @@ describe("Productionalize Graph", () => {
     const result = await graph.invoke({
       userQuery: "test query",
       messages: [],
+      interactiveMode: false,
     });
 
     expect(mockInvoke).toHaveBeenCalled();
@@ -104,6 +111,7 @@ describe("Productionalize Graph", () => {
       graph.invoke({
         userQuery: "test query",
         messages: [],
+        interactiveMode: false,
       })
     ).rejects.toThrow(/SAST scanning failed/);
   });
@@ -122,6 +130,7 @@ describe("Productionalize Graph", () => {
       graph.invoke({
         userQuery: "test query",
         messages: [],
+        interactiveMode: false,
       })
     ).rejects.toThrow(/SAST scanning failed/);
   });
@@ -149,6 +158,7 @@ describe("Productionalize Graph", () => {
       graph.invoke({
         userQuery: "test query",
         messages: [],
+        interactiveMode: false,
       })
     ).rejects.toThrow("SAST scanner(s) failed: [semgrep] Failed to parse Semgrep output");
   });
@@ -163,6 +173,7 @@ describe("Productionalize Graph", () => {
     const result = await graph.invoke({
       userQuery: "test query",
       messages: [],
+      interactiveMode: false,
     });
 
     expect(result.taskPrompts).toBeDefined();

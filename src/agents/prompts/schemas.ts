@@ -49,6 +49,12 @@ export const ProductionalizeWorkerOutputSchema = z.object({
   confidenceLevel: z
     .enum(["high", "medium", "low"])
     .describe("Confidence in the findings based on context quality"),
+  clarificationQuestions: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Questions to ask the user when confidence is low (e.g., 'Is this a public-facing API?')"
+    ),
 });
 
 export const PromptTaskSchema = z.object({

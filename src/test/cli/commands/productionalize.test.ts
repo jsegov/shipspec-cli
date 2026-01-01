@@ -6,6 +6,13 @@ import { existsSync } from "fs";
 import { PROJECT_DIR, writeProjectState } from "../../../core/project/project-state.js";
 import { randomUUID } from "crypto";
 
+// Mock @inquirer/prompts to avoid node:util styleText import error
+vi.mock("@inquirer/prompts", () => ({
+  input: vi.fn().mockResolvedValue("mock input"),
+  select: vi.fn().mockResolvedValue("mock selection"),
+  checkbox: vi.fn().mockResolvedValue([]),
+}));
+
 // Mock dependencies
 vi.mock("../../../agents/productionalize/graph.js", () => ({
   createProductionalizeGraph: vi.fn().mockResolvedValue({
@@ -148,6 +155,65 @@ describe("Productionalize CLI Command", () => {
     expect(existsSync(outputsDir)).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-report.md"))).toBe(true);
     expect(existsSync(join(shipSpecDir, "latest-task-prompts.md"))).toBe(true);
+  });
+
+  describe("interrupt handling", () => {
+    it("should throw CliRuntimeError for unexpected interrupt type (prevents infinite loop)", async () => {
+      // Initialize
+      await writeProjectState(tempDir, {
+        schemaVersion: 1,
+        projectId: randomUUID(),
+        initializedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        projectRoot: tempDir,
+      });
+
+      mockSecrets.get.mockImplementation((key) => {
+        if (key === "OPENROUTER_API_KEY") return Promise.resolve("sk-test");
+        return Promise.resolve(null);
+      });
+
+      // Import the mock to override it for this test
+      const graphModule = await import("../../../agents/productionalize/graph.js");
+      const createProductionalizeGraph = vi.mocked(graphModule.createProductionalizeGraph);
+
+      // Mock to return an unexpected interrupt type
+      // We intentionally use an invalid type to test the default case handler.
+      // Cast through unknown to satisfy TypeScript while testing runtime behavior.
+      const mockInvokeFn = vi.fn().mockResolvedValue({
+        finalReport: "",
+        taskPrompts: "",
+        __interrupt__: [
+          {
+            id: "test-interrupt",
+            value: {
+              type: "unknown_type_that_does_not_exist", // This should trigger the default case
+            },
+          },
+        ],
+      });
+      const mockGraph = { invoke: mockInvokeFn } as unknown as Awaited<
+        ReturnType<typeof createProductionalizeGraph>
+      >;
+      createProductionalizeGraph.mockResolvedValueOnce(mockGraph);
+
+      // Interactive mode is the default, so no need to explicitly enable it
+      // The error is wrapped by CliRuntimeError("Analysis failed", originalError)
+      // so we need to verify both the wrapper and the cause
+      try {
+        await productionalizeCommand.parseAsync(["node", "test", "--cloud-ok"]);
+        expect.fail("Should have thrown an error");
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+        const error = err as Error & { originalError?: Error };
+        expect(error.message).toBe("Analysis failed");
+        // Verify the original error contains the expected message about unhandled interrupt type
+        expect(error.originalError).toBeDefined();
+        expect(error.originalError?.message).toMatch(
+          /Unhandled interrupt type: "unknown_type_that_does_not_exist"/
+        );
+      }
+    });
   });
 
   describe("--keep-outputs validation", () => {
