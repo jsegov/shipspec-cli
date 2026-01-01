@@ -64,8 +64,9 @@ export function createReportReviewerNode() {
 
     const feedback = rawFeedback.trim().toLowerCase();
 
-    // Check if user approved
+    // Check if user approved (empty input = approval, user just pressed Enter)
     if (
+      feedback === "" ||
       feedback === "approve" ||
       feedback === "approved" ||
       feedback === "yes" ||
