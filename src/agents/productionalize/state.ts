@@ -49,7 +49,10 @@ export const ProductionalizeState = Annotation.Root({
     reducer: messagesReducer,
     default: () => [],
   }),
-  finalReport: Annotation<string>(),
+  finalReport: Annotation<string>({
+    reducer: (_x, y) => y,
+    default: () => "",
+  }),
   subtask: Annotation<ProductionalizeSubtask>({
     reducer: (_x, y) => y,
   }),
