@@ -36,6 +36,10 @@ import { readFileSync } from "fs";
 import { dirname, basename } from "path";
 import { z } from "zod";
 
+/**
+ * Normalized options for productionalize action.
+ * These are the values after Commander options have been normalized.
+ */
 interface ProductionalizeOptions {
   enableScans: boolean;
   categories?: string;
@@ -51,6 +55,26 @@ interface ProductionalizeOptions {
   noInteractive: boolean; // If true, disable interactive mode (default: interactive is ON)
 }
 
+/**
+ * Commander options shape.
+ * Note: Commander.js --no-* options create properties without the `no` prefix.
+ * E.g., --no-save creates `save: false`, not `noSave: true`.
+ */
+interface CommanderProductionalizeOptions {
+  enableScans?: boolean;
+  categories?: string;
+  stream?: boolean; // Commander's negated flag: true by default, false when --no-stream
+  checkpoint?: boolean;
+  threadId?: string;
+  reindex?: boolean;
+  resolvedConfig?: ShipSpecConfig;
+  save?: boolean; // Commander's negated flag: true by default, false when --no-save
+  keepOutputs?: number;
+  cloudOk?: boolean;
+  localOnly?: boolean;
+  interactive?: boolean; // Commander's negated flag: true by default, false when --no-interactive
+}
+
 /** Result type including possible interrupt */
 type ProductionalizeResult = ProductionalizeStateType & {
   __interrupt__?: {
@@ -61,8 +85,26 @@ type ProductionalizeResult = ProductionalizeStateType & {
 
 async function productionalizeAction(
   context: string | undefined,
-  options: ProductionalizeOptions
+  cmdOpts: CommanderProductionalizeOptions
 ): Promise<void> {
+  // Normalize Commander's negated flags to our convention
+  // Commander.js --no-* options create properties without the `no` prefix
+  // E.g., --no-save creates `save: false`, --no-interactive creates `interactive: false`
+  const options: ProductionalizeOptions = {
+    enableScans: cmdOpts.enableScans ?? false,
+    categories: cmdOpts.categories,
+    stream: cmdOpts.stream !== false, // true unless --no-stream
+    checkpoint: cmdOpts.checkpoint ?? false,
+    threadId: cmdOpts.threadId,
+    reindex: cmdOpts.reindex ?? false,
+    resolvedConfig: cmdOpts.resolvedConfig,
+    noSave: cmdOpts.save === false, // true if --no-save was passed
+    keepOutputs: cmdOpts.keepOutputs ?? 10,
+    cloudOk: cmdOpts.cloudOk ?? false,
+    localOnly: cmdOpts.localOnly ?? false,
+    noInteractive: cmdOpts.interactive === false, // true if --no-interactive was passed
+  };
+
   // 1. Fail-fast if not initialized
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
