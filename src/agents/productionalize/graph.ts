@@ -1,10 +1,12 @@
 import { StateGraph, Send, START, END } from "@langchain/langgraph";
 import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { ProductionalizeState, type ProductionalizeStateType } from "./state.js";
+import { createInterviewerNode } from "./nodes/interviewer.js";
 import { createResearcherNode } from "./nodes/researcher.js";
 import { createPlannerNode } from "./nodes/planner.js";
 import { createWorkerNode } from "./nodes/worker.js";
 import { createAggregatorNode } from "./nodes/aggregator.js";
+import { createReportReviewerNode } from "./nodes/report-reviewer.js";
 import { createPromptGeneratorNode } from "./nodes/prompt-generator.js";
 import { createWebSearchTool } from "../tools/web-search.js";
 import { createSASTScannerTool, ScannerResultsSchema } from "../tools/sast-scanner.js";
@@ -66,24 +68,58 @@ export async function createProductionalizeGraph(
     }
   };
 
+  // Create all nodes
+  const interviewerNode = createInterviewerNode(model);
   const researcherNode = createResearcherNode(model, webSearchTool);
   const plannerNode = createPlannerNode(model);
   const workerNode = createWorkerNode(model, retrieverTool, webSearchTool, tokenBudget);
   const aggregatorNode = createAggregatorNode(model);
+  const reportReviewerNode = createReportReviewerNode();
   const promptGeneratorNode = createPromptGeneratorNode(model, options.shouldRedactCloud);
 
+  /**
+   * Graph Topology:
+   *
+   * START
+   *   → gatherSignals
+   *   → interviewer ←┐ (loops until interview complete via interrupt)
+   *   ─────────────┘
+   *   → researcher
+   *   → scanner
+   *   → planner
+   *   → workers (parallel via Send) ←┐ (optional clarification interrupts)
+   *   ───────────────────────────────┘
+   *   → aggregator ←┐ (loops if report feedback provided)
+   *   → reportReviewer ──┘
+   *   → promptGenerator
+   *   → END
+   */
   const workflow = new StateGraph(ProductionalizeState)
     .addNode("gatherSignals", gatherSignalsNode)
+    .addNode("interviewer", interviewerNode)
     .addNode("researcher", researcherNode)
     .addNode("scanner", scannerNode)
     .addNode("planner", plannerNode)
     .addNode("worker", workerNode)
     .addNode("aggregator", aggregatorNode)
+    .addNode("reportReviewer", reportReviewerNode)
     .addNode("promptGenerator", promptGeneratorNode)
+    // Start with signal gathering
     .addEdge(START, "gatherSignals")
-    .addEdge("gatherSignals", "researcher")
+    // Signal gathering leads to interviewer
+    .addEdge("gatherSignals", "interviewer")
+    // Interviewer loops back to itself (via interrupt) until complete
+    .addConditionalEdges("interviewer", (state: ProductionalizeStateType) => {
+      if (state.interviewComplete) {
+        return "researcher";
+      }
+      // Loop back to interviewer for interrupt handling
+      return "interviewer";
+    })
+    // Research phase
     .addEdge("researcher", "scanner")
     .addEdge("scanner", "planner")
+    // Planner creates subtasks and fans out to workers
     .addConditionalEdges("planner", (state: ProductionalizeStateType) => {
       if (state.subtasks.length === 0) {
         return "aggregator";
@@ -95,11 +131,31 @@ export async function createProductionalizeGraph(
             researchDigest: state.researchDigest,
             sastResults: state.sastResults,
             signals: state.signals,
+            interactiveMode: state.interactiveMode,
+            userContext: state.userContext,
           })
       );
     })
+    // Workers complete and go to aggregator
     .addEdge("worker", "aggregator")
-    .addEdge("aggregator", "promptGenerator")
+    // Aggregator goes to report reviewer (in interactive mode when review needed) or directly to prompt generator
+    .addConditionalEdges("aggregator", (state: ProductionalizeStateType) => {
+      // Check if a new report needs user review
+      // reportNeedsReview is set by aggregator when generating/regenerating a report
+      if (state.interactiveMode && state.reportNeedsReview) {
+        return "reportReviewer";
+      }
+      return "promptGenerator";
+    })
+    // Report reviewer can approve (go to prompt generator) or provide feedback (go back to aggregator)
+    .addConditionalEdges("reportReviewer", (state: ProductionalizeStateType) => {
+      if (state.reportApproved) {
+        return "promptGenerator";
+      }
+      // Feedback was provided - regenerate report
+      return "aggregator";
+    })
+    // Prompt generator ends the workflow
     .addEdge("promptGenerator", END);
 
   return workflow.compile({ checkpointer: options.checkpointer });

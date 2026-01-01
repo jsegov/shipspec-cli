@@ -5,6 +5,8 @@ import { existsSync } from "fs";
 import { randomUUID } from "node:crypto";
 import chalk from "chalk";
 import { format } from "date-fns";
+import { input, select, checkbox } from "@inquirer/prompts";
+import { Command as LangGraphCommand } from "@langchain/langgraph";
 
 import { loadConfig, type ShipSpecSecrets } from "../../config/loader.js";
 import type { ShipSpecConfig } from "../../config/schema.js";
@@ -13,10 +15,16 @@ import { DocumentRepository } from "../../core/storage/repository.js";
 import { createEmbeddingsModel } from "../../core/models/embeddings.js";
 import { ensureIndex } from "../../core/indexing/ensure-index.js";
 import { createProductionalizeGraph } from "../../agents/productionalize/graph.js";
-import { ProductionalizeStateType } from "../../agents/productionalize/state.js";
+import type { ProductionalizeStateType } from "../../agents/productionalize/state.js";
 import { createCheckpointer } from "../../core/checkpoint/index.js";
 import { logger, sanitizeError } from "../../utils/logger.js";
-import type { ProductionalizeSubtask } from "../../agents/productionalize/types.js";
+import type {
+  ProductionalizeSubtask,
+  ProductionalizeInterruptPayload,
+  InterviewInterruptPayload,
+  WorkerClarificationInterruptPayload,
+  ReportReviewInterruptPayload,
+} from "../../agents/productionalize/types.js";
 import { CliUsageError, CliRuntimeError } from "../errors.js";
 import { findProjectRoot, PROJECT_DIR, OUTPUTS_DIR } from "../../core/project/project-state.js";
 import { createSecretsStore } from "../../core/secrets/secrets-store.js";
@@ -28,6 +36,10 @@ import { readFileSync } from "fs";
 import { dirname, basename } from "path";
 import { z } from "zod";
 
+/**
+ * Normalized options for productionalize action.
+ * These are the values after Commander options have been normalized.
+ */
 interface ProductionalizeOptions {
   enableScans: boolean;
   categories?: string;
@@ -40,12 +52,59 @@ interface ProductionalizeOptions {
   keepOutputs?: number; // Optional for defensive programming; default is 10
   cloudOk: boolean;
   localOnly: boolean;
+  noInteractive: boolean; // If true, disable interactive mode (default: interactive is ON)
 }
+
+/**
+ * Commander options shape.
+ * Note: Commander.js --no-* options create properties without the `no` prefix.
+ * E.g., --no-save creates `save: false`, not `noSave: true`.
+ */
+interface CommanderProductionalizeOptions {
+  enableScans?: boolean;
+  categories?: string;
+  stream?: boolean; // Commander's negated flag: true by default, false when --no-stream
+  checkpoint?: boolean;
+  threadId?: string;
+  reindex?: boolean;
+  resolvedConfig?: ShipSpecConfig;
+  save?: boolean; // Commander's negated flag: true by default, false when --no-save
+  keepOutputs?: number;
+  cloudOk?: boolean;
+  localOnly?: boolean;
+  interactive?: boolean; // Commander's negated flag: true by default, false when --no-interactive
+}
+
+/** Result type including possible interrupt */
+type ProductionalizeResult = ProductionalizeStateType & {
+  __interrupt__?: {
+    id: string;
+    value: ProductionalizeInterruptPayload;
+  }[];
+};
 
 async function productionalizeAction(
   context: string | undefined,
-  options: ProductionalizeOptions
+  cmdOpts: CommanderProductionalizeOptions
 ): Promise<void> {
+  // Normalize Commander's negated flags to our convention
+  // Commander.js --no-* options create properties without the `no` prefix
+  // E.g., --no-save creates `save: false`, --no-interactive creates `interactive: false`
+  const options: ProductionalizeOptions = {
+    enableScans: cmdOpts.enableScans ?? false,
+    categories: cmdOpts.categories,
+    stream: cmdOpts.stream !== false, // true unless --no-stream
+    checkpoint: cmdOpts.checkpoint ?? false,
+    threadId: cmdOpts.threadId,
+    reindex: cmdOpts.reindex ?? false,
+    resolvedConfig: cmdOpts.resolvedConfig,
+    noSave: cmdOpts.save === false, // true if --no-save was passed
+    keepOutputs: cmdOpts.keepOutputs ?? 10,
+    cloudOk: cmdOpts.cloudOk ?? false,
+    localOnly: cmdOpts.localOnly ?? false,
+    noInteractive: cmdOpts.interactive === false, // true if --no-interactive was passed
+  };
+
   // 1. Fail-fast if not initialized
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
@@ -125,7 +184,11 @@ async function productionalizeAction(
     config.productionalize.coreCategories = options.categories.split(",").map((c) => c.trim());
   }
 
-  const checkpointEnabled = options.checkpoint || config.checkpoint.enabled;
+  // Interactive mode is enabled by default unless --no-interactive is passed
+  const isInteractive = !options.noInteractive;
+
+  // Auto-enable checkpointing for interactive mode (required for interrupt() to work)
+  const checkpointEnabled = isInteractive || options.checkpoint || config.checkpoint.enabled;
 
   if (options.threadId) {
     if (!checkpointEnabled) {
@@ -312,14 +375,60 @@ async function productionalizeAction(
       }
     : {};
 
-  if (options.stream) {
-    logger.progress("Starting analysis pipeline...\n");
+  // Initial state for the graph
+  const initialState = {
+    userQuery: context ?? "Perform a full production-readiness analysis of this codebase.",
+    interactiveMode: isInteractive,
+  };
+
+  if (isInteractive) {
+    // Interactive mode: use invoke with interrupt handling loop
+    logger.progress("Starting interactive analysis pipeline...\n");
 
     try {
-      const stream = await graph.stream(
-        { userQuery: context ?? "Perform a full production-readiness analysis of this codebase." },
-        { streamMode: "updates", ...graphConfig }
-      );
+      let result = (await graph.invoke(initialState, graphConfig)) as ProductionalizeResult;
+
+      // Handle interrupts in a loop
+      while (result.__interrupt__ && result.__interrupt__.length > 0) {
+        const interruptObj = result.__interrupt__[0];
+        if (!interruptObj) break;
+
+        const interruptValue = interruptObj.value;
+
+        switch (interruptValue.type) {
+          case "interview":
+            result = await handleInterviewInterrupt(graph, graphConfig, interruptValue);
+            break;
+          case "worker_clarification":
+            result = await handleWorkerClarificationInterrupt(graph, graphConfig, interruptValue);
+            break;
+          case "report_review":
+            result = await handleReportReviewInterrupt(graph, graphConfig, interruptValue);
+            break;
+          default: {
+            // TypeScript exhaustiveness check - this should never be reached
+            // if all ProductionalizeInterruptPayload types are handled above.
+            // At runtime, throw to prevent infinite loop from unhandled interrupt type.
+            const unknownType = (interruptValue as { type: string }).type;
+            throw new CliRuntimeError(
+              `Unhandled interrupt type: "${unknownType}". ` +
+                "This may indicate a version mismatch or corrupted state."
+            );
+          }
+        }
+      }
+
+      finalReport = result.finalReport;
+      finalTaskPrompts = result.taskPrompts;
+    } catch (err) {
+      throw new CliRuntimeError("Analysis failed", err);
+    }
+  } else if (options.stream) {
+    // Non-interactive streaming mode
+    logger.progress("Starting analysis pipeline (non-interactive)...\n");
+
+    try {
+      const stream = await graph.stream(initialState, { streamMode: "updates", ...graphConfig });
 
       for await (const event of stream) {
         if (event.gatherSignals) {
@@ -365,13 +474,11 @@ async function productionalizeAction(
       throw new CliRuntimeError("Analysis failed", err);
     }
   } else {
+    // Non-interactive batch mode
     try {
-      const result = (await graph.invoke(
-        { userQuery: context ?? "Perform a full production-readiness analysis of this codebase." },
-        graphConfig
-      )) as Partial<ProductionalizeStateType>;
-      finalReport = result.finalReport ?? "";
-      finalTaskPrompts = result.taskPrompts ?? "";
+      const result = (await graph.invoke(initialState, graphConfig)) as ProductionalizeResult;
+      finalReport = result.finalReport;
+      finalTaskPrompts = result.taskPrompts;
     } catch (err) {
       throw new CliRuntimeError("Analysis failed", err);
     }
@@ -466,6 +573,113 @@ async function pruneOutputs(outputsDir: string, limit: number): Promise<void> {
   }
 }
 
+// ============================================================================
+// Interrupt Handlers
+// ============================================================================
+
+/**
+ * Handles interview interrupt - prompts user with clarifying questions.
+ */
+async function handleInterviewInterrupt(
+  graph: Awaited<ReturnType<typeof createProductionalizeGraph>>,
+  graphConfig: { configurable?: { thread_id: string } },
+  interruptPayload: InterviewInterruptPayload
+): Promise<ProductionalizeResult> {
+  logger.plain(chalk.yellow("\n📋 Before we begin, a few questions:\n"));
+
+  const answers: Record<string, string | string[]> = {};
+
+  for (const question of interruptPayload.questions) {
+    if (question.type === "select" && question.options && question.options.length > 0) {
+      const answer = await select({
+        message: question.question,
+        choices: question.options.map((opt) => ({ value: opt, name: opt })),
+      });
+      answers[question.id] = answer;
+    } else if (question.type === "multiselect" && question.options && question.options.length > 0) {
+      const answer = await checkbox({
+        message: question.question,
+        choices: question.options.map((opt) => ({ value: opt, name: opt })),
+      });
+      answers[question.id] = answer;
+    } else {
+      // text type
+      const answer = await input({
+        message: question.question,
+      });
+      answers[question.id] = answer;
+    }
+  }
+
+  logger.plain("");
+
+  return graph.invoke(
+    new LangGraphCommand({ resume: answers }),
+    graphConfig
+  ) as Promise<ProductionalizeResult>;
+}
+
+/**
+ * Handles worker clarification interrupt - shows context and prompts for clarification.
+ *
+ * NOTE: This handler is currently UNUSED because workers don't call interrupt().
+ * Workers run in parallel via Send(), which makes interrupt() unsuitable:
+ * - Multiple workers calling interrupt() simultaneously causes routing issues
+ * - State fields use last-write-wins reducers, so concurrent updates clobber each other
+ * - There's no loop-back edge to handle worker clarification interrupts
+ *
+ * The handler is kept in place for potential future use if a different architecture
+ * (e.g., sequential workers, batched clarification collection) is implemented.
+ */
+async function handleWorkerClarificationInterrupt(
+  graph: Awaited<ReturnType<typeof createProductionalizeGraph>>,
+  graphConfig: { configurable?: { thread_id: string } },
+  interruptPayload: WorkerClarificationInterruptPayload
+): Promise<ProductionalizeResult> {
+  logger.plain(chalk.yellow(`\n🔍 Clarification needed for [${interruptPayload.category}]:\n`));
+  logger.plain(chalk.dim(`Context: ${interruptPayload.findingContext}\n`));
+
+  const answers: Record<string, string> = {};
+
+  for (const [i, question] of interruptPayload.questions.entries()) {
+    const answer = await input({
+      message: `${String(i + 1)}. ${question}`,
+    });
+    answers[String(i)] = answer;
+  }
+
+  logger.plain("");
+
+  return graph.invoke(
+    new LangGraphCommand({ resume: answers }),
+    graphConfig
+  ) as Promise<ProductionalizeResult>;
+}
+
+/**
+ * Handles report review interrupt - displays report and prompts for approval/feedback.
+ */
+async function handleReportReviewInterrupt(
+  graph: Awaited<ReturnType<typeof createProductionalizeGraph>>,
+  graphConfig: { configurable?: { thread_id: string } },
+  interruptPayload: ReportReviewInterruptPayload
+): Promise<ProductionalizeResult> {
+  logger.success(chalk.green("\n📄 Production Readiness Report:\n"));
+  logger.output(sanitizeForTerminal(redactText(interruptPayload.report)));
+  logger.plain("");
+
+  const feedback = await input({
+    message:
+      chalk.cyan("Review the report above.") +
+      chalk.dim("\n(Type 'approve' to proceed, or provide feedback for revisions): "),
+  });
+
+  return graph.invoke(
+    new LangGraphCommand({ resume: feedback }),
+    graphConfig
+  ) as Promise<ProductionalizeResult>;
+}
+
 export const productionalizeCommand = new Command("productionalize")
   .description("Analyze codebase for production readiness and generate agent-ready task prompts")
   .argument("[context]", "Optional context (e.g., 'B2B SaaS handling PII')")
@@ -490,6 +704,10 @@ export const productionalizeCommand = new Command("productionalize")
       return parsed;
     },
     10
+  )
+  .option(
+    "--no-interactive",
+    "Disable interactive mode (skip clarification questions and report review)"
   )
   .option("--cloud-ok", "Acknowledge and consent to sending data to cloud LLM/Search providers")
   .option("--local-only", "Strictly refuse to use cloud-based providers")
