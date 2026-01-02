@@ -56,10 +56,9 @@ Use the report's severity assessments and timeline recommendations to order task
       const textMatch = /Text: "([\s\S]{1,10000}?)"\. Error:/.exec(errMsg);
       if (!textMatch?.[1]) throw parseError;
 
-      // Parse the extracted text - wrap in try-catch to handle invalid JSON gracefully
-      let parsed: unknown;
+      // Parse the extracted text - wrap in try-catch to handle invalid JSON or schema mismatch
       try {
-        parsed = JSON.parse(textMatch[1].trim());
+        let parsed: unknown = JSON.parse(textMatch[1].trim());
 
         // If it's an array (OpenAI's wrapper format), extract the text field
         if (
@@ -72,12 +71,12 @@ Use the report's severity assessments and timeline recommendations to order task
           const textContent = (parsed[0] as { text: string }).text;
           parsed = JSON.parse(textContent);
         }
+
+        output = PromptsOutputSchema.parse(parsed);
       } catch {
-        // JSON parsing failed, re-throw original error
+        // JSON parsing or schema validation failed, re-throw original error
         throw parseError;
       }
-
-      output = PromptsOutputSchema.parse(parsed);
     }
 
     const formattedMarkdown = output.prompts
