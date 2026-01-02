@@ -297,19 +297,25 @@ export function createInterviewerNode(model: BaseChatModel) {
       const textMatch = /Text: "([\s\S]{1,10000}?)"\. Error:/.exec(errMsg);
       if (!textMatch?.[1]) throw parseError;
 
-      // Parse the extracted text
-      let parsed: unknown = JSON.parse(textMatch[1].trim());
+      // Parse the extracted text - wrap in try-catch to handle invalid JSON gracefully
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(textMatch[1].trim());
 
-      // If it's an array (OpenAI's wrapper format), extract the text field
-      if (
-        Array.isArray(parsed) &&
-        parsed.length > 0 &&
-        parsed[0] &&
-        typeof parsed[0] === "object" &&
-        "text" in parsed[0]
-      ) {
-        const textContent = (parsed[0] as { text: string }).text;
-        parsed = JSON.parse(textContent);
+        // If it's an array (OpenAI's wrapper format), extract the text field
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed[0] &&
+          typeof parsed[0] === "object" &&
+          "text" in parsed[0]
+        ) {
+          const textContent = (parsed[0] as { text: string }).text;
+          parsed = JSON.parse(textContent);
+        }
+      } catch {
+        // JSON parsing failed, re-throw original error
+        throw parseError;
       }
 
       result = InterviewerOutputSchema.parse(parsed);
