@@ -1,5 +1,6 @@
 {
   "llm": {
-    "modelName": "google/gemini-3-flash-preview"
+    "modelName": "google/gemini-3-flash-preview",
+    "provider": "openrouter"
   }
 }

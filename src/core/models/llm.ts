@@ -8,12 +8,13 @@ const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 export function createChatModel(config: LLMConfig, apiKey?: string): Promise<BaseChatModel> {
   switch (config.provider) {
     case "openrouter":
+      // Don't set maxTokens for OpenRouter - let each model use its native limits.
+      // reservedOutputTokens is for context budget planning only, not API limits.
       return Promise.resolve(
         new ChatOpenAI({
           model: config.modelName,
           temperature: config.temperature,
           maxRetries: config.maxRetries,
-          maxTokens: config.reservedOutputTokens,
           ...(config.timeout && { timeout: config.timeout }),
           apiKey: apiKey ?? config.apiKey ?? process.env.OPENROUTER_API_KEY,
           configuration: {

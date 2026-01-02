@@ -421,6 +421,18 @@ async function productionalizeAction(
       finalReport = result.finalReport;
       finalTaskPrompts = result.taskPrompts;
     } catch (err) {
+      // Check for OpenRouter 402 credits error
+      if (
+        err instanceof Error &&
+        err.message.includes("402") &&
+        err.message.includes("more credits")
+      ) {
+        throw new CliUsageError(
+          `Insufficient OpenRouter API credits. ${err.message}\n\n` +
+            `To continue, visit https://openrouter.ai/settings/keys and add credits to your API key.`
+        );
+      }
+
       throw new CliRuntimeError("Analysis failed", err);
     }
   } else if (options.stream) {
@@ -471,6 +483,17 @@ async function productionalizeAction(
         }
       }
     } catch (err) {
+      // Check for OpenRouter 402 credits error
+      if (
+        err instanceof Error &&
+        err.message.includes("402") &&
+        err.message.includes("more credits")
+      ) {
+        throw new CliUsageError(
+          `Insufficient OpenRouter API credits. ${err.message}\n\n` +
+            `To continue, visit https://openrouter.ai/settings/keys and add credits to your API key.`
+        );
+      }
       throw new CliRuntimeError("Analysis failed", err);
     }
   } else {
@@ -480,6 +503,17 @@ async function productionalizeAction(
       finalReport = result.finalReport;
       finalTaskPrompts = result.taskPrompts;
     } catch (err) {
+      // Check for OpenRouter 402 credits error
+      if (
+        err instanceof Error &&
+        err.message.includes("402") &&
+        err.message.includes("more credits")
+      ) {
+        throw new CliUsageError(
+          `Insufficient OpenRouter API credits. ${err.message}\n\n` +
+            `To continue, visit https://openrouter.ai/settings/keys and add credits to your API key.`
+        );
+      }
       throw new CliRuntimeError("Analysis failed", err);
     }
   }

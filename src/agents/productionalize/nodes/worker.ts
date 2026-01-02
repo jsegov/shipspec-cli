@@ -12,6 +12,7 @@ import {
   ProductionalizeWorkerOutputSchema,
 } from "../../prompts/index.js";
 import { logger } from "../../../utils/logger.js";
+import { safeTruncateForRegex } from "../../../utils/redaction.js";
 
 type WorkerOutput = z.infer<typeof ProductionalizeWorkerOutputSchema>;
 
@@ -149,12 +150,35 @@ ${userContext ? "IMPORTANT: Frame your findings and recommendations in terms of 
         new HumanMessage(userPrompt),
       ]);
     } catch (parseError) {
-      // LangChain parser fails on JSON with leading newlines; extract and re-parse
-      const errMsg = parseError instanceof Error ? parseError.message : String(parseError);
-      const textMatch = /Text: "([\s\S]+?)"\. Error:/.exec(errMsg);
+      // LangChain parser fails on JSON wrapped in OpenAI's array format or with leading newlines
+      // OpenAI JSON mode returns: [{"type":"text","text":"{actual json}"}]
+      const rawErrMsg = parseError instanceof Error ? parseError.message : String(parseError);
+      // Truncate error message before regex processing (ReDoS prevention per AGENTS.md)
+      const errMsg = safeTruncateForRegex(rawErrMsg);
+      const textMatch = /Text: "([\s\S]{1,10000}?)"\. Error:/.exec(errMsg);
       if (!textMatch?.[1]) throw parseError;
-      const parsed: unknown = JSON.parse(textMatch[1].trim());
-      output = ProductionalizeWorkerOutputSchema.parse(parsed);
+
+      // Parse the extracted text - wrap in try-catch to handle invalid JSON or schema mismatch
+      try {
+        let parsed: unknown = JSON.parse(textMatch[1].trim());
+
+        // If it's an array (OpenAI's wrapper format), extract the text field
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed[0] &&
+          typeof parsed[0] === "object" &&
+          "text" in parsed[0]
+        ) {
+          const textContent = (parsed[0] as { text: string }).text;
+          parsed = JSON.parse(textContent);
+        }
+
+        output = ProductionalizeWorkerOutputSchema.parse(parsed);
+      } catch {
+        // JSON parsing or schema validation failed, re-throw original error
+        throw parseError;
+      }
     }
 
     // Low confidence handling:

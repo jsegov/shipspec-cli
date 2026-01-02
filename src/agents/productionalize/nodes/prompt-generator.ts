@@ -2,7 +2,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { ProductionalizeStateType } from "../state.js";
 import { PROMPT_GENERATOR_TEMPLATE, PromptsOutputSchema } from "../../prompts/index.js";
-import { redactObject } from "../../../utils/redaction.js";
+import { redactObject, safeTruncateForRegex } from "../../../utils/redaction.js";
 
 /**
  * Creates the prompt generator node.
@@ -41,10 +41,43 @@ ${JSON.stringify(findingsForPrompt, null, 2)}
 Generate agent-ready task prompts based on the report's recommendations and priorities.
 Use the report's severity assessments and timeline recommendations to order tasks appropriately.`;
 
-    const output = await structuredModel.invoke([
-      new SystemMessage(PROMPT_GENERATOR_TEMPLATE),
-      new HumanMessage(userPrompt),
-    ]);
+    let output;
+    try {
+      output = await structuredModel.invoke([
+        new SystemMessage(PROMPT_GENERATOR_TEMPLATE),
+        new HumanMessage(userPrompt),
+      ]);
+    } catch (parseError) {
+      // LangChain parser fails on JSON wrapped in OpenAI's array format or with leading newlines
+      // OpenAI JSON mode returns: [{"type":"text","text":"{actual json}"}]
+      const rawErrMsg = parseError instanceof Error ? parseError.message : String(parseError);
+      // Truncate error message before regex processing (ReDoS prevention per AGENTS.md)
+      const errMsg = safeTruncateForRegex(rawErrMsg);
+      const textMatch = /Text: "([\s\S]{1,10000}?)"\. Error:/.exec(errMsg);
+      if (!textMatch?.[1]) throw parseError;
+
+      // Parse the extracted text - wrap in try-catch to handle invalid JSON or schema mismatch
+      try {
+        let parsed: unknown = JSON.parse(textMatch[1].trim());
+
+        // If it's an array (OpenAI's wrapper format), extract the text field
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed[0] &&
+          typeof parsed[0] === "object" &&
+          "text" in parsed[0]
+        ) {
+          const textContent = (parsed[0] as { text: string }).text;
+          parsed = JSON.parse(textContent);
+        }
+
+        output = PromptsOutputSchema.parse(parsed);
+      } catch {
+        // JSON parsing or schema validation failed, re-throw original error
+        throw parseError;
+      }
+    }
 
     const formattedMarkdown = output.prompts
       .map((p) => `### Task ${String(p.id)}:\n\`\`\`\n${p.prompt}\n\`\`\``)

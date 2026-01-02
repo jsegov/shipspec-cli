@@ -51,10 +51,8 @@ export const ProductionalizeWorkerOutputSchema = z.object({
     .describe("Confidence in the findings based on context quality"),
   clarificationQuestions: z
     .array(z.string())
-    .optional()
-    .describe(
-      "Questions to ask the user when confidence is low (e.g., 'Is this a public-facing API?')"
-    ),
+    .nullish()
+    .describe("Questions to ask the user when confidence is low (null/omitted if not needed)"),
 });
 
 export const PromptTaskSchema = z.object({
