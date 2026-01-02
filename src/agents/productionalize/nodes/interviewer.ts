@@ -16,16 +16,25 @@ import type {
 } from "../types.js";
 import { INTERVIEWER_TEMPLATE } from "../../prompts/templates.js";
 import { logger } from "../../../utils/logger.js";
+import { safeTruncateForRegex } from "../../../utils/redaction.js";
 import type { ProjectSignals } from "../../../core/analysis/project-signals.js";
 
 /**
  * Schema for a single interview question.
+ *
+ * NOTE: Uses .nullish() for cross-provider compatibility.
+ * - OpenAI: Always includes fields (may be null)
+ * - Claude/Gemini: May omit optional fields or include null
+ * .nullish() = .optional().nullable() handles all cases.
  */
 const InterviewQuestionSchema = z.object({
   id: z.string().describe("Unique identifier for the question"),
   question: z.string().describe("The question text"),
   type: z.enum(["select", "multiselect", "text"]).describe("Question type for UI rendering"),
-  options: z.array(z.string()).optional().describe("Options for select/multiselect questions"),
+  options: z
+    .array(z.string())
+    .nullish()
+    .describe("Options for select/multiselect questions (null/undefined for text questions)"),
   required: z.boolean().describe("Whether the question is required"),
 });
 
@@ -38,8 +47,7 @@ const InterviewerOutputSchema = z.object({
     .describe("Whether you have enough information from project signals to proceed"),
   questions: z
     .array(InterviewQuestionSchema)
-    .max(4)
-    .describe("Follow-up questions to ask the user (empty if satisfied)"),
+    .describe("Follow-up questions to ask the user (empty if satisfied, max 2-4 questions)"),
   reasoning: z
     .string()
     .describe("Brief explanation of why you are or are not satisfied with the current information"),
@@ -211,6 +219,9 @@ Generate interview questions only for information that is:
  * @param model - The chat model to use for interview question generation
  */
 export function createInterviewerNode(model: BaseChatModel) {
+  // Use default method (jsonSchema) for deterministic, cross-provider structured outputs
+  // Works across OpenAI, Claude, and Gemini with nullable fields for optional values
+  // Claude doesn't support minItems/maxItems constraints (removed .max() above)
   const structuredModel = model.withStructuredOutput(InterviewerOutputSchema);
 
   return async (state: ProductionalizeStateType): Promise<Partial<ProductionalizeStateType>> => {
@@ -270,10 +281,39 @@ export function createInterviewerNode(model: BaseChatModel) {
     const prompt = buildInterviewerPrompt(state.signals, state.userQuery);
 
     // Get structured output from LLM
-    const result = await structuredModel.invoke([
-      new SystemMessage(INTERVIEWER_TEMPLATE),
-      new HumanMessage(prompt),
-    ]);
+    let result;
+    try {
+      result = await structuredModel.invoke([
+        new SystemMessage(INTERVIEWER_TEMPLATE),
+        new HumanMessage(prompt),
+      ]);
+    } catch (parseError) {
+      // LangChain parser fails on JSON wrapped in OpenAI's response array format or with leading newlines
+      // OpenAI JSON mode returns: [{"type":"text","text":"{actual json}"}]
+      // We need to extract the inner text field
+      const rawErrMsg = parseError instanceof Error ? parseError.message : String(parseError);
+      // Truncate error message before regex processing (ReDoS prevention per AGENTS.md)
+      const errMsg = safeTruncateForRegex(rawErrMsg);
+      const textMatch = /Text: "([\s\S]{1,10000}?)"\. Error:/.exec(errMsg);
+      if (!textMatch?.[1]) throw parseError;
+
+      // Parse the extracted text
+      let parsed: unknown = JSON.parse(textMatch[1].trim());
+
+      // If it's an array (OpenAI's wrapper format), extract the text field
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed[0] &&
+        typeof parsed[0] === "object" &&
+        "text" in parsed[0]
+      ) {
+        const textContent = (parsed[0] as { text: string }).text;
+        parsed = JSON.parse(textContent);
+      }
+
+      result = InterviewerOutputSchema.parse(parsed);
+    }
 
     logger.info(`Interviewer reasoning: ${result.reasoning}`);
 

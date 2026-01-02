@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { redactText } from "../../utils/logger.js";
+import { safeTruncateForRegex } from "../../utils/redaction.js";
 
 /**
  * ReDoS Protection Tests
@@ -186,6 +187,106 @@ MIIEpAIBAAKCAQEAwhatever
       const result = redactText(auth);
 
       expect(result).toBe("[REDACTED]");
+    });
+  });
+
+  describe("Error Message Regex Parsing (LangChain structured output recovery)", () => {
+    // Pattern used in interviewer.ts, prompt-generator.ts, worker.ts
+    const ERROR_PARSING_PATTERN = /Text: "([\s\S]{1,10000}?)"\. Error:/;
+
+    it("should handle malicious error messages without hanging", () => {
+      // Malicious input: Very long error message with regex-unfriendly content
+      const malicious = 'Text: "' + "a".repeat(50000) + '". Error: parsing failed';
+      const start = Date.now();
+
+      // First truncate (as the fixed code does), then apply regex
+      const truncated = safeTruncateForRegex(malicious);
+      ERROR_PARSING_PATTERN.exec(truncated);
+
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(100); // Must complete in <100ms
+    });
+
+    it("should handle repeated quote-backslash patterns without hanging", () => {
+      // Malicious input: Pattern designed to cause backtracking
+      const malicious = 'Text: "' + '\\"'.repeat(10000) + '". Error: failed';
+      const start = Date.now();
+
+      const truncated = safeTruncateForRegex(malicious);
+      ERROR_PARSING_PATTERN.exec(truncated);
+
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    it("should handle nested JSON-like content without hanging", () => {
+      // Malicious input: Nested structures that could cause backtracking
+      const malicious = 'Text: "' + '{"a":'.repeat(5000) + '". Error: parse';
+      const start = Date.now();
+
+      const truncated = safeTruncateForRegex(malicious);
+      ERROR_PARSING_PATTERN.exec(truncated);
+
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    it("should still extract valid JSON from error messages", () => {
+      const validError =
+        'Text: "{\\"prompts\\":[{\\"id\\":1,\\"prompt\\":\\"test\\"}]}". Error: JSON parse failed';
+
+      const truncated = safeTruncateForRegex(validError);
+      const match = ERROR_PARSING_PATTERN.exec(truncated);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe('{\\"prompts\\":[{\\"id\\":1,\\"prompt\\":\\"test\\"}]}');
+    });
+
+    it("should handle OpenAI array wrapper format", () => {
+      const arrayError =
+        'Text: "[{\\"type\\":\\"text\\",\\"text\\":\\"{\\\\\\"data\\\\\\":\\\\\\"value\\\\\\"}\\"}]". Error: unexpected';
+
+      const truncated = safeTruncateForRegex(arrayError);
+      const match = ERROR_PARSING_PATTERN.exec(truncated);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toContain("type");
+    });
+  });
+
+  describe("safeTruncateForRegex", () => {
+    it("should truncate messages exceeding 20KB limit", () => {
+      const longMessage = "a".repeat(30000);
+      const result = safeTruncateForRegex(longMessage);
+
+      expect(result.length).toBe(20000);
+    });
+
+    it("should not truncate messages within limit", () => {
+      const shortMessage = "a".repeat(1000);
+      const result = safeTruncateForRegex(shortMessage);
+
+      expect(result).toBe(shortMessage);
+      expect(result.length).toBe(1000);
+    });
+
+    it("should handle exactly 20KB boundary", () => {
+      const exactlyLimit = "a".repeat(20000);
+      const result = safeTruncateForRegex(exactlyLimit);
+
+      expect(result.length).toBe(20000);
+      expect(result).toBe(exactlyLimit);
+    });
+
+    it("should handle empty strings", () => {
+      expect(safeTruncateForRegex("")).toBe("");
+    });
+
+    it("should truncate at exactly 20001 characters", () => {
+      const overLimit = "a".repeat(20001);
+      const result = safeTruncateForRegex(overLimit);
+
+      expect(result.length).toBe(20000);
     });
   });
 

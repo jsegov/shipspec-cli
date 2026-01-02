@@ -111,4 +111,6 @@ Question Format:
 
 If the project signals already provide sufficient context for a targeted analysis,
 set "satisfied" to true and skip questions.
+
+Respond with a valid JSON object matching the specified schema.
 `;

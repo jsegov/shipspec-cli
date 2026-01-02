@@ -23,6 +23,28 @@ export type Redacted<T> = T extends string
 
 const MAX_REDACTION_LENGTH = 50000;
 
+/**
+ * Maximum length for error messages before regex processing.
+ * Error messages are untrusted input (from API responses) and must be
+ * bounded to prevent ReDoS attacks. 20KB is generous for error messages.
+ */
+const MAX_ERROR_MESSAGE_LENGTH = 20000;
+
+/**
+ * Truncates error messages to a safe length before regex processing.
+ * Per AGENTS.md rules, all regex processing of untrusted input must
+ * validate input length first to prevent ReDoS attacks.
+ *
+ * @param errorMessage - The error message to truncate
+ * @returns The truncated error message (max 20KB)
+ */
+export function safeTruncateForRegex(errorMessage: string): string {
+  if (errorMessage.length <= MAX_ERROR_MESSAGE_LENGTH) {
+    return errorMessage;
+  }
+  return errorMessage.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
 export const SECRET_PATTERNS = [
   /sk-[a-zA-Z0-9]{20,1000}/g, // OpenAI-style keys (bounded)
   /sk-ant-[a-zA-Z0-9_-]{10,1000}/g, // Anthropic API keys (bounded)
