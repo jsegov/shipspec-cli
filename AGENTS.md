@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Ship Spec CLI is an autonomous semantic engine for codebase analysis and production readiness evaluation. It's a Retrieval-Augmented Generation (RAG) system that ingests source code, constructs vector embeddings, and uses LangGraph.js to orchestrate agentic workflows for analyzing technical debt and security.
+Ship Spec CLI is an autonomous semantic engine for codebase analysis and production readiness evaluation. It's a Retrieval-Augmented Generation (RAG) system that ingests source code, constructs vector embeddings, and uses LangGraph.js to orchestrate agentic workflows for analyzing technical debt and security. The CLI now ships with an OpenTUI-based terminal UI (Bun + SolidJS) and a Node backend that communicate via NDJSON RPC; `--headless` keeps the Commander-based command set for CI/CD.
 
 **Core Philosophy:** Local-First, Cloud-Optional — supports both local inference (Ollama) and cloud providers via OpenRouter (Gemini, Claude, GPT).
 
@@ -11,7 +11,10 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and product
 | Technology | Purpose |
 |------------|---------|
 | TypeScript | Core language (strict mode, ESM) |
-| Commander.js | CLI framework |
+| Commander.js | Headless CLI routing |
+| Bun | TUI runtime/build tooling |
+| OpenTUI | Terminal UI renderer |
+| SolidJS | TUI component framework |
 | Zod | Schema validation |
 | LanceDB | Embedded vector database |
 | LangChain.js | AI model abstraction |
@@ -28,20 +31,64 @@ Ship Spec CLI is an autonomous semantic engine for codebase analysis and product
 ```bash
 # Install dependencies
 npm install
+cd tui && bun install
 
 # Build the project
 npm run build
 
-# Run the CLI
+# Run the CLI (launches TUI when in a TTY)
 npm start
 # or
 node dist/cli/index.js
 
 # Development mode (watch)
 npm run dev
+
+# TUI development mode
+cd tui && bun run dev
 ```
 
 ## CLI Commands
+
+### `ship-spec`
+
+Launch the interactive TUI (Ask mode by default, Tab to switch to Plan mode). Use `--headless` to run the Commander commands in CI or non-TTY contexts.
+
+```bash
+# Launch TUI
+ship-spec
+
+# Run in headless mode (no TUI)
+ship-spec --headless ask "How does indexing work?"
+```
+
+**TUI Slash Commands:**
+- `/connect` - Configure API keys
+- `/model` - Open model selector (or `/model list|current|set <alias>`)
+- `/production-readiness-review [context]` (alias `/prr`) - Run production readiness analysis
+- `/help` - Show commands and keybinds
+- `/clear` - Clear conversation history
+- `/exit`, `/quit` - Exit the application
+
+**Keybinds:**
+- `Tab` - Toggle Ask/Plan mode
+- `Ctrl+C` - Cancel current operation / Exit
+- `Ctrl+L` - Clear screen
+- `Up/Down` - History navigation
+
+### `ship-spec ask [question]`
+
+Ask questions about your codebase (headless mode recommended for CI).
+
+```bash
+ship-spec --headless ask "What is the indexing flow?"
+ship-spec --headless ask --reindex
+```
+
+**Options:**
+- `--reindex` - Force re-index before asking
+- `--cloud-ok` - Consent to sending data to cloud LLM providers
+- `--local-only` - Strictly refuse to use cloud-based providers
 
 ### `ship-spec productionalize [context]`
 
@@ -163,6 +210,16 @@ ship-spec --help           # Show help
 ship-spec --version        # Show version
 ship-spec -v, --verbose    # Enable verbose logging
 ship-spec -c, --config <path>  # Path to config file
+ship-spec --headless       # Run Commander commands without the TUI
+```
+
+### `ship-spec init`
+
+Initialize Ship Spec in the current directory and configure API keys.
+
+```bash
+ship-spec init
+ship-spec init --non-interactive
 ```
 
 ## Development Commands
@@ -192,28 +249,58 @@ npm run test:coverage
 **Before committing any changes, you MUST run the full verification suite:**
 
 ```bash
+# Backend verification
 npm run typecheck && npm run lint && npm run format:check && npm run build && npm test
+
+# TUI verification (if TUI changes were made)
+cd tui && bun test
 ```
 
-All five commands must pass without errors. This ensures:
+All commands must pass without errors. This ensures:
 - **Type safety** — No TypeScript compilation errors
 - **Code quality** — No ESLint warnings or errors (zero-warning policy)
 - **Code formatting** — Consistent style according to Prettier
 - **Build integrity** — Successful production build
-- **Test coverage** — All tests pass
+- **Backend test coverage** — All Vitest tests pass
+- **TUI test coverage** — All Bun tests pass (for TUI changes)
 
-> ⚠️ **Do not consider changes complete until this command passes successfully.**
+> ⚠️ **Do not consider changes complete until all verification commands pass successfully.**
 
 ## Project Structure
 
 ```
+tui/
+├── package.json                 # Bun/OpenTUI dependencies
+├── tsconfig.json                # JSX for SolidJS
+├── bunfig.toml                  # OpenTUI preload
+└── src/
+    ├── index.tsx                # TUI entry point
+    ├── app.tsx                  # Root app component
+    ├── rpc/                     # RPC client + protocol
+    ├── state/                   # Solid signals for app state
+    ├── components/              # Layout, dialogs, forms
+    ├── commands/                # Slash command registry
+    ├── keybinds/                # Keybind handling
+    ├── utils/                   # Utility functions
+    └── test/                    # Bun unit tests
+        ├── commands/            # Command registry tests
+        ├── rpc/                 # Protocol schema tests
+        └── utils/               # Utility function tests
 src/
 ├── cli/                        # Command definitions
-│   ├── index.ts               # CLI entry point (Commander.js)
+│   ├── index.ts               # CLI entry point (TUI vs headless routing)
 │   └── commands/
+│       ├── ask.ts             # Headless Q&A
 │       ├── config.ts          # Display resolved configuration
+│       ├── init.ts            # Initialize project + keychain
+│       ├── model.ts           # Model management
 │       ├── planning.ts        # Spec-driven development workflow with HITL
 │       └── productionalize.ts # Production readiness analysis with auto-indexing
+├── backend/                    # RPC server for TUI
+│   ├── protocol.ts            # RPC schema + helpers
+│   ├── server.ts              # stdio NDJSON server
+│   └── handlers/              # RPC request handlers
+├── flows/                      # UI-agnostic flows (ask/planning/etc.)
 ├── config/
 │   ├── schema.ts              # Zod schemas for configuration
 │   └── loader.ts              # Config file & env var loader
@@ -676,6 +763,11 @@ export interface CodeChunk {
 2. Export a `Command` instance
 3. Register in `src/cli/index.ts` via `program.addCommand()`
 
+If the command should be available in the TUI, also:
+1. Add a UI-agnostic flow in `src/flows/`
+2. Register a handler in `src/backend/handlers/`
+3. Add a slash command or UI trigger in `tui/src/commands/registry.ts`
+
 ### Adding a New Language for Tree-sitter Parsing
 
 1. Add the language type to `SupportedLanguage` in `src/core/parsing/language-registry.ts`
@@ -709,23 +801,35 @@ export interface CodeChunk {
 
 ## Testing
 
-The project uses **Vitest** for unit testing with comprehensive coverage of core modules.
+The project uses **Vitest** for backend unit testing and **Bun's built-in test runner** for TUI unit testing.
 
 ### Test Structure
 
+**Backend Tests (Vitest):**
 - **Location:** `src/test/` directory, mirroring the `src/core/` structure
 - **Naming:** `<module>.test.ts`
 - **Fixtures:** Shared test fixtures in `src/test/fixtures.ts`
 
+**TUI Tests (Bun):**
+- **Location:** `tui/src/test/` directory
+- **Naming:** `<module>.test.ts`
+- **Coverage:** Command registry, RPC protocol schemas, utility functions
+
 ### Running Tests
 
 ```bash
+# Backend tests (Vitest)
 npm test              # Run all tests
 npm run test:watch    # Watch mode
 npm run test:coverage # Coverage report
+
+# TUI tests (Bun)
+cd tui && bun test    # Run all TUI tests
 ```
 
 ### Current Test Coverage
+
+**Backend (Vitest):**
 
 | Module | Tests |
 |--------|-------|
@@ -745,6 +849,14 @@ npm run test:coverage # Coverage report
 | `core/parsing/language-registry` | Extension detection, language configs |
 | `core/storage/vector-store` | LanceDB connection, table management |
 | `core/storage/repository` | Document CRUD, similarity search |
+
+**TUI (Bun):**
+
+| Module | Tests |
+|--------|-------|
+| `commands/registry` | Slash command parsing, alias matching, argument extraction |
+| `rpc/protocol` | Zod schema validation for all RPC event types |
+| `utils/id` | UUID generation and uniqueness |
 
 ### Writing Tests
 

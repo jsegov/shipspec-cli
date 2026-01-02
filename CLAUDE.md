@@ -5,13 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Development Commands
 
 ```bash
-npm run build          # Build TypeScript (tsconfig.build.json)
-npm run dev            # Watch mode for development
+npm run build          # Build TypeScript + TUI (requires Bun)
+npm run build:tui      # Build TUI only
+npm run dev            # Watch mode for backend development
 npm run typecheck      # Type check without emitting
 npm run lint           # ESLint check
 npm run lint:fix       # ESLint with auto-fix
 npm run format         # Prettier format
 npm run format:check   # Prettier check
+cd tui && bun install  # Install TUI dependencies
+cd tui && bun run dev  # Run the TUI in dev mode
 ```
 
 ## Testing
@@ -31,6 +34,13 @@ npx vitest run -t "pattern"
 Tests are in `src/test/` mirroring the source structure. Vitest uses globals (no imports needed for `describe`, `it`, `expect`).
 
 ## Architecture Overview
+
+### TUI + Backend RPC
+
+- TUI lives in `tui/` (Bun + OpenTUI + SolidJS)
+- Node backend lives in `src/backend/` and serves NDJSON RPC over stdio
+- UI-agnostic flows are in `src/flows/` and are reused by RPC handlers
+- `src/cli/index.ts` launches the TUI unless `--headless`, no TTY, or help/version is requested
 
 ### LangGraph Agent Pipeline
 
@@ -81,8 +91,9 @@ Graph defined in `src/agents/productionalize/graph.ts`, state in `state.ts`.
 
 ### CLI Structure
 
-- Entry: `src/cli/index.ts` using Commander.js
-- Commands: `src/cli/commands/` (init, model, productionalize, config)
+- Entry: `src/cli/index.ts` handles TUI vs headless routing with `--headless`
+- Commands: `src/cli/commands/` (ask, init, model, planning, productionalize, config)
+- Backend RPC: `src/backend/server.ts` + `src/backend/handlers/` delegate to flows in `src/flows/`
 - Config resolution: `src/cli/config-resolver.ts`
 - Secrets stored in OS keychain via keytar
 

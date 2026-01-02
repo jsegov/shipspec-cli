@@ -4,7 +4,7 @@ import eslintConfigPrettier from "eslint-config-prettier/flat";
 
 export default tseslint.config(
   // Global ignores
-  { ignores: ["dist/**", "node_modules/**", "*.config.*"] },
+  { ignores: ["dist/**", "tui/dist/**", "node_modules/**", "*.config.*"] },
 
   // Base configs
   eslint.configs.recommended,
@@ -13,9 +13,19 @@ export default tseslint.config(
 
   // TypeScript project settings
   {
+    files: ["src/**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ["tui/**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        project: "./tui/tsconfig.json",
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -50,6 +60,14 @@ export default tseslint.config(
 
   // Prettier must be last to override formatting rules
   eslintConfigPrettier,
+  // OpenTUI JSX typing can surface as "error" types in strict lint rules.
+  {
+    files: ["tui/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+    },
+  },
   // Allow console in logger utility
   {
     files: ["src/utils/logger.ts"],

@@ -2,6 +2,10 @@
 
 import { Command } from "commander";
 import { setMaxListeners } from "events";
+import { spawn } from "child_process";
+import { existsSync } from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 
 import { askCommand } from "./commands/ask.js";
 import { configCommand } from "./commands/config.js";
@@ -45,9 +49,51 @@ program.addCommand(modelCommand);
 program.addCommand(planningCommand);
 program.addCommand(productionalizeCommand);
 
+function launchTui(): void {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+
+  const tuiRoot = resolve(__dirname, "../../tui");
+  const distEntry = resolve(tuiRoot, "dist/index.js");
+  const srcEntry = resolve(tuiRoot, "src/index.tsx");
+  const tuiEntry = existsSync(distEntry) ? distEntry : srcEntry;
+
+  const proc = spawn("bun", ["run", tuiEntry], {
+    cwd: tuiRoot,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      SHIPSPEC_PROJECT_ROOT: process.env.SHIPSPEC_PROJECT_ROOT ?? process.cwd(),
+    },
+  });
+
+  proc.on("error", (err) => {
+    logger.error(err);
+    process.exit(1);
+  });
+
+  proc.on("exit", (code) => {
+    process.exit(code ?? 0);
+  });
+}
+
 async function main() {
   try {
-    await program.parseAsync(process.argv);
+    const args = process.argv.slice(2);
+    const hasHeadlessFlag = args.includes("--headless");
+    const wantsHelp =
+      args.includes("--help") ||
+      args.includes("-h") ||
+      args.includes("--version") ||
+      args.includes("-V");
+    const isHeadless = hasHeadlessFlag || !process.stdout.isTTY || wantsHelp;
+
+    if (isHeadless) {
+      const filteredArgs = process.argv.filter((arg) => arg !== "--headless");
+      await program.parseAsync(filteredArgs);
+    } else {
+      launchTui();
+    }
   } catch (error: unknown) {
     if (error instanceof CliRuntimeError) {
       logger.error(error.toPublicString());
