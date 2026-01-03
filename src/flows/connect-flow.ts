@@ -11,7 +11,8 @@ import {
   OUTPUTS_DIR,
   findProjectRoot,
 } from "../core/project/project-state.js";
-import { logger } from "../utils/logger.js";
+import { logger, sanitizeError } from "../utils/logger.js";
+import { writeFileAtomicNoFollow } from "../utils/safe-write.js";
 import { CliRuntimeError, CliUsageError } from "../cli/errors.js";
 
 export interface ConnectOptions {
@@ -71,6 +72,26 @@ export async function connectFlow(options: ConnectOptions): Promise<ConnectResul
     updatedAt: now,
     projectRoot,
   });
+
+  // After successfully storing API keys, save consent.json
+  const consentPath = join(shipSpecDir, "consent.json");
+  try {
+    await writeFileAtomicNoFollow(
+      consentPath,
+      JSON.stringify(
+        {
+          cloudOk: true,
+          timestamp: new Date().toISOString(),
+          version: 1,
+        },
+        null,
+        2
+      ),
+      { mode: 0o600 }
+    );
+  } catch (err) {
+    logger.warn(`Failed to save consent: ${sanitizeError(err)}`);
+  }
 
   const gitignorePath = join(projectRoot, ".gitignore");
   try {
