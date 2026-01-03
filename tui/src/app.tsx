@@ -192,6 +192,7 @@ export function App() {
         setActiveOperation(null);
         setStreamingMessageId(null);
         setCurrentQuestion(null);
+        setActiveSession({});
         return;
       default:
         return;
@@ -268,6 +269,15 @@ export function App() {
         const resumeId = activeSession().productionSessionId;
         if (!resumeId) {
           appendError("Missing session ID for interview response.");
+          return;
+        }
+        // If questions array is empty, immediately send empty response to unblock backend
+        if (payload.questions.length === 0) {
+          setIsProcessing(true);
+          rpc.send({
+            method: "productionalize.resume",
+            params: { sessionId: resumeId, response: {} },
+          });
           return;
         }
         setActiveDialog({
@@ -647,7 +657,14 @@ export function App() {
     if (dialog.kind === "interview") {
       const question = dialog.questions.at(dialog.index);
       if (!question) {
+        // No valid question at current index - close dialog and send empty response
+        // to unblock the backend session that's waiting for a resume
         setActiveDialog({ kind: "none" });
+        setIsProcessing(true);
+        rpc.send({
+          method: "productionalize.resume",
+          params: { sessionId: dialog.resume.id, response: dialog.answers },
+        });
         return true;
       }
       const trimmed = value.trim();
