@@ -9,16 +9,19 @@ type RpcEventHandler = (event: RpcEvent) => void;
 /**
  * Resolves the backend server path relative to this module's location.
  * The TUI and backend are both part of the CLI package:
- * - TUI is at tui/dist/index.js (or tui/src/index.tsx in dev)
+ * - TUI bundle is at tui/dist/index.js (flat bundle from Bun build)
+ * - TUI source is at tui/src/rpc/client.ts (during development)
  * - Backend is at dist/backend/server.js (or src/backend/server.ts in dev)
  */
 function resolveBackendPath(): { path: string; useDist: boolean } | null {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
 
-  // From tui/dist/rpc/client.js -> dist/backend/server.js (3 levels up to CLI root)
-  // From tui/src/rpc/client.ts -> src/backend/server.ts (3 levels up to CLI root)
-  const cliRoot = resolve(__dirname, "../../..");
+  // Detect if running from bundled flat output or source tree.
+  // Bundle: tui/dist/index.js -> 2 levels up to CLI root
+  // Source: tui/src/rpc/client.ts -> 3 levels up to CLI root
+  const isBundled = __filename.endsWith("dist/index.js") || __dirname.endsWith("dist");
+  const cliRoot = isBundled ? resolve(__dirname, "../..") : resolve(__dirname, "../../..");
 
   const distPath = join(cliRoot, "dist/backend/server.js");
   const srcPath = join(cliRoot, "src/backend/server.ts");

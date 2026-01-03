@@ -155,8 +155,18 @@ function handleHistoryDown(): void {
   const history = inputHistory();
   if (history.length === 0) return;
 
-  const nextIndex =
-    historyIndex() < 0 ? history.length - 1 : Math.min(history.length - 1, historyIndex() + 1);
+  // Standard shell behavior: Down from current prompt (-1) does nothing
+  if (historyIndex() < 0) return;
+
+  // At newest entry, return to current prompt
+  if (historyIndex() >= history.length - 1) {
+    setHistoryIndex(-1);
+    setInputValue("");
+    return;
+  }
+
+  // Navigate to more recent entry
+  const nextIndex = historyIndex() + 1;
   setHistoryIndex(nextIndex);
   const value = history[nextIndex] ?? "";
   setInputValue(value);
