@@ -150,6 +150,16 @@ export const RpcRequestSchema = z.union([
         .strict(),
     })
     .strict(),
+  z
+    .object({
+      method: z.literal("planning.list"),
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal("productionalize.list"),
+    })
+    .strict(),
 ]);
 
 export const RpcEventSchema = z.union([
@@ -176,6 +186,8 @@ export const RpcEventSchema = z.union([
     .object({
       type: z.literal("interrupt"),
       payload: InterruptPayloadSchema,
+      trackId: z.string().optional(),
+      sessionId: z.string().optional(),
     })
     .strict(),
   z

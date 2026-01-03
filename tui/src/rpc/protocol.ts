@@ -64,6 +64,8 @@ export const RpcEventSchema = z.union([
     .object({
       type: z.literal("interrupt"),
       payload: InterruptPayloadSchema,
+      trackId: z.string().optional(),
+      sessionId: z.string().optional(),
     })
     .strict(),
   z
@@ -127,4 +129,6 @@ export type RpcRequest =
   | { method: "connect"; params: { openrouterKey: string; tavilyKey?: string } }
   | { method: "model.list" }
   | { method: "model.current" }
-  | { method: "model.set"; params: { model: string } };
+  | { method: "model.set"; params: { model: string } }
+  | { method: "planning.list" }
+  | { method: "productionalize.list" };

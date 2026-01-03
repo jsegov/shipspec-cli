@@ -1,4 +1,4 @@
-import type { Mode } from "../../state/app-state.js";
+import type { Mode } from "../../context/session-provider.js";
 
 interface HeaderProps {
   mode: Mode;
@@ -6,8 +6,6 @@ interface HeaderProps {
 }
 
 export function Header(props: HeaderProps) {
-  const modeLabel = props.mode === "ask" ? "ASK" : "PLAN";
-
   return (
     <box
       height={3}
@@ -21,7 +19,7 @@ export function Header(props: HeaderProps) {
     >
       <box flexDirection="row" gap={2} alignItems="center">
         <text fg="#22d3ee">Ship Spec</text>
-        <text fg="#fbbf24">[{modeLabel}]</text>
+        <text fg="#fbbf24">[{props.mode === "ask" ? "ASK" : "PLAN"}]</text>
       </box>
       <box flexDirection="row" gap={2} alignItems="center">
         <text fg="#94a3b8">Model:</text>

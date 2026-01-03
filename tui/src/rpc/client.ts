@@ -73,7 +73,7 @@ export class RpcClient {
       },
       stdin: "pipe",
       stdout: "pipe",
-      stderr: "inherit",
+      stderr: "ignore",
     });
 
     const stdout = this.process.stdout;
@@ -105,7 +105,8 @@ export class RpcClient {
         }
 
         try {
-          const parsed = RpcEventSchema.safeParse(JSON.parse(line));
+          const jsonParsed: unknown = JSON.parse(line);
+          const parsed = RpcEventSchema.safeParse(jsonParsed);
           if (parsed.success) {
             this.onEvent(parsed.data);
           } else {

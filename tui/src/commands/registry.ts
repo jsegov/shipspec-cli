@@ -8,6 +8,9 @@ export interface SlashCommandContext {
   exit: () => void;
   startProductionReview: (context?: string) => void;
   showHelp: () => void;
+  listTracks: () => void;
+  listOutputs: () => void;
+  copyLastResponse: () => void;
 }
 
 export interface SlashCommand {
@@ -86,6 +89,30 @@ export const slashCommands: SlashCommand[] = [
     usage: "/exit",
     run: (ctx) => {
       ctx.exit();
+    },
+  },
+  {
+    name: "tracks",
+    description: "List planning tracks",
+    usage: "/tracks",
+    run: (ctx) => {
+      ctx.listTracks();
+    },
+  },
+  {
+    name: "outputs",
+    description: "List production readiness reports",
+    usage: "/outputs",
+    run: (ctx) => {
+      ctx.listOutputs();
+    },
+  },
+  {
+    name: "copy",
+    description: "Copy last assistant response to clipboard",
+    usage: "/copy",
+    run: (ctx) => {
+      ctx.copyLastResponse();
     },
   },
 ];

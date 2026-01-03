@@ -1,4 +1,4 @@
-import type { Mode } from "../../state/app-state.js";
+import type { Mode } from "../../context/session-provider.js";
 
 interface PromptProps {
   mode: Mode;
@@ -10,8 +10,6 @@ interface PromptProps {
 }
 
 export function Prompt(props: PromptProps) {
-  const label = props.mode === "ask" ? "ask>" : "plan>";
-
   return (
     <box
       height={3}
@@ -23,7 +21,7 @@ export function Prompt(props: PromptProps) {
       borderColor="#1f2937"
       gap={2}
     >
-      <text fg="#fbbf24">{label}</text>
+      <text fg="#fbbf24">{props.mode === "ask" ? "ask>" : "plan>"}</text>
       <input
         flexGrow={1}
         value={props.value}

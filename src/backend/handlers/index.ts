@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
+import { join } from "path";
 import { sanitizeError } from "../../utils/logger.js";
 import { CliRuntimeError, CliUsageError } from "../../cli/errors.js";
 import type { RpcEvent, RpcRequest } from "../protocol.js";
@@ -124,7 +126,12 @@ export function createRpcHandlers() {
         if (event.type === "complete") {
           planningSessions.delete(session.trackId);
         }
-        yield event;
+        // Inject trackId into interrupt events so TUI knows which session to resume
+        if (event.type === "interrupt") {
+          yield { ...event, trackId: session.trackId };
+        } else {
+          yield event;
+        }
       }
     } catch (err) {
       yield toErrorEvent(err);
@@ -149,7 +156,12 @@ export function createRpcHandlers() {
         if (event.type === "complete") {
           planningSessions.delete(params.trackId);
         }
-        yield event;
+        // Inject trackId into interrupt events so TUI knows which session to resume
+        if (event.type === "interrupt") {
+          yield { ...event, trackId: params.trackId };
+        } else {
+          yield event;
+        }
       }
     } catch (err) {
       yield toErrorEvent(err);
@@ -246,6 +258,84 @@ export function createRpcHandlers() {
     }
   };
 
+  const handlePlanningList = function* (): Generator<RpcEvent> {
+    try {
+      const projectRoot = process.env.SHIPSPEC_PROJECT_ROOT ?? process.cwd();
+      const planningDir = join(projectRoot, ".ship-spec", "planning");
+
+      if (!existsSync(planningDir)) {
+        yield { type: "complete", result: { tracks: [] } };
+        return;
+      }
+
+      const entries = readdirSync(planningDir, { withFileTypes: true });
+      const tracks: {
+        id: string;
+        phase: string;
+        initialIdea: string;
+        updatedAt: string;
+      }[] = [];
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const trackPath = join(planningDir, entry.name, "track.json");
+        if (!existsSync(trackPath)) continue;
+
+        try {
+          const data = JSON.parse(readFileSync(trackPath, "utf-8")) as Record<string, unknown>;
+          const id = typeof data.id === "string" ? data.id : entry.name;
+          const phase = typeof data.phase === "string" ? data.phase : "unknown";
+          const initialIdea =
+            typeof data.initialIdea === "string" ? data.initialIdea.slice(0, 100) : "";
+          const updatedAt = typeof data.updatedAt === "string" ? data.updatedAt : "";
+
+          tracks.push({ id, phase, initialIdea, updatedAt });
+        } catch {
+          // Skip invalid tracks
+        }
+      }
+
+      // Sort by updatedAt descending
+      tracks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+      yield { type: "complete", result: { tracks } };
+    } catch (err) {
+      yield toErrorEvent(err);
+    }
+  };
+
+  const handleProductionalizeList = function* (): Generator<RpcEvent> {
+    try {
+      const projectRoot = process.env.SHIPSPEC_PROJECT_ROOT ?? process.cwd();
+      const outputsDir = join(projectRoot, ".ship-spec", "outputs");
+
+      if (!existsSync(outputsDir)) {
+        yield { type: "complete", result: { outputs: [] } };
+        return;
+      }
+
+      const files = readdirSync(outputsDir);
+      const outputs = files
+        .filter((f) => f.startsWith("report-") && f.endsWith(".md"))
+        .map((name) => {
+          const timestamp = name.replace("report-", "").replace(".md", "");
+          const filePath = join(outputsDir, name);
+          const stats = statSync(filePath);
+          return {
+            name,
+            timestamp,
+            type: "report" as const,
+            size: stats.size,
+          };
+        })
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+      yield { type: "complete", result: { outputs } };
+    } catch (err) {
+      yield toErrorEvent(err);
+    }
+  };
+
   return {
     async *handleRequest(request: RpcRequest): AsyncGenerator<RpcEvent> {
       switch (request.method) {
@@ -278,6 +368,12 @@ export function createRpcHandlers() {
           return;
         case "model.set":
           yield* handleModelSet(request.params);
+          return;
+        case "planning.list":
+          yield* handlePlanningList();
+          return;
+        case "productionalize.list":
+          yield* handleProductionalizeList();
           return;
         default: {
           const _exhaustive: never = request;

@@ -1,4 +1,4 @@
-import type { Message } from "../../state/app-state.js";
+import type { Message } from "../../context/session-provider.js";
 
 interface MessageProps {
   message: Message;

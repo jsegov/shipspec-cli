@@ -129,10 +129,19 @@ export async function loadConfig(
     }
 
     if (dotenvPath && existsSync(dotenvPath)) {
+      // Suppress dotenv v17+ stdout logging to prevent pollution of NDJSON RPC stream
+      const prevQuiet = process.env.DOTENV_CONFIG_QUIET;
+      process.env.DOTENV_CONFIG_QUIET = "true";
       loadDotenv({
         path: dotenvPath,
         override: process.env.SHIPSPEC_DOTENV_OVERRIDE === "1",
       });
+      // Restore previous value
+      if (prevQuiet === undefined) {
+        delete process.env.DOTENV_CONFIG_QUIET;
+      } else {
+        process.env.DOTENV_CONFIG_QUIET = prevQuiet;
+      }
       if (isProduction) {
         logger.warn("Loaded dotenv configuration in production (path hidden for security)");
       } else {

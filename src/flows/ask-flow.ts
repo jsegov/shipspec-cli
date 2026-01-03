@@ -238,13 +238,8 @@ export async function createAskContext(
 export async function* askFlow(input: AskFlowInput): AsyncGenerator<RpcEvent> {
   const history = input.history ?? [];
   let context = input.context;
+  context ??= await createAskContext(input.options ?? {});
 
-  if (!context) {
-    yield { type: "status", message: "Preparing ask environment..." };
-    context = await createAskContext(input.options ?? {});
-  }
-
-  yield { type: "status", message: "Searching codebase..." };
   const rawChunks = await context.repository.hybridSearch(input.question, 10);
 
   if (rawChunks.length === 0) {
@@ -271,8 +266,6 @@ export async function* askFlow(input: AskFlowInput): AsyncGenerator<RpcEvent> {
     new SystemMessage(ASK_SYSTEM_TEMPLATE),
     new HumanMessage(userContent),
   ];
-
-  yield { type: "status", message: "Generating answer..." };
 
   let fullResponse = "";
 
