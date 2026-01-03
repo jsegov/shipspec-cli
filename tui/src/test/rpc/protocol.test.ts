@@ -9,7 +9,7 @@ import {
 describe("RpcEventSchema", () => {
   describe("status event", () => {
     it("parses valid status event", () => {
-      const event = { type: "status", message: "Initializing..." };
+      const event = { type: "status", message: "Initializing..." } as const;
       const result = RpcEventSchema.safeParse(event);
       expect(result.success).toBe(true);
       if (result.success) {
@@ -38,7 +38,7 @@ describe("RpcEventSchema", () => {
     });
 
     it("parses progress with stage and percent", () => {
-      const event = { type: "progress", stage: "indexing", percent: 50 };
+      const event = { type: "progress", stage: "indexing", percent: 50 } as const;
       const result = RpcEventSchema.safeParse(event);
       expect(result.success).toBe(true);
       if (result.success) {

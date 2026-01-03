@@ -1,9 +1,36 @@
 import { existsSync } from "fs";
-import { join } from "path";
+import { dirname, join, resolve } from "path";
+import { fileURLToPath } from "url";
 
 import { RpcEventSchema, type RpcEvent, type RpcRequest } from "./protocol.js";
 
 type RpcEventHandler = (event: RpcEvent) => void;
+
+/**
+ * Resolves the backend server path relative to this module's location.
+ * The TUI and backend are both part of the CLI package:
+ * - TUI is at tui/dist/index.js (or tui/src/index.tsx in dev)
+ * - Backend is at dist/backend/server.js (or src/backend/server.ts in dev)
+ */
+function resolveBackendPath(): { path: string; useDist: boolean } | null {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+
+  // From tui/dist/rpc/client.js -> dist/backend/server.js (3 levels up to CLI root)
+  // From tui/src/rpc/client.ts -> src/backend/server.ts (3 levels up to CLI root)
+  const cliRoot = resolve(__dirname, "../../..");
+
+  const distPath = join(cliRoot, "dist/backend/server.js");
+  const srcPath = join(cliRoot, "src/backend/server.ts");
+
+  if (existsSync(distPath)) {
+    return { path: distPath, useDist: true };
+  }
+  if (existsSync(srcPath)) {
+    return { path: srcPath, useDist: false };
+  }
+  return null;
+}
 
 export class RpcClient {
   private process: ReturnType<typeof Bun.spawn> | null = null;
@@ -19,21 +46,19 @@ export class RpcClient {
       return;
     }
 
-    const projectRoot = process.env.SHIPSPEC_PROJECT_ROOT ?? process.cwd();
-    const distPath = join(projectRoot, "dist/backend/server.js");
-    const srcPath = join(projectRoot, "src/backend/server.ts");
-    const useDist = existsSync(distPath);
-    const backendPath = useDist ? distPath : srcPath;
-
-    if (!existsSync(backendPath)) {
+    const resolved = resolveBackendPath();
+    if (!resolved) {
       this.onEvent({
         type: "error",
         code: "backend_missing",
-        message: `Backend entry not found at ${backendPath}.`,
+        message: "Backend entry not found. CLI package may be corrupted.",
       });
       return;
     }
 
+    const { path: backendPath, useDist } = resolved;
+
+    const projectRoot = process.env.SHIPSPEC_PROJECT_ROOT ?? process.cwd();
     const nodeArgs = useDist ? [backendPath] : ["--loader", "tsx", backendPath];
 
     this.process = Bun.spawn({

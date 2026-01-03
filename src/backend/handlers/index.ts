@@ -13,6 +13,8 @@ import { currentModel, listModels, setModel } from "../../flows/model-flow.js";
 interface AskContextCache {
   context: AskContext;
   reindex: boolean;
+  cloudOk: boolean;
+  localOnly: boolean;
 }
 
 function toErrorEvent(error: unknown, codeOverride?: string): RpcEvent {
@@ -38,7 +40,15 @@ export function createRpcHandlers() {
   let askContextCache: AskContextCache | null = null;
 
   const getAskContext = async (reindex: boolean, cloudOk: boolean, localOnly: boolean) => {
-    if (askContextCache && !reindex && !askContextCache.reindex) {
+    // Cache is only valid if all flags match.
+    // A mismatch in cloudOk/localOnly could bypass consent checks or localOnly validation.
+    if (
+      askContextCache &&
+      !reindex &&
+      !askContextCache.reindex &&
+      askContextCache.cloudOk === cloudOk &&
+      askContextCache.localOnly === localOnly
+    ) {
       return askContextCache.context;
     }
 
@@ -47,7 +57,7 @@ export function createRpcHandlers() {
       cloudOk,
       localOnly,
     });
-    askContextCache = { context, reindex };
+    askContextCache = { context, reindex, cloudOk, localOnly };
     return context;
   };
 
