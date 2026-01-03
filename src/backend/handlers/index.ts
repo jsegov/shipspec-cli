@@ -188,7 +188,12 @@ export function createRpcHandlers() {
         if (event.type === "complete") {
           productionalizeSessions.delete(session.sessionId);
         }
-        yield event;
+        // Inject sessionId into interrupt events so TUI knows which session to resume
+        if (event.type === "interrupt") {
+          yield { ...event, sessionId: session.sessionId };
+        } else {
+          yield event;
+        }
       }
     } catch (err) {
       yield toErrorEvent(err);
@@ -213,7 +218,12 @@ export function createRpcHandlers() {
         if (event.type === "complete") {
           productionalizeSessions.delete(params.sessionId);
         }
-        yield event;
+        // Inject sessionId into interrupt events so TUI knows which session to resume
+        if (event.type === "interrupt") {
+          yield { ...event, sessionId: params.sessionId };
+        } else {
+          yield event;
+        }
       }
     } catch (err) {
       yield toErrorEvent(err);

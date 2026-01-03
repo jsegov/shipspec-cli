@@ -22,10 +22,29 @@ export function MessageView(props: MessageProps) {
   const color = roleColors[props.message.role];
   const label = roleLabels[props.message.role];
 
+  // Check for special message types
+  const isDocument = props.message.meta?.isDocument;
+  const isQuestion = props.message.meta?.isQuestion;
+  const docType = props.message.meta?.docType;
+
+  // Build label with optional badge
+  let displayLabel = label;
+  if (isDocument && docType) {
+    displayLabel = `${label} [${docType.toUpperCase()}]`;
+  }
+
+  // Determine content color based on message type
+  let contentColor = "#e2e8f0"; // default
+  if (isDocument) {
+    contentColor = "#c4b5fd"; // purple for documents
+  } else if (isQuestion) {
+    contentColor = "#86efac"; // green for questions
+  }
+
   return (
     <box flexDirection="column" gap={0}>
-      <text fg={color}>{label}</text>
-      <text fg="#e2e8f0" wrapMode="word">
+      <text fg={color}>{displayLabel}</text>
+      <text fg={contentColor} wrapMode="word">
         {props.message.content}
       </text>
     </box>

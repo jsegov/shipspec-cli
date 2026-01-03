@@ -7,6 +7,8 @@ import {
   type Accessor,
 } from "solid-js";
 
+// Note: clarification, interview, and review dialogs have been moved to inline display
+// in the transcript. See session-provider.tsx for the InlineInteraction implementation.
 export type DialogState =
   | { kind: "none" }
   | {
@@ -18,33 +20,6 @@ export type DialogState =
   | {
       kind: "model";
       models: { alias: string; name: string }[];
-    }
-  | {
-      kind: "clarification";
-      questions: string[];
-      answers: Record<string, string>;
-      index: number;
-      resume: { type: "planning" | "productionalize"; id: string };
-    }
-  | {
-      kind: "interview";
-      questions: {
-        id: string;
-        question: string;
-        type: "select" | "multiselect" | "text";
-        options?: string[];
-        required: boolean;
-      }[];
-      answers: Record<string, string | string[]>;
-      index: number;
-      resume: { type: "productionalize"; id: string };
-    }
-  | {
-      kind: "review";
-      docType: "prd" | "spec" | "report";
-      content: string;
-      instructions?: string;
-      resume: { type: "planning" | "productionalize"; id: string };
     }
   | {
       kind: "commandPalette";

@@ -27,8 +27,6 @@ import { Prompt } from "./components/layout/prompt.js";
 import { ToastContainer } from "./components/layout/toast-container.js";
 import { ConnectWizard } from "./components/dialogs/connect-wizard.js";
 import { ModelSelector } from "./components/dialogs/model-selector.js";
-import { ReviewDialog } from "./components/dialogs/review-dialog.js";
-import { Questionnaire } from "./components/forms/questionnaire.js";
 import { CommandPalette } from "./components/dialogs/command-palette.js";
 
 function AppContent() {
@@ -45,7 +43,11 @@ function AppContent() {
   const [historyIndex, setHistoryIndex] = createSignal(-1);
 
   const isMaskedInput = createMemo(() => dialog.dialog().kind === "connect");
-  const isBlocked = createMemo(() => session.isProcessing() || dialog.isOpen());
+  // Don't block for pending interactions - user needs to respond
+  const isBlocked = createMemo(() => {
+    if (session.hasActiveInteraction()) return false;
+    return session.isProcessing() || dialog.isOpen();
+  });
 
   // Register cleanup for renderer on exit (RPC cleanup is handled by RpcProvider)
   onMount(() => {
@@ -287,78 +289,6 @@ function AppContent() {
       return true;
     }
 
-    if (d.kind === "clarification") {
-      const answers = { ...d.answers, [String(d.index)]: value };
-      if (d.index + 1 >= d.questions.length) {
-        dialog.close();
-        session.setIsProcessing(true);
-        if (d.resume.type === "planning") {
-          rpc.send({
-            method: "planning.resume",
-            params: { trackId: d.resume.id, response: answers },
-          });
-        } else {
-          rpc.send({
-            method: "productionalize.resume",
-            params: { sessionId: d.resume.id, response: answers },
-          });
-        }
-      } else {
-        dialog.update(() => ({ ...d, answers, index: d.index + 1 }));
-      }
-      return true;
-    }
-
-    if (d.kind === "interview") {
-      const question = d.questions.at(d.index);
-      if (!question) {
-        dialog.close();
-        session.setIsProcessing(true);
-        rpc.send({
-          method: "productionalize.resume",
-          params: { sessionId: d.resume.id, response: d.answers },
-        });
-        return true;
-      }
-      const answer =
-        question.type === "multiselect"
-          ? value
-              .trim()
-              .split(",")
-              .map((e) => e.trim())
-              .filter(Boolean)
-          : value.trim();
-      const answers = { ...d.answers, [question.id]: answer };
-      if (d.index + 1 >= d.questions.length) {
-        dialog.close();
-        session.setIsProcessing(true);
-        rpc.send({
-          method: "productionalize.resume",
-          params: { sessionId: d.resume.id, response: answers },
-        });
-      } else {
-        dialog.update(() => ({ ...d, answers, index: d.index + 1 }));
-      }
-      return true;
-    }
-
-    if (d.kind === "review") {
-      dialog.close();
-      session.setIsProcessing(true);
-      if (d.resume.type === "planning") {
-        rpc.send({
-          method: "planning.resume",
-          params: { trackId: d.resume.id, response: value.trim() },
-        });
-      } else {
-        rpc.send({
-          method: "productionalize.resume",
-          params: { sessionId: d.resume.id, response: value.trim() },
-        });
-      }
-      return true;
-    }
-
     if (d.kind === "commandPalette") {
       dialog.close();
       return true;
@@ -376,6 +306,14 @@ function AppContent() {
     }
 
     if (handleDialogSubmit(trimmed)) {
+      resetInput();
+      return;
+    }
+
+    // Handle inline interaction responses (PRD feedback, clarifying questions, etc.)
+    if (session.hasActiveInteraction()) {
+      session.handleInteractionResponse(trimmed);
+      session.pushHistory(trimmed);
       resetInput();
       return;
     }
@@ -403,28 +341,13 @@ function AppContent() {
   };
 
   // Make dialogNode reactive by using createMemo to re-evaluate when dialog state changes
+  // Note: review, clarification, and interview are now handled inline in the transcript
   const dialogNode = createMemo(() => {
     const d = dialog.dialog();
-    // FIX: Remove Portal wrapper - it may not work correctly in OpenTUI
     return d.kind === "connect" ? (
       <ConnectWizard step={d.step} />
     ) : d.kind === "model" ? (
       <ModelSelector models={d.models} />
-    ) : d.kind === "review" ? (
-      <ReviewDialog docType={d.docType} content={d.content} instructions={d.instructions} />
-    ) : d.kind === "clarification" ? (
-      <Questionnaire
-        title="Clarifications"
-        question={d.questions[d.index] ?? ""}
-        progress={`Question ${String(d.index + 1)}/${String(d.questions.length)}`}
-      />
-    ) : d.kind === "interview" ? (
-      <Questionnaire
-        title="Production Interview"
-        question={d.questions[d.index]?.question ?? ""}
-        progress={`Question ${String(d.index + 1)}/${String(d.questions.length)}`}
-        options={d.questions[d.index]?.options}
-      />
     ) : d.kind === "commandPalette" ? (
       <CommandPalette />
     ) : null;
@@ -432,6 +355,18 @@ function AppContent() {
 
   // Make placeholder reactive by using createMemo
   const placeholder = createMemo(() => {
+    // Check for pending inline interaction first
+    const interaction = session.pendingInteraction();
+    if (interaction) {
+      switch (interaction.kind) {
+        case "document_review":
+          return "approve / provide feedback";
+        case "clarification":
+        case "interview":
+          return "Your answer";
+      }
+    }
+
     const d = dialog.dialog();
     return d.kind === "connect"
       ? d.step === "openrouter"
@@ -439,13 +374,9 @@ function AppContent() {
         : "Tavily API key (optional)"
       : d.kind === "model"
         ? "Model alias"
-        : d.kind === "review"
-          ? "approve / feedback"
-          : d.kind === "clarification" || d.kind === "interview"
-            ? "Answer"
-            : session.mode() === "ask"
-              ? "Ask about your codebase..."
-              : "Describe what you want to build...";
+        : session.mode() === "ask"
+          ? "Ask about your codebase..."
+          : "Describe what you want to build...";
   });
 
   return (

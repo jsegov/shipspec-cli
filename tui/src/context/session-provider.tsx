@@ -13,18 +13,44 @@ import { useDialog } from "./dialog-provider.js";
 import { useToast } from "./toast-provider.js";
 import { createId } from "../utils/id.js";
 import { sanitizeForTerminal } from "../../../src/utils/terminal-sanitize.js";
-import type { RpcEvent, InterruptPayload } from "../rpc/protocol.js";
+import type { RpcEvent, InterruptPayload, InterviewQuestion } from "../rpc/protocol.js";
 
 export type Mode = "ask" | "plan";
 export type Operation = "ask" | "planning" | "productionalize" | null;
 export type MessageRole = "user" | "assistant" | "status" | "system";
 export type PendingCommand = "model.list" | "model.current" | "model.set" | "connect" | null;
 
+export interface MessageMeta {
+  isDocument?: boolean;
+  docType?: "prd" | "spec" | "report";
+  isQuestion?: boolean;
+  questionNumber?: number;
+  totalQuestions?: number;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
   content: string;
   streaming?: boolean;
+  meta?: MessageMeta;
+}
+
+export type InlineInteractionKind = "document_review" | "clarification" | "interview";
+
+export interface InlineInteraction {
+  id: string;
+  kind: InlineInteractionKind;
+  messageId: string;
+  docType?: "prd" | "spec" | "report";
+  questionIndex?: number;
+  totalQuestions?: number;
+  answers?: Record<string, string | string[]>;
+  questions?: string[] | InterviewQuestion[];
+  interviewQuestionId?: string;
+  questionType?: "select" | "multiselect" | "text";
+  options?: string[];
+  resume: { type: "planning" | "productionalize"; id: string };
 }
 
 export interface AskHistoryEntry {
@@ -83,6 +109,11 @@ interface SessionContextValue {
 
   // Streaming
   streamingMessageId: Accessor<string | null>;
+
+  // Inline interactions
+  pendingInteraction: Accessor<InlineInteraction | null>;
+  handleInteractionResponse: (input: string) => boolean;
+  hasActiveInteraction: () => boolean;
 }
 
 const SessionContext = createContext<SessionContextValue>();
@@ -154,6 +185,14 @@ export const SessionProvider: ParentComponent = (props) => {
     productionSessionId?: string;
   }>({});
 
+  // Inline interactions
+  const [pendingInteraction, setPendingInteraction] = createSignal<InlineInteraction | null>(null);
+  const [documentMessageIds, setDocumentMessageIds] = createSignal<{
+    prd?: string;
+    spec?: string;
+    report?: string;
+  }>({});
+
   // Token buffering for performance
   let tokenBuffer = "";
   let flushScheduled = false;
@@ -189,6 +228,41 @@ export const SessionProvider: ParentComponent = (props) => {
       flushScheduled = true;
       queueMicrotask(flushTokenBuffer);
     }
+  };
+
+  // Formatting helpers for inline display
+  const formatDocumentForTranscript = (
+    title: string,
+    content: string,
+    instructions?: string
+  ): string => {
+    const header = `=== ${title} ===\n\n`;
+    const footer = `\n\n---\n${instructions ?? "Type 'approve' or provide feedback to continue."}`;
+    return header + content + footer;
+  };
+
+  const formatQuestionForTranscript = (
+    type: string,
+    question: string,
+    current: number,
+    total: number
+  ): string => {
+    return `[${type} ${String(current)}/${String(total)}]\n\n${question}`;
+  };
+
+  const formatInterviewQuestionForTranscript = (
+    question: InterviewQuestion,
+    current: number,
+    total: number
+  ): string => {
+    let content = `[Production Interview ${String(current)}/${String(total)}]\n\n${question.question}`;
+    if (question.options && question.options.length > 0) {
+      content += "\n\nOptions:\n" + question.options.map((o) => `  - ${o}`).join("\n");
+    }
+    if (question.type === "multiselect") {
+      content += "\n\n(Separate multiple selections with commas)";
+    }
+    return content;
   };
 
   // RPC event handling
@@ -241,77 +315,331 @@ export const SessionProvider: ParentComponent = (props) => {
     eventTrackId?: string,
     eventSessionId?: string
   ) => {
+    const resumeType = activeOperation() === "productionalize" ? "productionalize" : "planning";
+    const resumeId =
+      resumeType === "productionalize"
+        ? (eventSessionId ?? activeSession().productionSessionId)
+        : (eventTrackId ?? activeSession().planningTrackId);
+
     switch (payload.kind) {
       case "clarification": {
-        const resumeType = activeOperation() === "productionalize" ? "productionalize" : "planning";
-        // Use event-provided ID if available, fall back to activeSession
-        const resumeId =
-          resumeType === "productionalize"
-            ? (eventSessionId ?? activeSession().productionSessionId)
-            : (eventTrackId ?? activeSession().planningTrackId);
-
         if (!resumeId) {
           appendError("Missing session ID for clarification response.");
           return;
         }
 
-        dialog.open({
+        if (payload.questions.length === 0) {
+          // No questions - auto-resume
+          setIsProcessingSignal(true);
+          if (resumeType === "planning") {
+            rpc.send({ method: "planning.resume", params: { trackId: resumeId, response: {} } });
+          } else {
+            rpc.send({
+              method: "productionalize.resume",
+              params: { sessionId: resumeId, response: {} },
+            });
+          }
+          return;
+        }
+
+        const interactionId = createId();
+        const msgId = createId();
+
+        // Display first question inline
+        const questionContent = formatQuestionForTranscript(
+          "Clarification",
+          payload.questions[0] ?? "",
+          1,
+          payload.questions.length
+        );
+
+        appendMessage({
+          id: msgId,
+          role: "assistant",
+          content: sanitizeForTerminal(questionContent),
+          meta: {
+            isQuestion: true,
+            questionNumber: 1,
+            totalQuestions: payload.questions.length,
+          },
+        });
+
+        setPendingInteraction({
+          id: interactionId,
           kind: "clarification",
-          questions: payload.questions,
+          messageId: msgId,
+          questionIndex: 0,
+          totalQuestions: payload.questions.length,
           answers: {},
-          index: 0,
+          questions: payload.questions,
           resume: { type: resumeType, id: resumeId },
         });
         return;
       }
-      case "document_review": {
-        const resumeType = activeOperation() === "productionalize" ? "productionalize" : "planning";
-        // Use event-provided ID if available, fall back to activeSession
-        const resumeId =
-          resumeType === "productionalize"
-            ? (eventSessionId ?? activeSession().productionSessionId)
-            : (eventTrackId ?? activeSession().planningTrackId);
 
+      case "document_review": {
         if (!resumeId) {
           appendError("Missing session ID for review response.");
           return;
         }
 
-        dialog.open({
-          kind: "review",
-          docType: payload.docType,
-          content: payload.content,
-          instructions: payload.instructions,
-          resume: { type: resumeType, id: resumeId },
-        });
+        const docType = payload.docType;
+        const existingMsgId = documentMessageIds()[docType];
+        const interactionId = createId();
+
+        // Format content with header
+        const docTitle =
+          docType === "prd" ? "PRD" : docType === "spec" ? "Technical Specification" : "Report";
+        const formattedContent = formatDocumentForTranscript(
+          docTitle,
+          payload.content,
+          payload.instructions
+        );
+
+        if (existingMsgId) {
+          // In-place update
+          updateMessage(existingMsgId, (m) => ({
+            ...m,
+            content: sanitizeForTerminal(formattedContent),
+          }));
+
+          setPendingInteraction({
+            id: interactionId,
+            kind: "document_review",
+            messageId: existingMsgId,
+            docType,
+            resume: { type: resumeType, id: resumeId },
+          });
+        } else {
+          // New message
+          const msgId = createId();
+          appendMessage({
+            id: msgId,
+            role: "assistant",
+            content: sanitizeForTerminal(formattedContent),
+            meta: {
+              isDocument: true,
+              docType,
+            },
+          });
+          setDocumentMessageIds((prev) => ({ ...prev, [docType]: msgId }));
+
+          setPendingInteraction({
+            id: interactionId,
+            kind: "document_review",
+            messageId: msgId,
+            docType,
+            resume: { type: resumeType, id: resumeId },
+          });
+        }
         return;
       }
+
       case "interview": {
-        // Use event-provided ID if available, fall back to activeSession
-        const resumeId = eventSessionId ?? activeSession().productionSessionId;
-        if (!resumeId) {
+        const interviewResumeId = eventSessionId ?? activeSession().productionSessionId;
+        if (!interviewResumeId) {
           appendError("Missing session ID for interview response.");
           return;
         }
+
         // If questions array is empty, immediately send empty response to unblock backend
         if (payload.questions.length === 0) {
           setIsProcessingSignal(true);
           rpc.send({
             method: "productionalize.resume",
-            params: { sessionId: resumeId, response: {} },
+            params: { sessionId: interviewResumeId, response: {} },
           });
           return;
         }
-        dialog.open({
+
+        // We know questions is non-empty from the check above
+        const firstQ = payload.questions[0];
+
+        const interactionId = createId();
+        const msgId = createId();
+
+        const questionContent = formatInterviewQuestionForTranscript(
+          firstQ,
+          1,
+          payload.questions.length
+        );
+
+        appendMessage({
+          id: msgId,
+          role: "assistant",
+          content: sanitizeForTerminal(questionContent),
+          meta: {
+            isQuestion: true,
+            questionNumber: 1,
+            totalQuestions: payload.questions.length,
+          },
+        });
+
+        setPendingInteraction({
+          id: interactionId,
           kind: "interview",
-          questions: payload.questions,
+          messageId: msgId,
+          questionIndex: 0,
+          totalQuestions: payload.questions.length,
           answers: {},
-          index: 0,
-          resume: { type: "productionalize", id: resumeId },
+          questions: payload.questions,
+          interviewQuestionId: firstQ.id,
+          questionType: firstQ.type,
+          options: firstQ.options,
+          resume: { type: "productionalize", id: interviewResumeId },
         });
         return;
       }
     }
+  };
+
+  // Handle user responses to inline interactions
+  const handleInteractionResponse = (input: string): boolean => {
+    const interaction = pendingInteraction();
+    if (!interaction) return false;
+
+    // Add user's response as a message
+    appendMessage({
+      id: createId(),
+      role: "user",
+      content: sanitizeForTerminal(input),
+    });
+
+    switch (interaction.kind) {
+      case "document_review": {
+        // Send response to backend
+        setPendingInteraction(null);
+        setIsProcessingSignal(true);
+
+        if (interaction.resume.type === "planning") {
+          rpc.send({
+            method: "planning.resume",
+            params: { trackId: interaction.resume.id, response: input },
+          });
+        } else {
+          rpc.send({
+            method: "productionalize.resume",
+            params: { sessionId: interaction.resume.id, response: input },
+          });
+        }
+        return true;
+      }
+
+      case "clarification": {
+        const questions = interaction.questions as string[];
+        const currentIndex = interaction.questionIndex ?? 0;
+        const answers = { ...interaction.answers, [String(currentIndex)]: input };
+
+        if (currentIndex + 1 >= (interaction.totalQuestions ?? 0)) {
+          // All questions answered
+          setPendingInteraction(null);
+          setIsProcessingSignal(true);
+
+          if (interaction.resume.type === "planning") {
+            rpc.send({
+              method: "planning.resume",
+              params: { trackId: interaction.resume.id, response: answers },
+            });
+          } else {
+            rpc.send({
+              method: "productionalize.resume",
+              params: { sessionId: interaction.resume.id, response: answers },
+            });
+          }
+        } else {
+          // Show next question
+          const nextIndex = currentIndex + 1;
+          const nextQuestion = questions[nextIndex] ?? "";
+          const msgId = createId();
+
+          appendMessage({
+            id: msgId,
+            role: "assistant",
+            content: sanitizeForTerminal(
+              formatQuestionForTranscript(
+                "Clarification",
+                nextQuestion,
+                nextIndex + 1,
+                questions.length
+              )
+            ),
+            meta: {
+              isQuestion: true,
+              questionNumber: nextIndex + 1,
+              totalQuestions: questions.length,
+            },
+          });
+
+          setPendingInteraction({
+            ...interaction,
+            messageId: msgId,
+            questionIndex: nextIndex,
+            answers,
+          });
+        }
+        return true;
+      }
+
+      case "interview": {
+        const questions = interaction.questions as InterviewQuestion[];
+        const currentIndex = interaction.questionIndex ?? 0;
+        // Safe: we control the index and it's always within bounds
+        const currentQ = questions[currentIndex];
+
+        const answer =
+          currentQ.type === "multiselect"
+            ? input
+                .split(",")
+                .map((e) => e.trim())
+                .filter(Boolean)
+            : input;
+
+        const answers = { ...interaction.answers, [currentQ.id]: answer };
+
+        if (currentIndex + 1 >= (interaction.totalQuestions ?? 0)) {
+          // All questions answered
+          setPendingInteraction(null);
+          setIsProcessingSignal(true);
+          rpc.send({
+            method: "productionalize.resume",
+            params: { sessionId: interaction.resume.id, response: answers },
+          });
+        } else {
+          // Show next question
+          const nextIndex = currentIndex + 1;
+          // Safe: we only get here when nextIndex < totalQuestions
+          const nextQ = questions[nextIndex];
+
+          const msgId = createId();
+
+          appendMessage({
+            id: msgId,
+            role: "assistant",
+            content: sanitizeForTerminal(
+              formatInterviewQuestionForTranscript(nextQ, nextIndex + 1, questions.length)
+            ),
+            meta: {
+              isQuestion: true,
+              questionNumber: nextIndex + 1,
+              totalQuestions: questions.length,
+            },
+          });
+
+          setPendingInteraction({
+            ...interaction,
+            messageId: msgId,
+            questionIndex: nextIndex,
+            answers,
+            interviewQuestionId: nextQ.id,
+            questionType: nextQ.type,
+            options: nextQ.options,
+          });
+        }
+        return true;
+      }
+    }
+
+    return false;
   };
 
   const handleComplete = (result: unknown) => {
@@ -431,6 +759,8 @@ export const SessionProvider: ParentComponent = (props) => {
       setCurrentQuestion(null);
       setActiveOperation(null);
       setActiveSession({});
+      setPendingInteraction(null);
+      setDocumentMessageIds({});
     });
   };
 
@@ -605,6 +935,9 @@ export const SessionProvider: ParentComponent = (props) => {
         requestModelSet,
         sendConnect,
         streamingMessageId,
+        pendingInteraction,
+        handleInteractionResponse,
+        hasActiveInteraction: () => pendingInteraction() !== null,
       }}
     >
       {props.children}
