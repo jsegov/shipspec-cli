@@ -18,7 +18,14 @@ import type { RpcEvent, InterruptPayload, InterviewQuestion } from "../rpc/proto
 export type Mode = "ask" | "plan";
 export type Operation = "ask" | "planning" | "productionalize" | null;
 export type MessageRole = "user" | "assistant" | "status" | "system";
-export type PendingCommand = "model.list" | "model.current" | "model.set" | "connect" | null;
+export type PendingCommand =
+  | "model.list"
+  | "model.current"
+  | "model.set"
+  | "connect"
+  | "planning.list"
+  | "productionalize.list"
+  | null;
 
 export interface MessageMeta {
   isDocument?: boolean;
@@ -107,6 +114,10 @@ interface SessionContextValue {
   // Connect operation
   sendConnect: (openrouterKey: string, tavilyKey?: string) => void;
 
+  // List operations
+  requestPlanningList: () => void;
+  requestProductionalizeList: () => void;
+
   // Streaming
   streamingMessageId: Accessor<string | null>;
 
@@ -154,6 +165,28 @@ const ConnectResultSchema = z.object({
   projectRoot: z.string(),
   projectId: z.string(),
   initializedAt: z.string(),
+});
+
+const PlanningListSchema = z.object({
+  tracks: z.array(
+    z.object({
+      id: z.string(),
+      phase: z.string(),
+      initialIdea: z.string(),
+      updatedAt: z.string(),
+    })
+  ),
+});
+
+const ProductionalizeListSchema = z.object({
+  outputs: z.array(
+    z.object({
+      name: z.string(),
+      timestamp: z.string(),
+      type: z.literal("report"),
+      size: z.number(),
+    })
+  ),
 });
 
 export const SessionProvider: ParentComponent = (props) => {
@@ -750,6 +783,46 @@ export const SessionProvider: ParentComponent = (props) => {
         }
         return;
       }
+      case "planning.list": {
+        const parsed = PlanningListSchema.safeParse(result);
+        if (!parsed.success) {
+          appendError("Failed to load planning tracks.");
+          return;
+        }
+        if (parsed.data.tracks.length === 0) {
+          appendStatus("No planning tracks found.");
+          return;
+        }
+        const lines = parsed.data.tracks.map(
+          (t) => `• ${t.id} [${t.phase}] - ${t.initialIdea || "(no description)"}`
+        );
+        appendMessage({
+          id: createId(),
+          role: "system",
+          content: sanitizeForTerminal(`Planning Tracks:\n${lines.join("\n")}`),
+        });
+        return;
+      }
+      case "productionalize.list": {
+        const parsed = ProductionalizeListSchema.safeParse(result);
+        if (!parsed.success) {
+          appendError("Failed to load production reports.");
+          return;
+        }
+        if (parsed.data.outputs.length === 0) {
+          appendStatus("No production reports found.");
+          return;
+        }
+        const lines = parsed.data.outputs.map(
+          (o) => `• ${o.name} (${String(Math.round(o.size / 1024))}KB)`
+        );
+        appendMessage({
+          id: createId(),
+          role: "system",
+          content: sanitizeForTerminal(`Production Reports:\n${lines.join("\n")}`),
+        });
+        return;
+      }
     }
   };
 
@@ -761,6 +834,7 @@ export const SessionProvider: ParentComponent = (props) => {
       setActiveSession({});
       setPendingInteraction(null);
       setDocumentMessageIds({});
+      setPendingCommand(null);
     });
   };
 
@@ -903,6 +977,20 @@ export const SessionProvider: ParentComponent = (props) => {
     });
   };
 
+  const requestPlanningList = () => {
+    if (isProcessing()) return;
+    setPendingCommand("planning.list");
+    setIsProcessingSignal(true);
+    rpc.send({ method: "planning.list" });
+  };
+
+  const requestProductionalizeList = () => {
+    if (isProcessing()) return;
+    setPendingCommand("productionalize.list");
+    setIsProcessingSignal(true);
+    rpc.send({ method: "productionalize.list" });
+  };
+
   return (
     <SessionContext.Provider
       value={{
@@ -934,6 +1022,8 @@ export const SessionProvider: ParentComponent = (props) => {
         requestModelCurrent,
         requestModelSet,
         sendConnect,
+        requestPlanningList,
+        requestProductionalizeList,
         streamingMessageId,
         pendingInteraction,
         handleInteractionResponse,

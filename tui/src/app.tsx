@@ -18,7 +18,9 @@ import {
   useRpc,
   useToast,
 } from "./context/index.js";
-import { findSlashCommand, slashCommands, type SlashCommandContext } from "./commands/registry.js";
+import { findSlashCommand, slashCommands, type SlashCommand, type SlashCommandContext } from "./commands/registry.js";
+import { SlashAutocomplete } from "./components/input/slash-autocomplete.js";
+import { fuzzyFilter } from "./utils/fuzzy.js";
 import { copyToClipboardAuto } from "./utils/osc.js";
 
 import { Header } from "./components/layout/header.js";
@@ -41,6 +43,20 @@ function AppContent() {
   const [inputValue, setInputValue] = createSignal("");
   const [rawInputValue, setRawInputValue] = createSignal("");
   const [historyIndex, setHistoryIndex] = createSignal(-1);
+
+  // Slash command autocomplete state
+  const [showSlashMenu, setShowSlashMenu] = createSignal(false);
+  const [slashQuery, setSlashQuery] = createSignal("");
+  const [selectedCommandIndex, setSelectedCommandIndex] = createSignal(0);
+
+  // Filtered slash commands for autocomplete (matches name and aliases)
+  const filteredSlashCommands = createMemo(() => {
+    const q = slashQuery();
+    if (!q) return slashCommands;
+    return fuzzyFilter(slashCommands, q, (cmd) => {
+      return [cmd.name, ...(cmd.aliases ?? [])].join(" ");
+    });
+  });
 
   const isMaskedInput = createMemo(() => dialog.dialog().kind === "connect");
   // Don't block for pending interactions - user needs to respond
@@ -143,6 +159,9 @@ function AppContent() {
       setInputValue("");
       setRawInputValue("");
       setHistoryIndex(-1);
+      setShowSlashMenu(false);
+      setSlashQuery("");
+      setSelectedCommandIndex(0);
     });
   };
 
@@ -195,19 +214,51 @@ function AppContent() {
     });
   };
 
-  // Register arrow key keybinds
+  // Register arrow key keybinds (handles both history and autocomplete navigation)
   onMount(() => {
     keybinds.register({
       id: "history-up",
       keys: "up",
-      description: "Previous history",
-      action: handleHistoryUp,
+      description: "Previous history / Navigate autocomplete up",
+      action: () => {
+        if (showSlashMenu()) {
+          // Navigate autocomplete up
+          setSelectedCommandIndex((i) => Math.max(0, i - 1));
+        } else {
+          handleHistoryUp();
+        }
+      },
     });
     keybinds.register({
       id: "history-down",
       keys: "down",
-      description: "Next history",
-      action: handleHistoryDown,
+      description: "Next history / Navigate autocomplete down",
+      action: () => {
+        if (showSlashMenu()) {
+          // Navigate autocomplete down
+          const commands = filteredSlashCommands();
+          if (commands.length === 0) return; // Guard against empty array
+          const maxIndex = commands.length - 1;
+          setSelectedCommandIndex((i) => Math.min(maxIndex, i + 1));
+        } else {
+          handleHistoryDown();
+        }
+      },
+    });
+    keybinds.register({
+      id: "close-autocomplete",
+      keys: "escape",
+      description: "Close autocomplete",
+      action: () => {
+        if (showSlashMenu()) {
+          batch(() => {
+            setShowSlashMenu(false);
+            setInputValue("");
+            setSlashQuery("");
+          });
+        }
+      },
+      when: () => showSlashMenu(),
     });
   });
 
@@ -241,11 +292,19 @@ function AppContent() {
       });
     },
     listTracks: () => {
-      rpc.send({ method: "planning.list" });
+      if (session.isProcessing()) {
+        toast.show("Please wait for current operation to complete", "warning");
+        return;
+      }
+      session.requestPlanningList();
       toast.show("Loading tracks...", "info");
     },
     listOutputs: () => {
-      rpc.send({ method: "productionalize.list" });
+      if (session.isProcessing()) {
+        toast.show("Please wait for current operation to complete", "warning");
+        return;
+      }
+      session.requestProductionalizeList();
       toast.show("Loading outputs...", "info");
     },
     copyLastResponse: () => {
@@ -298,6 +357,20 @@ function AppContent() {
   };
 
   const handleSubmit = (value: string) => {
+    // Handle autocomplete selection when Enter is pressed with menu open
+    if (showSlashMenu()) {
+      const commands = filteredSlashCommands();
+      const index = selectedCommandIndex();
+      // Safety check: ensure index is within bounds
+      if (index >= 0 && index < commands.length) {
+        const selected = commands[index];
+        selected.run(buildSlashContext(), []);
+        session.pushHistory(`/${selected.name}`);
+      }
+      resetInput();
+      return;
+    }
+
     const input = isMaskedInput() ? rawInputValue() : value;
     const trimmed = input.trim();
     if (!trimmed) {
@@ -395,11 +468,39 @@ function AppContent() {
             } else {
               setInputValue(v);
               setRawInputValue("");
+
+              // Detect slash command typing (only at start of input)
+              if (v.startsWith("/") && !session.isProcessing() && !dialog.isOpen()) {
+                setShowSlashMenu(true);
+                setSlashQuery(v.slice(1)); // Text after "/"
+                setSelectedCommandIndex(0); // Reset selection on query change
+              } else {
+                setShowSlashMenu(false);
+                setSlashQuery("");
+              }
             }
           });
         }}
         onSubmit={handleSubmit}
       />
+      {showSlashMenu() && (
+        <SlashAutocomplete
+          query={slashQuery()}
+          selectedIndex={selectedCommandIndex()}
+          onSelect={(cmd: SlashCommand) => {
+            cmd.run(buildSlashContext(), []);
+            session.pushHistory(`/${cmd.name}`);
+            resetInput();
+          }}
+          onClose={() => {
+            batch(() => {
+              setShowSlashMenu(false);
+              setInputValue("");
+              setSlashQuery("");
+            });
+          }}
+        />
+      )}
       {dialogNode()}
       <ToastContainer />
     </box>
