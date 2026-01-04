@@ -18,7 +18,12 @@ import {
   useRpc,
   useToast,
 } from "./context/index.js";
-import { findSlashCommand, slashCommands, type SlashCommand, type SlashCommandContext } from "./commands/registry.js";
+import {
+  findSlashCommand,
+  slashCommands,
+  type SlashCommand,
+  type SlashCommandContext,
+} from "./commands/registry.js";
 import { SlashAutocomplete } from "./components/input/slash-autocomplete.js";
 import { fuzzyFilter } from "./utils/fuzzy.js";
 import { copyToClipboardAuto } from "./utils/osc.js";
@@ -37,7 +42,7 @@ function AppContent() {
   const dialog = useDialog();
   const keybinds = useKeybinds();
   const exitCtx = useExit();
-  const rpc = useRpc();
+  const _rpc = useRpc();
   const toast = useToast();
 
   const [inputValue, setInputValue] = createSignal("");

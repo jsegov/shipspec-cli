@@ -21,9 +21,7 @@ export function SlashAutocomplete(props: SlashAutocompleteProps) {
     });
   });
 
-  const visibleCommands = createMemo(() =>
-    filteredCommands().slice(0, MAX_VISIBLE_COMMANDS)
-  );
+  const visibleCommands = createMemo(() => filteredCommands().slice(0, MAX_VISIBLE_COMMANDS));
 
   return (
     <box
@@ -52,28 +50,20 @@ export function SlashAutocomplete(props: SlashAutocompleteProps) {
               paddingLeft={1}
               paddingRight={1}
             >
-              <text fg={isSelected() ? "#0b0c10" : "#66fcf1"}>
-                /{cmd.name}
-              </text>
+              <text fg={isSelected() ? "#0b0c10" : "#66fcf1"}>/{cmd.name}</text>
               {cmd.aliases && cmd.aliases.length > 0 && (
                 <text fg={isSelected() ? "#1f2833" : "#6b7280"}>
                   ({cmd.aliases.map((a) => `/${a}`).join(", ")})
                 </text>
               )}
-              <text fg={isSelected() ? "#0b0c10" : "#c5c6c7"}>
-                {cmd.description}
-              </text>
+              <text fg={isSelected() ? "#0b0c10" : "#c5c6c7"}>{cmd.description}</text>
             </box>
           );
         }}
       </For>
-      {filteredCommands().length === 0 && (
-        <text fg="#c5c6c7">No commands found</text>
-      )}
+      {filteredCommands().length === 0 && <text fg="#c5c6c7">No commands found</text>}
       {filteredCommands().length > MAX_VISIBLE_COMMANDS && (
-        <text fg="#6b7280">
-          ... and {filteredCommands().length - MAX_VISIBLE_COMMANDS} more
-        </text>
+        <text fg="#6b7280">... and {filteredCommands().length - MAX_VISIBLE_COMMANDS} more</text>
       )}
     </box>
   );
