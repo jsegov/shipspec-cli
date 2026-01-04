@@ -24,10 +24,7 @@ import {
   type SlashCommand,
   type SlashCommandContext,
 } from "./commands/registry.js";
-import {
-  SlashAutocomplete,
-  MAX_VISIBLE_COMMANDS,
-} from "./components/input/slash-autocomplete.js";
+import { SlashAutocomplete, MAX_VISIBLE_COMMANDS } from "./components/input/slash-autocomplete.js";
 import { fuzzyFilter } from "./utils/fuzzy.js";
 import { copyToClipboardAuto } from "./utils/osc.js";
 
