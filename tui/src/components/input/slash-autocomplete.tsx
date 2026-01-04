@@ -9,7 +9,7 @@ interface SlashAutocompleteProps {
   onClose: () => void;
 }
 
-const MAX_VISIBLE_COMMANDS = 8;
+export const MAX_VISIBLE_COMMANDS = 8;
 
 export function SlashAutocomplete(props: SlashAutocompleteProps) {
   const filteredCommands = createMemo(() => {

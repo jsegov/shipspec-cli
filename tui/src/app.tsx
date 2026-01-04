@@ -24,7 +24,10 @@ import {
   type SlashCommand,
   type SlashCommandContext,
 } from "./commands/registry.js";
-import { SlashAutocomplete } from "./components/input/slash-autocomplete.js";
+import {
+  SlashAutocomplete,
+  MAX_VISIBLE_COMMANDS,
+} from "./components/input/slash-autocomplete.js";
 import { fuzzyFilter } from "./utils/fuzzy.js";
 import { copyToClipboardAuto } from "./utils/osc.js";
 
@@ -240,10 +243,11 @@ function AppContent() {
       description: "Next history / Navigate autocomplete down",
       action: () => {
         if (showSlashMenu()) {
-          // Navigate autocomplete down
+          // Navigate autocomplete down, limited to visible commands
           const commands = filteredSlashCommands();
           if (commands.length === 0) return; // Guard against empty array
-          const maxIndex = commands.length - 1;
+          const visibleCount = Math.min(commands.length, MAX_VISIBLE_COMMANDS);
+          const maxIndex = visibleCount - 1;
           setSelectedCommandIndex((i) => Math.min(maxIndex, i + 1));
         } else {
           handleHistoryDown();
@@ -365,9 +369,10 @@ function AppContent() {
     // Handle autocomplete selection when Enter is pressed with menu open
     if (showSlashMenu()) {
       const commands = filteredSlashCommands();
+      const visibleCount = Math.min(commands.length, MAX_VISIBLE_COMMANDS);
       const index = selectedCommandIndex();
-      // Safety check: ensure index is within bounds
-      if (index >= 0 && index < commands.length) {
+      // Safety check: ensure index is within visible bounds
+      if (index >= 0 && index < visibleCount) {
         const selected = commands[index];
         selected.run(buildSlashContext(), []);
         session.pushHistory(`/${selected.name}`);
