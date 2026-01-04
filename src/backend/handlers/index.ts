@@ -305,8 +305,18 @@ export function createRpcHandlers() {
         }
       }
 
-      // Sort by updatedAt descending
-      tracks.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      // Sort by updatedAt descending (tracks with invalid/missing dates sort to the end)
+      tracks.sort((a, b) => {
+        const aTime = new Date(a.updatedAt).getTime();
+        const bTime = new Date(b.updatedAt).getTime();
+
+        // Handle NaN cases - tracks with invalid dates sort to the end
+        if (Number.isNaN(aTime) && Number.isNaN(bTime)) return 0;
+        if (Number.isNaN(aTime)) return 1; // a goes after b
+        if (Number.isNaN(bTime)) return -1; // b goes after a
+
+        return bTime - aTime;
+      });
 
       yield { type: "complete", result: { tracks } };
     } catch (err) {

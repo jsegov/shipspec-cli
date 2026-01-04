@@ -71,9 +71,9 @@ export async function setModel(model: string): Promise<string> {
     try {
       const raw: unknown = JSON.parse(await readFile(configPath, "utf-8"));
       const parsed = PartialConfigSchema.safeParse(raw);
-      if (!parsed.success) {
+      if (!parsed.success || typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         throw new CliUsageError(
-          `Invalid config file at ${configPath}: ${parsed.error.issues.map((i) => i.message).join(", ")}`
+          `Invalid config file at ${configPath}: ${parsed.success ? "must be a JSON object" : parsed.error.issues.map((i) => i.message).join(", ")}`
         );
       }
       config = raw as Record<string, unknown>;

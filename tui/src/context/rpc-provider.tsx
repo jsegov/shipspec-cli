@@ -1,4 +1,4 @@
-import { createContext, useContext, onMount, onCleanup, type ParentComponent } from "solid-js";
+import { createContext, useContext, onMount, type ParentComponent } from "solid-js";
 import { RpcClient } from "../rpc/client.js";
 import { useExit } from "./exit-provider.js";
 import type { RpcEvent, RpcRequest } from "../rpc/protocol.js";
@@ -37,10 +37,6 @@ export const RpcProvider: ParentComponent = (props) => {
       },
       5
     );
-  });
-
-  onCleanup(() => {
-    client.close();
   });
 
   const send = (request: RpcRequest) => {
