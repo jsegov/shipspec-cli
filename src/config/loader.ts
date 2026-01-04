@@ -61,6 +61,7 @@ export interface ShipSpecSecrets {
   llmApiKey?: string;
   embeddingApiKey?: string;
   tavilyApiKey?: string;
+  langsmithApiKey?: string;
 }
 
 const pickFirstDefined = <T>(...values: (T | undefined)[]): T | undefined =>
