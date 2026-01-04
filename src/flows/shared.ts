@@ -5,8 +5,8 @@ import { CliUsageError } from "../cli/errors.js";
 import { findProjectRoot, PROJECT_DIR } from "../core/project/project-state.js";
 
 export function resolveProjectRoot(cwd: string = process.cwd()): string {
-  const envRoot = process.env.SHIPSPEC_PROJECT_ROOT;
-  if (envRoot?.trim()) {
+  const envRoot = process.env.SHIPSPEC_PROJECT_ROOT?.trim();
+  if (envRoot) {
     return envRoot;
   }
 

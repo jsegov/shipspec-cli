@@ -111,6 +111,7 @@ export function createRpcHandlers() {
   const handlePlanningStart = async function* (
     params: Extract<RpcRequest, { method: "planning.start" }>["params"]
   ): AsyncGenerator<RpcEvent> {
+    let sessionTrackId: string | null = null;
     try {
       const session = await createPlanningSession({
         idea: params.idea,
@@ -120,11 +121,13 @@ export function createRpcHandlers() {
         cloudOk: params.cloudOk,
         localOnly: params.localOnly,
       });
+      sessionTrackId = session.trackId;
       planningSessions.set(session.trackId, session);
 
       for await (const event of session.start()) {
         if (event.type === "complete") {
           planningSessions.delete(session.trackId);
+          sessionTrackId = null;
         }
         // Inject trackId into interrupt events so TUI knows which session to resume
         if (event.type === "interrupt") {
@@ -134,6 +137,9 @@ export function createRpcHandlers() {
         }
       }
     } catch (err) {
+      if (sessionTrackId) {
+        planningSessions.delete(sessionTrackId);
+      }
       yield toErrorEvent(err);
     }
   };
@@ -164,6 +170,7 @@ export function createRpcHandlers() {
         }
       }
     } catch (err) {
+      planningSessions.delete(params.trackId);
       yield toErrorEvent(err);
     }
   };
@@ -171,6 +178,7 @@ export function createRpcHandlers() {
   const handleProductionalizeStart = async function* (
     params: Extract<RpcRequest, { method: "productionalize.start" }>["params"]
   ): AsyncGenerator<RpcEvent> {
+    let sessionId: string | null = null;
     try {
       const session = await createProductionalizeSession({
         context: params.context,
@@ -182,11 +190,13 @@ export function createRpcHandlers() {
         localOnly: params.localOnly,
         noSave: params.noSave,
       });
+      sessionId = session.sessionId;
       productionalizeSessions.set(session.sessionId, session);
 
       for await (const event of session.start()) {
         if (event.type === "complete") {
           productionalizeSessions.delete(session.sessionId);
+          sessionId = null;
         }
         // Inject sessionId into interrupt events so TUI knows which session to resume
         if (event.type === "interrupt") {
@@ -196,6 +206,9 @@ export function createRpcHandlers() {
         }
       }
     } catch (err) {
+      if (sessionId) {
+        productionalizeSessions.delete(sessionId);
+      }
       yield toErrorEvent(err);
     }
   };
@@ -226,6 +239,7 @@ export function createRpcHandlers() {
         }
       }
     } catch (err) {
+      productionalizeSessions.delete(params.sessionId);
       yield toErrorEvent(err);
     }
   };
