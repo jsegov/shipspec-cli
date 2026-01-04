@@ -27,6 +27,8 @@ export interface LoadDatasetOptions {
   client?: Client;
   /** API key for LangSmith (uses env var if not provided) */
   apiKey?: string;
+  /** When true, only load from local files - never fall back to LangSmith */
+  localOnly?: boolean;
 }
 
 /**
@@ -44,6 +46,15 @@ export async function loadDataset<T>(
   // Check if it's a local file path
   if (existsSync(datasetName) || datasetName.endsWith(".json")) {
     return loadLocalDataset(datasetName, workflow);
+  }
+
+  // In local-only mode, fail with a clear error instead of falling back to LangSmith
+  if (options.localOnly) {
+    throw new Error(
+      `Local dataset not found: '${datasetName}'. ` +
+        `In --local-only mode, the dataset must be a path to an existing JSON file ` +
+        `(e.g., 'datasets/${datasetName}.json') or end with '.json'.`
+    );
   }
 
   // Try to load from LangSmith

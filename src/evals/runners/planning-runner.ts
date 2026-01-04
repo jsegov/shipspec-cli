@@ -58,6 +58,13 @@ export function createPlanningRunner(runnerConfig: PlanningRunnerConfig) {
     const resolvedProjectPath = projectPath ?? config.projectPath;
     const vectorDbPath = join(resolvedProjectPath, ".ship-spec", "lancedb");
 
+    // Create config with resolved project path to ensure gatherProjectSignals
+    // scans the correct directory (not the original config.projectPath)
+    const resolvedConfig: ShipSpecConfig = {
+      ...config,
+      projectPath: resolvedProjectPath,
+    };
+
     // Initialize vector store and repository
     const vectorStore = new LanceDBManager(resolve(vectorDbPath));
 
@@ -78,7 +85,7 @@ export function createPlanningRunner(runnerConfig: PlanningRunnerConfig) {
 
     // Create graph with memory checkpointer (required for interrupts)
     const checkpointer = new MemorySaver();
-    const graph = await createPlanningGraph(config, repository, {
+    const graph = await createPlanningGraph(resolvedConfig, repository, {
       checkpointer,
       llmApiKey: secrets.llmApiKey,
     });
@@ -108,11 +115,18 @@ export function createPlanningRunner(runnerConfig: PlanningRunnerConfig) {
 
       switch (interruptValue.type) {
         case "clarification": {
-          // Use provided clarification answers or auto-approve
-          const answer = clarificationAnswers?.[clarificationIndex] ?? "skip";
-          clarificationIndex++;
+          // The clarifier expects answers as an object with indexed keys: { "0": "answer1", "1": "answer2", ... }
+          const questions = interruptValue.questions;
+          const answersObj: Record<string, string> = {};
+
+          for (let i = 0; i < questions.length; i++) {
+            // Use provided clarification answers or default to "skip"
+            answersObj[String(i)] = clarificationAnswers?.[clarificationIndex] ?? "skip";
+            clarificationIndex++;
+          }
+
           result = (await graph.invoke(
-            new LangGraphCommand({ resume: answer }),
+            new LangGraphCommand({ resume: answersObj }),
             graphConfig
           )) as PlanningResult;
           break;

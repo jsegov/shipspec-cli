@@ -19,6 +19,32 @@ interface ExpectedFinding {
 }
 
 /**
+ * Safely tests if a title matches a regex pattern.
+ * Returns true if no pattern is provided, or if the pattern matches.
+ * Returns false if the pattern is invalid or doesn't match.
+ *
+ * @param title - The title string to test
+ * @param pattern - Optional regex pattern string
+ * @returns Object with match result and optional error message
+ */
+function safeRegexTest(
+  title: string,
+  pattern: string | undefined
+): { matches: boolean; error?: string } {
+  if (!pattern) {
+    return { matches: true };
+  }
+
+  try {
+    const regex = new RegExp(pattern, "i");
+    return { matches: regex.test(title) };
+  } catch (e) {
+    const errorMessage = e instanceof Error ? e.message : "Unknown regex error";
+    return { matches: false, error: `Invalid regex "${pattern}": ${errorMessage}` };
+  }
+}
+
+/**
  * Evaluates the accuracy and completeness of findings.
  * Checks for:
  * - Minimum finding count
@@ -48,6 +74,8 @@ export function findingAccuracyEvaluator({
   const mustInclude = Array.isArray(referenceOutputs?.mustIncludeFindings)
     ? (referenceOutputs.mustIncludeFindings as ExpectedFinding[])
     : [];
+  const invalidPatterns: string[] = [];
+
   if (mustInclude.length > 0) {
     let matchedCount = 0;
 
@@ -56,17 +84,24 @@ export function findingAccuracyEvaluator({
         const categoryMatch = f.category.toLowerCase() === expected.category.toLowerCase();
         const severityMatch =
           severityToNumber(f.severity) >= severityToNumber(expected.severityMin);
-        const titleMatch =
-          !expected.titlePattern || new RegExp(expected.titlePattern, "i").test(f.title);
-        return categoryMatch && severityMatch && titleMatch;
+        const titleResult = safeRegexTest(f.title, expected.titlePattern);
+        if (titleResult.error) {
+          invalidPatterns.push(titleResult.error);
+        }
+        return categoryMatch && severityMatch && titleResult.matches;
       });
       if (matched) matchedCount++;
     }
 
+    const baseComment = `Matched ${String(matchedCount)}/${String(mustInclude.length)} required findings`;
+    const uniqueErrors = [...new Set(invalidPatterns)];
+    const comment =
+      uniqueErrors.length > 0 ? `${baseComment}. Warning: ${uniqueErrors.join("; ")}` : baseComment;
+
     results.push({
       key: "required_findings",
       score: matchedCount / mustInclude.length,
-      comment: `Matched ${String(matchedCount)}/${String(mustInclude.length)} required findings`,
+      comment,
     });
   }
 

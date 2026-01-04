@@ -1,0 +1,37 @@
+{
+  "name": "ask-sample",
+  "description": "Sample dataset for testing Ask workflow evaluations",
+  "workflow": "ask",
+  "examples": [
+    {
+      "inputs": {
+        "question": "How does the authentication system work in this codebase?",
+        "projectPath": "."
+      },
+      "outputs": {
+        "expectedTopics": ["authentication", "secrets", "keytar", "API key"],
+        "mustCiteFiles": ["secrets-store.ts"],
+        "mustNotContain": ["I don't know", "I cannot help"]
+      },
+      "metadata": {
+        "description": "Basic question about auth system",
+        "tags": ["authentication", "security"]
+      }
+    },
+    {
+      "inputs": {
+        "question": "What is the project structure and main entry points?",
+        "projectPath": "."
+      },
+      "outputs": {
+        "expectedTopics": ["CLI", "commands", "index.ts", "backend"],
+        "mustCiteFiles": ["index.ts"],
+        "mustNotContain": ["I don't know"]
+      },
+      "metadata": {
+        "description": "Question about project structure",
+        "tags": ["architecture", "structure"]
+      }
+    }
+  ]
+}

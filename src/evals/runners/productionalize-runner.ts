@@ -3,6 +3,7 @@
  * Wraps the productionalize graph for use with LangSmith evaluate().
  */
 import { resolve, join } from "path";
+import { randomUUID } from "node:crypto";
 import { MemorySaver } from "@langchain/langgraph";
 
 import type { ShipSpecConfig } from "../../config/schema.js";
@@ -48,6 +49,13 @@ export function createProductionalizeRunner(runnerConfig: ProductionalizeRunnerC
     const resolvedProjectPath = projectPath ?? config.projectPath;
     const vectorDbPath = join(resolvedProjectPath, ".ship-spec", "lancedb");
 
+    // Create config with resolved project path to ensure gatherProjectSignals
+    // scans the correct directory (not the original config.projectPath)
+    const resolvedConfig: ShipSpecConfig = {
+      ...config,
+      projectPath: resolvedProjectPath,
+    };
+
     // Initialize vector store and repository
     const vectorStore = new LanceDBManager(resolve(vectorDbPath));
 
@@ -68,18 +76,22 @@ export function createProductionalizeRunner(runnerConfig: ProductionalizeRunnerC
 
     // Create graph with memory checkpointer (needed for state management)
     const checkpointer = new MemorySaver();
-    const graph = await createProductionalizeGraph(config, repository, {
+    const graph = await createProductionalizeGraph(resolvedConfig, repository, {
       checkpointer,
       llmApiKey: secrets.llmApiKey,
       searchApiKey: secrets.tavilyApiKey,
       shouldRedactCloud: config.llm.provider === "openrouter",
     });
 
-    // Run graph in non-interactive mode
-    const result = await graph.invoke({
-      userQuery,
-      interactiveMode: false,
-    });
+    // Run graph in non-interactive mode with unique thread_id
+    const threadId = randomUUID();
+    const result = await graph.invoke(
+      {
+        userQuery,
+        interactiveMode: false,
+      },
+      { configurable: { thread_id: threadId } }
+    );
 
     return {
       finalReport: result.finalReport,

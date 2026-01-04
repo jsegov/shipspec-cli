@@ -223,8 +223,8 @@ async function runWorkflowEval(
   let examples: { inputs: Record<string, unknown>; outputs?: Record<string, unknown> }[];
   try {
     if (options.localOnly) {
-      // Local-only: don't use LangSmith client
-      examples = await loadDataset(datasetName, workflow, {});
+      // Local-only: only load from local files, fail with clear error if not found
+      examples = await loadDataset(datasetName, workflow, { localOnly: true });
     } else {
       examples = await loadDataset(datasetName, workflow, {
         client: client ?? undefined,
@@ -274,13 +274,38 @@ async function runWorkflowEval(
       maxConcurrency: options.maxConcurrency,
     });
 
+    // Collect results by iterating over the async iterable to completion
+    // ExperimentResults is an async iterable of ExperimentResultRow
+    const summary = new Map<string, { sum: number; count: number }>();
+
+    for await (const result of results) {
+      // Each result has an evaluationResults property with evaluation feedback
+      const evalResults = result.evaluationResults.results;
+      for (const evalResult of evalResults) {
+        const { key, score } = evalResult;
+        // score can be number | boolean | undefined; only aggregate numeric scores
+        if (typeof score === "number") {
+          const existing = summary.get(key);
+          if (existing) {
+            existing.sum += score;
+            existing.count++;
+          } else {
+            summary.set(key, { sum: score, count: 1 });
+          }
+        }
+      }
+    }
+
     // Log summary
     logger.success(`${workflow} evaluation complete!`);
 
-    for (const [key, value] of Object.entries(results.summaryResults)) {
-      const valueObj = value as { mean?: number };
-      const mean = valueObj.mean;
-      logger.info(`  ${key}: ${mean?.toFixed(3) ?? "N/A"}`);
+    for (const [key, { sum, count }] of summary) {
+      const mean = sum / count;
+      logger.info(`  ${key}: ${mean.toFixed(3)} (n=${String(count)})`);
+    }
+
+    if (summary.size === 0) {
+      logger.info("  No evaluation results collected.");
     }
   } catch (err) {
     throw new CliRuntimeError(`Evaluation failed for ${workflow}`, err);
@@ -291,25 +316,30 @@ async function runWorkflowEval(
  * Main action handler for the eval command.
  */
 async function evalAction(cmdOpts: EvalCommanderOptions): Promise<void> {
-  // Normalize options
-  const options: EvalOptions = {
-    workflow: cmdOpts.workflow ?? "all",
-    dataset: cmdOpts.dataset,
-    localOnly: cmdOpts.localOnly ?? false,
-    maxConcurrency: cmdOpts.maxConcurrency ?? 3,
-    experimentPrefix: cmdOpts.experimentPrefix ?? "shipspec",
-  };
-
-  // Find project root
+  // Find project root first to load config for normalizing options
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
     throw new CliUsageError("This directory has not been initialized. Run `ship-spec init` first.");
   }
 
-  // Load config
+  // Load config early to determine localOnly from uploadResults setting
   const { config, secrets: loadedSecrets } = cmdOpts.resolvedConfig
     ? { config: cmdOpts.resolvedConfig, secrets: {} as ShipSpecSecrets }
     : await loadConfig(projectRoot, {}, { verbose: process.argv.includes("--verbose") });
+
+  // Determine effective localOnly: CLI flag OR config uploadResults=false
+  // When uploadResults is false, we run evaluations locally without uploading
+  const effectiveLocalOnly =
+    cmdOpts.localOnly ?? (config.eval?.uploadResults === false ? true : false);
+
+  // Normalize options
+  const options: EvalOptions = {
+    workflow: cmdOpts.workflow ?? "all",
+    dataset: cmdOpts.dataset,
+    localOnly: effectiveLocalOnly,
+    maxConcurrency: cmdOpts.maxConcurrency ?? config.eval?.maxConcurrency ?? 3,
+    experimentPrefix: cmdOpts.experimentPrefix ?? "shipspec",
+  };
 
   // Resolve secrets
   const secretsStore = createSecretsStore(projectRoot);

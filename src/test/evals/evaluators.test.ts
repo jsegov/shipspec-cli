@@ -12,6 +12,7 @@ import {
   answerRelevanceEvaluator,
   citationAccuracyEvaluator,
 } from "../../evals/evaluators/ask/index.js";
+import { ExpectedFindingSchema } from "../../evals/datasets/schemas.js";
 
 describe("Productionalize Evaluators", () => {
   describe("reportQualityEvaluator", () => {
@@ -154,6 +155,72 @@ describe("Productionalize Evaluators", () => {
 
       const requiredResult = results.find((r) => r.key === "required_findings");
       expect(requiredResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
+    });
+
+    it("should handle invalid regex pattern without crashing", () => {
+      // This should not throw, even with an invalid regex pattern
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "high",
+              category: "security",
+              title: "SQL Injection vulnerability",
+              description: "Found SQL injection in user input",
+            },
+          ],
+        },
+        referenceOutputs: {
+          mustIncludeFindings: [
+            {
+              category: "security",
+              severityMin: "medium",
+              titlePattern: "SQL[Injection", // Invalid regex - unclosed bracket
+            },
+          ],
+        },
+      });
+
+      // Should complete without throwing
+      expect(results).toBeDefined();
+      const requiredResult = results.find((r) => r.key === "required_findings");
+      expect(requiredResult).toBeDefined();
+      // Score should be 0 since the invalid pattern can't match
+      expect(requiredResult?.score).toBe(0);
+      // Comment should include warning about invalid regex
+      expect(requiredResult?.comment).toContain("Invalid regex");
+    });
+
+    it("should match valid titlePattern correctly", () => {
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "high",
+              category: "security",
+              title: "SQL Injection vulnerability found",
+              description: "Found SQL injection in user input",
+            },
+          ],
+        },
+        referenceOutputs: {
+          mustIncludeFindings: [
+            {
+              category: "security",
+              severityMin: "medium",
+              titlePattern: "SQL.*Injection", // Valid regex
+            },
+          ],
+        },
+      });
+
+      const requiredResult = results.find((r) => r.key === "required_findings");
+      expect(requiredResult?.score).toBe(1);
+      expect(requiredResult?.comment).not.toContain("Invalid regex");
     });
   });
 });
@@ -359,6 +426,42 @@ describe("Ask Evaluators", () => {
 
       const codeExamplesResult = results.find((r) => r.key === "has_code_examples");
       expect(codeExamplesResult?.score).toBe(1);
+    });
+  });
+});
+
+describe("Dataset Schema Validation", () => {
+  describe("ExpectedFindingSchema", () => {
+    it("should accept valid regex pattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "high",
+        titlePattern: "SQL.*Injection",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid regex pattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "high",
+        titlePattern: "SQL[Injection", // Invalid - unclosed bracket
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain("Invalid regex");
+      }
+    });
+
+    it("should accept missing titlePattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "medium",
+      });
+
+      expect(result.success).toBe(true);
     });
   });
 });

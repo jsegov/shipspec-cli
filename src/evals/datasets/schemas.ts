@@ -14,10 +14,25 @@ export const ProductionalizeInputSchema = z.object({
   interactiveMode: z.literal(false).default(false),
 });
 
+/**
+ * Validates that a string is a valid regex pattern.
+ */
+const regexPatternSchema = z.string().refine(
+  (pattern) => {
+    try {
+      new RegExp(pattern);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  { message: "Invalid regex pattern syntax" }
+);
+
 export const ExpectedFindingSchema = z.object({
   category: z.string(),
   severityMin: z.enum(["critical", "high", "medium", "low", "info"]),
-  titlePattern: z.string().optional(),
+  titlePattern: regexPatternSchema.optional(),
 });
 
 export const ProductionalizeOutputSchema = z.object({
