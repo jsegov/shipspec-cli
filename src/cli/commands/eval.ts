@@ -413,7 +413,23 @@ export const evalCommand = new Command("eval")
   )
   .option("-d, --dataset <name>", "Dataset name to use (overrides config)")
   .option("--local-only", "Run evaluations locally without uploading to LangSmith")
-  .option("--max-concurrency <n>", "Maximum concurrent evaluations", (val) => parseInt(val, 10), 3)
+  .option(
+    "--max-concurrency <n>",
+    "Maximum concurrent evaluations (1-10)",
+    (val) => {
+      const parsed = parseInt(val, 10);
+      if (Number.isNaN(parsed)) {
+        throw new CliUsageError(`Invalid --max-concurrency value: "${val}" is not a number`);
+      }
+      if (parsed < 1 || parsed > 10) {
+        throw new CliUsageError(
+          `Invalid --max-concurrency value: ${String(parsed)} (must be between 1 and 10)`
+        );
+      }
+      return parsed;
+    },
+    3
+  )
   .option("--experiment-prefix <prefix>", "Prefix for experiment name", "shipspec")
   .addOption(new Option("--resolved-config").hideHelp())
   .action(evalAction);

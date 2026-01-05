@@ -43,9 +43,17 @@ export async function loadDataset<T>(
   workflow: EvalWorkflow,
   options: LoadDatasetOptions = {}
 ): Promise<T[]> {
-  // Check if it's a local file path
-  if (existsSync(datasetName) || datasetName.endsWith(".json")) {
+  // Check if it's a local file path that exists
+  if (existsSync(datasetName)) {
     return loadLocalDataset(datasetName, workflow);
+  }
+
+  // If it looks like a JSON file path but doesn't exist, provide a clear error
+  if (datasetName.endsWith(".json")) {
+    throw new Error(
+      `Dataset file not found: '${datasetName}'. ` +
+        `Please ensure the file exists at the specified path.`
+    );
   }
 
   // In local-only mode, fail with a clear error instead of falling back to LangSmith
@@ -53,7 +61,7 @@ export async function loadDataset<T>(
     throw new Error(
       `Local dataset not found: '${datasetName}'. ` +
         `In --local-only mode, the dataset must be a path to an existing JSON file ` +
-        `(e.g., 'datasets/${datasetName}.json') or end with '.json'.`
+        `(e.g., 'datasets/${datasetName}.json').`
     );
   }
 
