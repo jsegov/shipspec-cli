@@ -67,7 +67,7 @@ export function reportQualityEvaluator({
   }
 
   // 4. Report Length - basic sanity check
-  const wordCount = report.split(/\s+/).length;
+  const wordCount = report.split(/\s+/).filter(Boolean).length;
   const hasSubstantialContent = wordCount >= 100;
 
   results.push({

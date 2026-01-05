@@ -71,6 +71,18 @@ describe("Productionalize Evaluators", () => {
       const contentResult = results.find((r) => r.key === "required_content");
       expect(contentResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
     });
+
+    it("should report 0 words for empty report", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "test" },
+        outputs: { finalReport: "" },
+        referenceOutputs: {},
+      });
+
+      const lengthResult = results.find((r) => r.key === "report_length");
+      expect(lengthResult?.score).toBe(0);
+      expect(lengthResult?.comment).toBe("Report contains 0 words");
+    });
   });
 
   describe("findingAccuracyEvaluator", () => {
@@ -270,6 +282,18 @@ Users need a way to track their tasks.
       const contentResult = results.find((r) => r.key === "prd_required_content");
       expect(contentResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
     });
+
+    it("should report 0 words for empty PRD", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: { prd: "" },
+        referenceOutputs: {},
+      });
+
+      const lengthResult = results.find((r) => r.key === "prd_length");
+      expect(lengthResult?.score).toBe(0);
+      expect(lengthResult?.comment).toBe("PRD contains 0 words");
+    });
   });
 
   describe("taskActionabilityEvaluator", () => {
@@ -291,6 +315,30 @@ Users need a way to track their tasks.
 
       const countResult = results.find((r) => r.key === "task_count");
       expect(countResult?.score).toBe(1);
+    });
+
+    it("should count mixed bullet and numbered tasks correctly", () => {
+      // Regression test: ensure mixed list formats are summed, not max'd
+      const results = taskActionabilityEvaluator({
+        inputs: {},
+        outputs: {
+          taskPrompts: `
+## Setup Phase
+- Install dependencies
+- Configure environment
+
+## Implementation Phase
+1. Create the auth module
+2. Add API routes
+3. Write integration tests
+          `,
+        },
+        referenceOutputs: { taskPromptCount: 5 },
+      });
+
+      const countResult = results.find((r) => r.key === "task_count");
+      expect(countResult?.score).toBe(1);
+      expect(countResult?.comment).toContain("5 tasks");
     });
 
     it("should detect actionable verbs", () => {
@@ -369,6 +417,18 @@ describe("Ask Evaluators", () => {
 
       const hallucinationResult = results.find((r) => r.key === "no_hallucination");
       expect(hallucinationResult?.score).toBe(1);
+    });
+
+    it("should report 0 words for empty answer", () => {
+      const results = answerRelevanceEvaluator({
+        inputs: { question: "What is this?" },
+        outputs: { answer: "" },
+        referenceOutputs: {},
+      });
+
+      const substanceResult = results.find((r) => r.key === "answer_substance");
+      expect(substanceResult?.score).toBe(0);
+      expect(substanceResult?.comment).toBe("Answer contains 0 words");
     });
   });
 

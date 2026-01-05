@@ -39,10 +39,10 @@ export function taskActionabilityEvaluator({
   const taskPrompts = typeof outputs.taskPrompts === "string" ? outputs.taskPrompts : "";
   const results: EvaluationResult[] = [];
 
-  // Count individual tasks (assuming markdown list format)
+  // Count individual tasks (supports bullet, numbered, or mixed list formats)
   const bulletTasks = (taskPrompts.match(/^[-*]\s+.+/gm) ?? []).length;
   const numberedTasks = (taskPrompts.match(/^\d+\.\s+.+/gm) ?? []).length;
-  const taskCount = Math.max(bulletTasks, numberedTasks);
+  const taskCount = bulletTasks + numberedTasks;
 
   // 1. Task Count Check
   const expectedCount =

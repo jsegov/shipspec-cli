@@ -57,7 +57,7 @@ export function prdQualityEvaluator({
   }
 
   // 3. PRD Length - sanity check for substance
-  const wordCount = prd.split(/\s+/).length;
+  const wordCount = prd.split(/\s+/).filter(Boolean).length;
   const hasSubstantialContent = wordCount >= 200;
 
   results.push({

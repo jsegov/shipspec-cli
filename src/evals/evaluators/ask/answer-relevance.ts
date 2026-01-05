@@ -71,7 +71,7 @@ export function answerRelevanceEvaluator({
   }
 
   // 4. Answer Substance - not too short
-  const wordCount = answer.split(/\s+/).length;
+  const wordCount = answer.split(/\s+/).filter(Boolean).length;
   const hasSubstance = wordCount >= 20;
 
   results.push({
