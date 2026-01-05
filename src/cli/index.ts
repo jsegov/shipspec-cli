@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 
 import { askCommand } from "./commands/ask.js";
 import { configCommand } from "./commands/config.js";
+import { evalCommand } from "./commands/eval.js";
 import { initCommand } from "./commands/init.js";
 import { modelCommand } from "./commands/model.js";
 import { planningCommand } from "./commands/planning.js";
@@ -44,6 +45,7 @@ program
 
 program.addCommand(askCommand);
 program.addCommand(configCommand);
+program.addCommand(evalCommand);
 program.addCommand(initCommand);
 program.addCommand(modelCommand);
 program.addCommand(planningCommand);

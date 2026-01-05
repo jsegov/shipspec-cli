@@ -1,0 +1,23 @@
+{
+  "name": "productionalize-sample",
+  "description": "Sample dataset for testing Productionalize workflow evaluations",
+  "workflow": "productionalize",
+  "examples": [
+    {
+      "inputs": {
+        "userQuery": "Analyze this codebase for production readiness",
+        "projectPath": ".",
+        "interactiveMode": false
+      },
+      "outputs": {
+        "expectedCategories": ["security", "testing", "error-handling"],
+        "minFindingCount": 3,
+        "reportMustContain": ["Security", "Findings"]
+      },
+      "metadata": {
+        "description": "Basic production readiness analysis",
+        "tags": ["production", "security"]
+      }
+    }
+  ]
+}

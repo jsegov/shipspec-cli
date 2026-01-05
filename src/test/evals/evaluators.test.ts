@@ -1,0 +1,527 @@
+import { describe, it, expect } from "vitest";
+
+import {
+  reportQualityEvaluator,
+  findingAccuracyEvaluator,
+} from "../../evals/evaluators/productionalize/index.js";
+import {
+  prdQualityEvaluator,
+  taskActionabilityEvaluator,
+} from "../../evals/evaluators/planning/index.js";
+import {
+  answerRelevanceEvaluator,
+  citationAccuracyEvaluator,
+} from "../../evals/evaluators/ask/index.js";
+import { ExpectedFindingSchema } from "../../evals/datasets/schemas.js";
+
+describe("Productionalize Evaluators", () => {
+  describe("reportQualityEvaluator", () => {
+    it("should score report with executive summary as 1", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "analyze this codebase" },
+        outputs: {
+          finalReport: "## Executive Summary\n\nThis is a production readiness report.",
+        },
+        referenceOutputs: { expectedCategories: ["security"] },
+      });
+
+      const structureResult = results.find((r) => r.key === "report_structure");
+      expect(structureResult?.score).toBe(1);
+      expect(structureResult?.comment).toContain("executive summary");
+    });
+
+    it("should score missing executive summary as 0", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "test" },
+        outputs: { finalReport: "# Report\n\nNo summary section here." },
+        referenceOutputs: { expectedCategories: [] },
+      });
+
+      const structureResult = results.find((r) => r.key === "report_structure");
+      expect(structureResult?.score).toBe(0);
+    });
+
+    it("should calculate category coverage correctly", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "test" },
+        outputs: {
+          finalReport: "## Summary\n\nThis report covers security and testing aspects.",
+        },
+        referenceOutputs: {
+          expectedCategories: ["security", "testing", "performance", "documentation"],
+        },
+      });
+
+      const coverageResult = results.find((r) => r.key === "category_coverage");
+      expect(coverageResult?.score).toBe(0.5); // 2 out of 4
+      expect(coverageResult?.comment).toContain("2/4");
+    });
+
+    it("should check required content terms", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "test" },
+        outputs: {
+          finalReport: "## Summary\n\nThis report discusses authentication and API security.",
+        },
+        referenceOutputs: {
+          reportMustContain: ["authentication", "API", "database"],
+        },
+      });
+
+      const contentResult = results.find((r) => r.key === "required_content");
+      expect(contentResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
+    });
+
+    it("should report 0 words for empty report", () => {
+      const results = reportQualityEvaluator({
+        inputs: { userQuery: "test" },
+        outputs: { finalReport: "" },
+        referenceOutputs: {},
+      });
+
+      const lengthResult = results.find((r) => r.key === "report_length");
+      expect(lengthResult?.score).toBe(0);
+      expect(lengthResult?.comment).toBe("Report contains 0 words");
+    });
+  });
+
+  describe("findingAccuracyEvaluator", () => {
+    it("should score finding count correctly", () => {
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "high",
+              category: "security",
+              title: "SQL Injection",
+              description: "Found SQL injection vulnerability",
+            },
+            {
+              id: "2",
+              severity: "medium",
+              category: "security",
+              title: "XSS",
+              description: "Found XSS vulnerability in form",
+            },
+          ],
+        },
+        referenceOutputs: { minFindingCount: 2 },
+      });
+
+      const countResult = results.find((r) => r.key === "finding_count");
+      expect(countResult?.score).toBe(1);
+    });
+
+    it("should score below minimum finding count proportionally", () => {
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "low",
+              category: "code-quality",
+              title: "Unused variable",
+              description: "Found unused variable",
+            },
+          ],
+        },
+        referenceOutputs: { minFindingCount: 5 },
+      });
+
+      const countResult = results.find((r) => r.key === "finding_count");
+      expect(countResult?.score).toBe(0.2); // 1 out of 5
+    });
+
+    it("should match required findings by category and severity", () => {
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "critical",
+              category: "security",
+              title: "Auth bypass",
+              description: "Authentication bypass found",
+            },
+            {
+              id: "2",
+              severity: "low",
+              category: "testing",
+              title: "No tests",
+              description: "No unit tests found",
+            },
+          ],
+        },
+        referenceOutputs: {
+          mustIncludeFindings: [
+            { category: "security", severityMin: "high" },
+            { category: "testing", severityMin: "low" },
+            { category: "dependencies", severityMin: "medium" },
+          ],
+        },
+      });
+
+      const requiredResult = results.find((r) => r.key === "required_findings");
+      expect(requiredResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
+    });
+
+    it("should handle invalid regex pattern without crashing", () => {
+      // This should not throw, even with an invalid regex pattern
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "high",
+              category: "security",
+              title: "SQL Injection vulnerability",
+              description: "Found SQL injection in user input",
+            },
+          ],
+        },
+        referenceOutputs: {
+          mustIncludeFindings: [
+            {
+              category: "security",
+              severityMin: "medium",
+              titlePattern: "SQL[Injection", // Invalid regex - unclosed bracket
+            },
+          ],
+        },
+      });
+
+      // Should complete without throwing
+      expect(results).toBeDefined();
+      const requiredResult = results.find((r) => r.key === "required_findings");
+      expect(requiredResult).toBeDefined();
+      // Score should be 0 since the invalid pattern can't match
+      expect(requiredResult?.score).toBe(0);
+      // Comment should include warning about invalid regex
+      expect(requiredResult?.comment).toContain("Invalid regex");
+    });
+
+    it("should match valid titlePattern correctly", () => {
+      const results = findingAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          findings: [
+            {
+              id: "1",
+              severity: "high",
+              category: "security",
+              title: "SQL Injection vulnerability found",
+              description: "Found SQL injection in user input",
+            },
+          ],
+        },
+        referenceOutputs: {
+          mustIncludeFindings: [
+            {
+              category: "security",
+              severityMin: "medium",
+              titlePattern: "SQL.*Injection", // Valid regex
+            },
+          ],
+        },
+      });
+
+      const requiredResult = results.find((r) => r.key === "required_findings");
+      expect(requiredResult?.score).toBe(1);
+      expect(requiredResult?.comment).not.toContain("Invalid regex");
+    });
+  });
+});
+
+describe("Planning Evaluators", () => {
+  describe("prdQualityEvaluator", () => {
+    it("should detect standard PRD sections", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: `
+# Product Requirements Document
+
+## Problem Statement
+Users need a way to track their tasks.
+
+## Goals
+- Improve productivity
+- Reduce friction
+
+## Requirements
+1. User can create tasks
+2. User can mark tasks complete
+
+## Success Metrics
+- 50% adoption rate
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const sectionsResult = results.find((r) => r.key === "prd_sections");
+      expect(sectionsResult?.score).toBeGreaterThanOrEqual(0.5);
+    });
+
+    it("should check for required content", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: "This PRD discusses OAuth2 authentication and user management with React frontend.",
+        },
+        referenceOutputs: {
+          prdMustContain: ["OAuth2", "authentication", "PostgreSQL"],
+        },
+      });
+
+      const contentResult = results.find((r) => r.key === "prd_required_content");
+      expect(contentResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
+    });
+
+    it("should report 0 words for empty PRD", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: { prd: "" },
+        referenceOutputs: {},
+      });
+
+      const lengthResult = results.find((r) => r.key === "prd_length");
+      expect(lengthResult?.score).toBe(0);
+      expect(lengthResult?.comment).toBe("PRD contains 0 words");
+    });
+  });
+
+  describe("taskActionabilityEvaluator", () => {
+    it("should count tasks correctly", () => {
+      const results = taskActionabilityEvaluator({
+        inputs: {},
+        outputs: {
+          taskPrompts: `
+## Tasks
+
+- Implement user authentication
+- Create database schema
+- Add API endpoints
+- Write unit tests
+          `,
+        },
+        referenceOutputs: { taskPromptCount: 4 },
+      });
+
+      const countResult = results.find((r) => r.key === "task_count");
+      expect(countResult?.score).toBe(1);
+    });
+
+    it("should count mixed bullet and numbered tasks correctly", () => {
+      // Regression test: ensure mixed list formats are summed, not max'd
+      const results = taskActionabilityEvaluator({
+        inputs: {},
+        outputs: {
+          taskPrompts: `
+## Setup Phase
+- Install dependencies
+- Configure environment
+
+## Implementation Phase
+1. Create the auth module
+2. Add API routes
+3. Write integration tests
+          `,
+        },
+        referenceOutputs: { taskPromptCount: 5 },
+      });
+
+      const countResult = results.find((r) => r.key === "task_count");
+      expect(countResult?.score).toBe(1);
+      expect(countResult?.comment).toContain("5 tasks");
+    });
+
+    it("should detect actionable verbs", () => {
+      const results = taskActionabilityEvaluator({
+        inputs: {},
+        outputs: {
+          taskPrompts: "- Implement the login flow\n- Create user model\n- Fix the bug in checkout",
+        },
+        referenceOutputs: {},
+      });
+
+      const actionabilityResult = results.find((r) => r.key === "task_actionability");
+      expect(actionabilityResult?.score).toBe(1);
+      expect(actionabilityResult?.comment).toContain("actionable verbs");
+    });
+
+    it("should detect file path specificity", () => {
+      const results = taskActionabilityEvaluator({
+        inputs: {},
+        outputs: {
+          taskPrompts: "- Update src/components/Auth.tsx to add OAuth\n- Fix bug in api/users.ts",
+        },
+        referenceOutputs: {},
+      });
+
+      const specificityResult = results.find((r) => r.key === "task_specificity");
+      expect(specificityResult?.score).toBe(1);
+    });
+  });
+});
+
+describe("Ask Evaluators", () => {
+  describe("answerRelevanceEvaluator", () => {
+    it("should calculate topic coverage", () => {
+      const results = answerRelevanceEvaluator({
+        inputs: { question: "How does authentication work?" },
+        outputs: {
+          answer:
+            "The authentication system uses JWT tokens and middleware to verify user sessions.",
+        },
+        referenceOutputs: {
+          expectedTopics: ["authentication", "JWT", "middleware", "sessions", "OAuth"],
+        },
+      });
+
+      const coverageResult = results.find((r) => r.key === "topic_coverage");
+      expect(coverageResult?.score).toBe(0.8); // 4 out of 5
+    });
+
+    it("should detect hallucination indicators", () => {
+      const results = answerRelevanceEvaluator({
+        inputs: { question: "How does the API work?" },
+        outputs: {
+          answer: "I don't know anything about this codebase. There is no information available.",
+        },
+        referenceOutputs: {
+          mustNotContain: ["I don't know", "no information"],
+        },
+      });
+
+      const hallucinationResult = results.find((r) => r.key === "no_hallucination");
+      expect(hallucinationResult?.score).toBe(0);
+      expect(hallucinationResult?.comment).toContain("hallucination");
+    });
+
+    it("should pass hallucination check for good answers", () => {
+      const results = answerRelevanceEvaluator({
+        inputs: { question: "How does routing work?" },
+        outputs: {
+          answer: "The routing is handled by Express.js in the routes/ directory.",
+        },
+        referenceOutputs: {
+          mustNotContain: ["I don't know", "cannot help"],
+        },
+      });
+
+      const hallucinationResult = results.find((r) => r.key === "no_hallucination");
+      expect(hallucinationResult?.score).toBe(1);
+    });
+
+    it("should report 0 words for empty answer", () => {
+      const results = answerRelevanceEvaluator({
+        inputs: { question: "What is this?" },
+        outputs: { answer: "" },
+        referenceOutputs: {},
+      });
+
+      const substanceResult = results.find((r) => r.key === "answer_substance");
+      expect(substanceResult?.score).toBe(0);
+      expect(substanceResult?.comment).toBe("Answer contains 0 words");
+    });
+  });
+
+  describe("citationAccuracyEvaluator", () => {
+    it("should detect required file citations", () => {
+      const results = citationAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          answer:
+            "The auth logic is in `src/auth/middleware.ts` and uses the config from `src/config/auth.ts`.",
+        },
+        referenceOutputs: {
+          mustCiteFiles: ["middleware.ts", "auth.ts", "users.ts"],
+        },
+      });
+
+      const citationsResult = results.find((r) => r.key === "required_citations");
+      expect(citationsResult?.score).toBeCloseTo(0.667, 2); // 2 out of 3
+    });
+
+    it("should detect presence of code citations", () => {
+      const results = citationAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          answer: "See `src/api/routes.ts` for the implementation.",
+        },
+        referenceOutputs: {},
+      });
+
+      const hasCitationsResult = results.find((r) => r.key === "has_citations");
+      expect(hasCitationsResult?.score).toBe(1);
+    });
+
+    it("should detect missing citations", () => {
+      const results = citationAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          answer: "The application uses a standard MVC architecture with controllers and models.",
+        },
+        referenceOutputs: {},
+      });
+
+      const hasCitationsResult = results.find((r) => r.key === "has_citations");
+      expect(hasCitationsResult?.score).toBe(0);
+    });
+
+    it("should detect code examples", () => {
+      const results = citationAccuracyEvaluator({
+        inputs: {},
+        outputs: {
+          answer: "Here's an example:\n```typescript\nconst user = await getUser(id);\n```",
+        },
+        referenceOutputs: {},
+      });
+
+      const codeExamplesResult = results.find((r) => r.key === "has_code_examples");
+      expect(codeExamplesResult?.score).toBe(1);
+    });
+  });
+});
+
+describe("Dataset Schema Validation", () => {
+  describe("ExpectedFindingSchema", () => {
+    it("should accept valid regex pattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "high",
+        titlePattern: "SQL.*Injection",
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid regex pattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "high",
+        titlePattern: "SQL[Injection", // Invalid - unclosed bracket
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toContain("Invalid regex");
+      }
+    });
+
+    it("should accept missing titlePattern", () => {
+      const result = ExpectedFindingSchema.safeParse({
+        category: "security",
+        severityMin: "medium",
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+});

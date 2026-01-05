@@ -1,0 +1,25 @@
+{
+  "name": "planning-sample",
+  "description": "Sample dataset for testing Planning workflow evaluations",
+  "workflow": "planning",
+  "examples": [
+    {
+      "inputs": {
+        "initialIdea": "Add a caching layer to improve API response times",
+        "projectPath": ".",
+        "clarificationAnswers": ["Redis", "5 minutes TTL", "Cache invalidation on write"],
+        "prdFeedback": "approve",
+        "specFeedback": "approve"
+      },
+      "outputs": {
+        "prdMustContain": ["caching", "Redis", "performance"],
+        "taskPromptCount": 3,
+        "expectedPhases": ["setup", "implementation", "testing"]
+      },
+      "metadata": {
+        "description": "Add caching feature planning",
+        "tags": ["caching", "performance"]
+      }
+    }
+  ]
+}

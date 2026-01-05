@@ -84,6 +84,13 @@ export const ProductionalizeConfigSchema = z.object({
     .default(["security", "soc2", "code-quality", "dependencies", "testing", "configuration"]),
 });
 
+export const EvalConfigSchema = z.object({
+  langsmithApiKey: z.string().optional(),
+  projectName: z.string().default("shipspec-evals"),
+  uploadResults: z.boolean().default(true),
+  maxConcurrency: z.number().int().min(1).max(10).default(3),
+});
+
 export const ShipSpecConfigSchema = z
   .object({
     projectPath: z.string().default("."),
@@ -126,6 +133,7 @@ export const ShipSpecConfigSchema = z
         "configuration",
       ],
     }),
+    eval: EvalConfigSchema.optional(),
   })
   .strict();
 
@@ -136,3 +144,4 @@ export type CheckpointConfig = z.infer<typeof CheckpointConfigSchema>;
 export type WebSearchConfig = z.infer<typeof WebSearchConfigSchema>;
 export type SASTConfig = z.infer<typeof SASTConfigSchema>;
 export type ProductionalizeConfig = z.infer<typeof ProductionalizeConfigSchema>;
+export type EvalConfig = z.infer<typeof EvalConfigSchema>;

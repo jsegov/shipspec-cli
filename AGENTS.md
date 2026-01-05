@@ -652,6 +652,7 @@ The CLI supports multiple configuration sources in the following priority order:
 ```bash
 OPENROUTER_API_KEY=     # Unified key for all cloud models (OpenRouter)
 TAVILY_API_KEY=         # For web search (Tavily provider)
+LANGSMITH_API_KEY=      # For LangSmith evaluations (optional)
 OLLAMA_BASE_URL=        # Default: http://localhost:11434
 ```
 
