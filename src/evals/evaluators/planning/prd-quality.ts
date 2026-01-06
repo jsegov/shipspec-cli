@@ -4,14 +4,25 @@
 import type { EvaluatorParams, EvaluationResult } from "../../types.js";
 
 /**
- * Standard sections expected in a PRD.
+ * Evaluator thresholds for PRD quality checks.
+ */
+const MIN_PRD_WORD_COUNT = 200;
+const MIN_PRIORITY_LEVELS = 2;
+
+/**
+ * Standard sections expected in a PRD (updated for Atlassian best practices).
  */
 const STANDARD_PRD_SECTIONS = [
   "problem statement",
+  "status",
+  "background",
+  "strategic fit",
   "goals",
   "requirements",
   "success metrics",
   "user stories",
+  "ux design",
+  "non-goals",
   "scope",
 ];
 
@@ -58,11 +69,11 @@ export function prdQualityEvaluator({
 
   // 3. PRD Length - sanity check for substance
   const wordCount = prd.split(/\s+/).filter(Boolean).length;
-  const hasSubstantialContent = wordCount >= 200;
+  const hasSubstantialContent = wordCount >= MIN_PRD_WORD_COUNT;
 
   results.push({
     key: "prd_length",
-    score: hasSubstantialContent ? 1 : wordCount / 200,
+    score: hasSubstantialContent ? 1 : wordCount / MIN_PRD_WORD_COUNT,
     comment: `PRD contains ${String(wordCount)} words`,
   });
 
@@ -77,6 +88,35 @@ export function prdQualityEvaluator({
     comment: hasActionableFormat
       ? "PRD contains actionable list items"
       : "PRD lacks bullet points or numbered lists",
+  });
+
+  // 5. Requirement IDs Check (FR-XXX, NFR-XXX pattern)
+  // Use word boundary to avoid matching FR- or NFR- inside other strings
+  const functionalPattern = /\bFR-\d{3}/g;
+  const nonFunctionalPattern = /\bNFR-\d{3}/g;
+  const frMatches = prd.match(functionalPattern) ?? [];
+  const nfrMatches = prd.match(nonFunctionalPattern) ?? [];
+  const hasRequirementIds = frMatches.length > 0 || nfrMatches.length > 0;
+
+  results.push({
+    key: "prd_requirement_ids",
+    score: hasRequirementIds ? 1 : 0,
+    comment: hasRequirementIds
+      ? `Found ${String(frMatches.length)} FR ID${frMatches.length !== 1 ? "s" : ""} and ${String(nfrMatches.length)} NFR ID${nfrMatches.length !== 1 ? "s" : ""}`
+      : "No requirement IDs found (expected FR-XXX, NFR-XXX format)",
+  });
+
+  // 6. Priority Classification Check (P0, P1, P2)
+  // Use word boundaries to avoid matching within words like HTTP2 or HTTP1
+  const priorityPattern = /\bP[0-2]\b/g;
+  const priorityMatches = prd.match(priorityPattern) ?? [];
+  const uniquePriorities = new Set(priorityMatches);
+  const hasPriorityClassification = uniquePriorities.size >= MIN_PRIORITY_LEVELS;
+
+  results.push({
+    key: "prd_priority_classification",
+    score: hasPriorityClassification ? 1 : uniquePriorities.size / MIN_PRIORITY_LEVELS,
+    comment: `Found ${String(uniquePriorities.size)} priority levels (P0/P1/P2)`,
   });
 
   return results;

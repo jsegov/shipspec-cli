@@ -24,6 +24,7 @@ import {
 } from "../../evals/evaluators/productionalize/index.js";
 import {
   prdQualityEvaluator,
+  specQualityEvaluator,
   taskActionabilityEvaluator,
 } from "../../evals/evaluators/planning/index.js";
 import {
@@ -91,7 +92,7 @@ function getWorkflowEvaluators(workflow: EvalWorkflow): Evaluator[] {
     case "productionalize":
       return [reportQualityEvaluator, findingAccuracyEvaluator];
     case "planning":
-      return [prdQualityEvaluator, taskActionabilityEvaluator];
+      return [prdQualityEvaluator, specQualityEvaluator, taskActionabilityEvaluator];
     case "ask":
       return [answerRelevanceEvaluator, citationAccuracyEvaluator];
   }
