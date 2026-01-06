@@ -6,6 +6,7 @@ import {
 } from "../../evals/evaluators/productionalize/index.js";
 import {
   prdQualityEvaluator,
+  specQualityEvaluator,
   taskActionabilityEvaluator,
 } from "../../evals/evaluators/planning/index.js";
 import {
@@ -246,8 +247,14 @@ describe("Planning Evaluators", () => {
           prd: `
 # Product Requirements Document
 
+## Status
+On Target
+
 ## Problem Statement
 Users need a way to track their tasks.
+
+## Background and Strategic Fit
+This aligns with company goals.
 
 ## Goals
 - Improve productivity
@@ -259,13 +266,25 @@ Users need a way to track their tasks.
 
 ## Success Metrics
 - 50% adoption rate
+
+## User Stories
+As a user, I want to track tasks.
+
+## UX Design
+Key user flows documented.
+
+## Non-Goals
+Not building a calendar.
+
+## Scope
+Limited to task tracking.
           `,
         },
         referenceOutputs: {},
       });
 
       const sectionsResult = results.find((r) => r.key === "prd_sections");
-      expect(sectionsResult?.score).toBeGreaterThanOrEqual(0.5);
+      expect(sectionsResult?.score).toBeGreaterThanOrEqual(0.8);
     });
 
     it("should check for required content", () => {
@@ -293,6 +312,233 @@ Users need a way to track their tasks.
       const lengthResult = results.find((r) => r.key === "prd_length");
       expect(lengthResult?.score).toBe(0);
       expect(lengthResult?.comment).toBe("PRD contains 0 words");
+    });
+
+    it("should detect requirement IDs (FR-XXX, NFR-XXX)", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: `
+## Functional Requirements
+| ID | Description | Priority |
+|----|-------------|----------|
+| FR-001 | User can login | P0 |
+| FR-002 | User can logout | P1 |
+
+## Non-Functional Requirements
+| ID | Description | Priority |
+|----|-------------|----------|
+| NFR-001 | Response time < 200ms | P0 |
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const reqIdResult = results.find((r) => r.key === "prd_requirement_ids");
+      expect(reqIdResult?.score).toBe(1);
+      expect(reqIdResult?.comment).toContain("2 FR IDs");
+      expect(reqIdResult?.comment).toContain("1 NFR IDs");
+    });
+
+    it("should report 0 when no requirement IDs found", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: "This is a PRD without any formal requirement IDs.",
+        },
+        referenceOutputs: {},
+      });
+
+      const reqIdResult = results.find((r) => r.key === "prd_requirement_ids");
+      expect(reqIdResult?.score).toBe(0);
+      expect(reqIdResult?.comment).toContain("No requirement IDs found");
+    });
+
+    it("should detect priority classification (P0, P1, P2)", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: `
+## Requirements
+| Feature | Priority |
+|---------|----------|
+| Core auth | P0 |
+| Email notifications | P1 |
+| Dark mode | P2 |
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const priorityResult = results.find((r) => r.key === "prd_priority_classification");
+      expect(priorityResult?.score).toBe(1);
+      expect(priorityResult?.comment).toContain("3 priority levels");
+    });
+
+    it("should report partial score for incomplete priority classification", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: "All features are P0 priority: login, logout, dashboard.",
+        },
+        referenceOutputs: {},
+      });
+
+      const priorityResult = results.find((r) => r.key === "prd_priority_classification");
+      expect(priorityResult?.score).toBe(0.5); // Only 1 priority level found
+    });
+  });
+
+  describe("specQualityEvaluator", () => {
+    it("should detect standard spec sections", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+# Technical Specification
+
+## Overview
+Building a user authentication system.
+
+## Requirements Traceability Matrix
+| ID | Component |
+|----|-----------|
+
+## Architecture
+System design details.
+
+## Data Models
+Database schema.
+
+## API Design
+Endpoints.
+
+## Implementation Plan
+Tasks.
+
+## Testing Strategy
+Test approach.
+
+## Risks
+Risk analysis.
+
+## Security
+Security measures.
+
+## Performance
+Performance considerations.
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const sectionsResult = results.find((r) => r.key === "spec_sections");
+      expect(sectionsResult?.score).toBe(1); // All 10 sections found
+    });
+
+    it("should detect Requirements Traceability Matrix", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+## Requirements Traceability Matrix
+| Requirement ID | Description | Component |
+|----------------|-------------|-----------|
+| FR-001 | Login | AuthModule |
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const rtmResult = results.find((r) => r.key === "spec_rtm");
+      expect(rtmResult?.score).toBe(1);
+      expect(rtmResult?.comment).toContain("Requirements Traceability Matrix");
+    });
+
+    it("should report missing RTM", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: "# Tech Spec\n\nNo traceability here.",
+        },
+        referenceOutputs: {},
+      });
+
+      const rtmResult = results.find((r) => r.key === "spec_rtm");
+      expect(rtmResult?.score).toBe(0);
+      expect(rtmResult?.comment).toContain("Missing");
+    });
+
+    it("should detect inline requirement references [Fulfills: ...]", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+## Architecture
+[Fulfills: FR-001, FR-002]
+Component design here.
+
+## API Design
+[Fulfills: FR-003, NFR-001]
+API endpoints.
+
+## Testing
+[Fulfills: FR-001]
+Test strategy.
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const inlineResult = results.find((r) => r.key === "spec_inline_refs");
+      expect(inlineResult?.score).toBe(1);
+      expect(inlineResult?.comment).toContain("3 inline requirement references");
+    });
+
+    it("should count unique requirements referenced", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+[Fulfills: FR-001, FR-002, FR-003, FR-004, NFR-001, NFR-002]
+This spec references multiple requirements.
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const coverageResult = results.find((r) => r.key === "spec_requirement_coverage");
+      expect(coverageResult?.score).toBe(1);
+      expect(coverageResult?.comment).toContain("6 unique requirements");
+    });
+
+    it("should detect test coverage matrix", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+## Test Coverage Matrix
+| FR-001 | Yes | No | Yes |
+| NFR-001 | Yes | Yes | No |
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const testMatrixResult = results.find((r) => r.key === "spec_test_matrix");
+      expect(testMatrixResult?.score).toBe(1);
+    });
+
+    it("should report 0 words for empty spec", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: { techSpec: "" },
+        referenceOutputs: {},
+      });
+
+      const lengthResult = results.find((r) => r.key === "spec_length");
+      expect(lengthResult?.score).toBe(0);
+      expect(lengthResult?.comment).toBe("Tech spec contains 0 words");
     });
   });
 

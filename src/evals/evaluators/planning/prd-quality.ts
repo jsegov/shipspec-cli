@@ -4,14 +4,19 @@
 import type { EvaluatorParams, EvaluationResult } from "../../types.js";
 
 /**
- * Standard sections expected in a PRD.
+ * Standard sections expected in a PRD (updated for Atlassian best practices).
  */
 const STANDARD_PRD_SECTIONS = [
   "problem statement",
+  "status",
+  "background",
+  "strategic fit",
   "goals",
   "requirements",
   "success metrics",
   "user stories",
+  "ux design",
+  "non-goals",
   "scope",
 ];
 
@@ -77,6 +82,34 @@ export function prdQualityEvaluator({
     comment: hasActionableFormat
       ? "PRD contains actionable list items"
       : "PRD lacks bullet points or numbered lists",
+  });
+
+  // 5. Requirement IDs Check (FR-XXX, NFR-XXX pattern)
+  // Use word boundary or start-of-line to avoid matching FR- inside NFR-
+  const functionalPattern = /(?<![N])FR-\d{3}/g;
+  const nonFunctionalPattern = /NFR-\d{3}/g;
+  const frMatches = prd.match(functionalPattern) ?? [];
+  const nfrMatches = prd.match(nonFunctionalPattern) ?? [];
+  const hasRequirementIds = frMatches.length > 0 || nfrMatches.length > 0;
+
+  results.push({
+    key: "prd_requirement_ids",
+    score: hasRequirementIds ? 1 : 0,
+    comment: hasRequirementIds
+      ? `Found ${String(frMatches.length)} FR IDs and ${String(nfrMatches.length)} NFR IDs`
+      : "No requirement IDs found (expected FR-XXX, NFR-XXX format)",
+  });
+
+  // 6. Priority Classification Check (P0, P1, P2)
+  const priorityPattern = /P[0-2]/g;
+  const priorityMatches = prd.match(priorityPattern) ?? [];
+  const uniquePriorities = new Set(priorityMatches);
+  const hasPriorityClassification = uniquePriorities.size >= 2;
+
+  results.push({
+    key: "prd_priority_classification",
+    score: hasPriorityClassification ? 1 : uniquePriorities.size / 2,
+    comment: `Found ${String(uniquePriorities.size)} priority levels (P0/P1/P2)`,
   });
 
   return results;
