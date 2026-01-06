@@ -27,9 +27,7 @@ const STANDARD_SPEC_SECTIONS = [
  * - Inline requirement references ([Fulfills: ...])
  * - Requirement coverage
  */
-export function specQualityEvaluator({
-  outputs,
-}: EvaluatorParams): EvaluationResult[] {
+export function specQualityEvaluator({ outputs }: EvaluatorParams): EvaluationResult[] {
   const spec = typeof outputs.techSpec === "string" ? outputs.techSpec : "";
   const results: EvaluationResult[] = [];
 
@@ -50,12 +48,22 @@ export function specQualityEvaluator({
   const hasTable = /\|.*\|.*\|/m.test(spec);
   const rtmScore = hasRTM && hasTable ? 1 : hasRTM || hasTable ? 0.5 : 0;
 
+  // Build comment that accurately reflects what was found
+  let rtmComment: string;
+  if (hasRTM && hasTable) {
+    rtmComment = "Has Requirements Traceability Matrix with table";
+  } else if (hasRTM && !hasTable) {
+    rtmComment = "Has RTM header but missing table formatting";
+  } else if (!hasRTM && hasTable) {
+    rtmComment = "Has table but missing RTM header";
+  } else {
+    rtmComment = "Missing Requirements Traceability Matrix";
+  }
+
   results.push({
     key: "spec_rtm",
     score: rtmScore,
-    comment: hasRTM
-      ? "Has Requirements Traceability Matrix"
-      : "Missing Requirements Traceability Matrix",
+    comment: rtmComment,
   });
 
   // 3. Inline References Check ([Fulfills: FR-XXX, NFR-XXX])
@@ -98,9 +106,10 @@ export function specQualityEvaluator({
   results.push({
     key: "spec_test_matrix",
     score: hasTestCoverageMatrix || hasTestTable ? 1 : 0,
-    comment: hasTestCoverageMatrix || hasTestTable
-      ? "Has test coverage matrix"
-      : "Missing test coverage matrix",
+    comment:
+      hasTestCoverageMatrix || hasTestTable
+        ? "Has test coverage matrix"
+        : "Missing test coverage matrix",
   });
 
   return results;

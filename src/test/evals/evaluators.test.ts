@@ -469,6 +469,49 @@ Performance considerations.
       expect(rtmResult?.comment).toContain("Missing");
     });
 
+    it("should give partial score for RTM header without table", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+# Tech Spec
+
+## Requirements Traceability Matrix
+
+This section describes how requirements map to implementation.
+No actual table here.
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const rtmResult = results.find((r) => r.key === "spec_rtm");
+      expect(rtmResult?.score).toBe(0.5);
+      expect(rtmResult?.comment).toBe("Has RTM header but missing table formatting");
+    });
+
+    it("should give partial score for table without RTM header", () => {
+      const results = specQualityEvaluator({
+        inputs: {},
+        outputs: {
+          techSpec: `
+# Tech Spec
+
+## Some Other Section
+
+| Column A | Column B | Column C |
+|----------|----------|----------|
+| Value 1  | Value 2  | Value 3  |
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const rtmResult = results.find((r) => r.key === "spec_rtm");
+      expect(rtmResult?.score).toBe(0.5);
+      expect(rtmResult?.comment).toBe("Has table but missing RTM header");
+    });
+
     it("should detect inline requirement references [Fulfills: ...]", () => {
       const results = specQualityEvaluator({
         inputs: {},
