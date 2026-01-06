@@ -91,9 +91,9 @@ export function prdQualityEvaluator({
   });
 
   // 5. Requirement IDs Check (FR-XXX, NFR-XXX pattern)
-  // Use word boundary to avoid matching FR- inside other strings
+  // Use word boundary to avoid matching FR- or NFR- inside other strings
   const functionalPattern = /\bFR-\d{3}/g;
-  const nonFunctionalPattern = /NFR-\d{3}/g;
+  const nonFunctionalPattern = /\bNFR-\d{3}/g;
   const frMatches = prd.match(functionalPattern) ?? [];
   const nfrMatches = prd.match(nonFunctionalPattern) ?? [];
   const hasRequirementIds = frMatches.length > 0 || nfrMatches.length > 0;
