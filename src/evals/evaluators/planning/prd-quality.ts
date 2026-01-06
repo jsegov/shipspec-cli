@@ -4,6 +4,12 @@
 import type { EvaluatorParams, EvaluationResult } from "../../types.js";
 
 /**
+ * Evaluator thresholds for PRD quality checks.
+ */
+const MIN_PRD_WORD_COUNT = 200;
+const MIN_PRIORITY_LEVELS = 2;
+
+/**
  * Standard sections expected in a PRD (updated for Atlassian best practices).
  */
 const STANDARD_PRD_SECTIONS = [
@@ -63,11 +69,11 @@ export function prdQualityEvaluator({
 
   // 3. PRD Length - sanity check for substance
   const wordCount = prd.split(/\s+/).filter(Boolean).length;
-  const hasSubstantialContent = wordCount >= 200;
+  const hasSubstantialContent = wordCount >= MIN_PRD_WORD_COUNT;
 
   results.push({
     key: "prd_length",
-    score: hasSubstantialContent ? 1 : wordCount / 200,
+    score: hasSubstantialContent ? 1 : wordCount / MIN_PRD_WORD_COUNT,
     comment: `PRD contains ${String(wordCount)} words`,
   });
 
@@ -85,8 +91,8 @@ export function prdQualityEvaluator({
   });
 
   // 5. Requirement IDs Check (FR-XXX, NFR-XXX pattern)
-  // Use word boundary or start-of-line to avoid matching FR- inside NFR-
-  const functionalPattern = /(?<![N])FR-\d{3}/g;
+  // Use word boundary to avoid matching FR- inside other strings
+  const functionalPattern = /\bFR-\d{3}/g;
   const nonFunctionalPattern = /NFR-\d{3}/g;
   const frMatches = prd.match(functionalPattern) ?? [];
   const nfrMatches = prd.match(nonFunctionalPattern) ?? [];
@@ -96,7 +102,7 @@ export function prdQualityEvaluator({
     key: "prd_requirement_ids",
     score: hasRequirementIds ? 1 : 0,
     comment: hasRequirementIds
-      ? `Found ${String(frMatches.length)} FR IDs and ${String(nfrMatches.length)} NFR IDs`
+      ? `Found ${String(frMatches.length)} FR ID${frMatches.length !== 1 ? "s" : ""} and ${String(nfrMatches.length)} NFR ID${nfrMatches.length !== 1 ? "s" : ""}`
       : "No requirement IDs found (expected FR-XXX, NFR-XXX format)",
   });
 
@@ -105,11 +111,11 @@ export function prdQualityEvaluator({
   const priorityPattern = /\bP[0-2]\b/g;
   const priorityMatches = prd.match(priorityPattern) ?? [];
   const uniquePriorities = new Set(priorityMatches);
-  const hasPriorityClassification = uniquePriorities.size >= 2;
+  const hasPriorityClassification = uniquePriorities.size >= MIN_PRIORITY_LEVELS;
 
   results.push({
     key: "prd_priority_classification",
-    score: hasPriorityClassification ? 1 : uniquePriorities.size / 2,
+    score: hasPriorityClassification ? 1 : uniquePriorities.size / MIN_PRIORITY_LEVELS,
     comment: `Found ${String(uniquePriorities.size)} priority levels (P0/P1/P2)`,
   });
 

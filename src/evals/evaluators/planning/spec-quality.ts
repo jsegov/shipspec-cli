@@ -4,6 +4,13 @@
 import type { EvaluatorParams, EvaluationResult } from "../../types.js";
 
 /**
+ * Evaluator thresholds for tech spec quality checks.
+ */
+const MIN_INLINE_REFS = 3;
+const MIN_UNIQUE_REQUIREMENTS = 5;
+const MIN_SPEC_WORD_COUNT = 500;
+
+/**
  * Standard sections expected in a tech spec (updated for Atlassian best practices with RTM).
  */
 const STANDARD_SPEC_SECTIONS = [
@@ -13,6 +20,7 @@ const STANDARD_SPEC_SECTIONS = [
   "data models",
   "api design",
   "implementation plan",
+  "dependencies",
   "testing strategy",
   "risks",
   "security",
@@ -69,7 +77,8 @@ export function specQualityEvaluator({ outputs }: EvaluatorParams): EvaluationRe
   // 3. Inline References Check ([Fulfills: FR-XXX, NFR-XXX])
   const fulfillsPattern = /\[Fulfills:?\s*(?:FR|NFR)-\d{3}/gi;
   const fulfillsMatches = spec.match(fulfillsPattern) ?? [];
-  const inlineRefScore = fulfillsMatches.length >= 3 ? 1 : fulfillsMatches.length / 3;
+  const inlineRefScore =
+    fulfillsMatches.length >= MIN_INLINE_REFS ? 1 : fulfillsMatches.length / MIN_INLINE_REFS;
 
   results.push({
     key: "spec_inline_refs",
@@ -78,10 +87,12 @@ export function specQualityEvaluator({ outputs }: EvaluatorParams): EvaluationRe
   });
 
   // 4. Requirement IDs Present (both FR-XXX and NFR-XXX)
-  const reqPattern = /(?:(?<![N])FR|NFR)-\d{3}/g;
+  // Use word boundary to match FR-XXX and NFR-XXX patterns
+  const reqPattern = /\b(?:FR|NFR)-\d{3}/g;
   const reqMatches = spec.match(reqPattern) ?? [];
   const uniqueReqs = new Set(reqMatches);
-  const reqCoverageScore = uniqueReqs.size >= 5 ? 1 : uniqueReqs.size / 5;
+  const reqCoverageScore =
+    uniqueReqs.size >= MIN_UNIQUE_REQUIREMENTS ? 1 : uniqueReqs.size / MIN_UNIQUE_REQUIREMENTS;
 
   results.push({
     key: "spec_requirement_coverage",
@@ -91,11 +102,11 @@ export function specQualityEvaluator({ outputs }: EvaluatorParams): EvaluationRe
 
   // 5. Spec Length - sanity check for substance
   const wordCount = spec.split(/\s+/).filter(Boolean).length;
-  const hasSubstantialContent = wordCount >= 500;
+  const hasSubstantialContent = wordCount >= MIN_SPEC_WORD_COUNT;
 
   results.push({
     key: "spec_length",
-    score: hasSubstantialContent ? 1 : wordCount / 500,
+    score: hasSubstantialContent ? 1 : wordCount / MIN_SPEC_WORD_COUNT,
     comment: `Tech spec contains ${String(wordCount)} words`,
   });
 

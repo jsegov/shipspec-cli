@@ -337,7 +337,7 @@ Limited to task tracking.
       const reqIdResult = results.find((r) => r.key === "prd_requirement_ids");
       expect(reqIdResult?.score).toBe(1);
       expect(reqIdResult?.comment).toContain("2 FR IDs");
-      expect(reqIdResult?.comment).toContain("1 NFR IDs");
+      expect(reqIdResult?.comment).toContain("1 NFR ID");
     });
 
     it("should report 0 when no requirement IDs found", () => {
@@ -352,6 +352,20 @@ Limited to task tracking.
       const reqIdResult = results.find((r) => r.key === "prd_requirement_ids");
       expect(reqIdResult?.score).toBe(0);
       expect(reqIdResult?.comment).toContain("No requirement IDs found");
+    });
+
+    it("should correctly distinguish FR from NFR patterns", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: "Requirements: FR-001, NFR-001, FR-002, NFR-002",
+        },
+        referenceOutputs: {},
+      });
+
+      const reqIdResult = results.find((r) => r.key === "prd_requirement_ids");
+      expect(reqIdResult?.comment).toContain("2 FR ID");
+      expect(reqIdResult?.comment).toContain("2 NFR ID");
     });
 
     it("should detect priority classification (P0, P1, P2)", () => {
@@ -434,6 +448,9 @@ Endpoints.
 ## Implementation Plan
 Tasks.
 
+## Dependencies
+External and internal dependencies.
+
 ## Testing Strategy
 Test approach.
 
@@ -451,7 +468,7 @@ Performance considerations.
       });
 
       const sectionsResult = results.find((r) => r.key === "spec_sections");
-      expect(sectionsResult?.score).toBe(1); // All 10 sections found
+      expect(sectionsResult?.score).toBe(1); // All 11 sections found
     });
 
     it("should detect Requirements Traceability Matrix", () => {
