@@ -101,7 +101,8 @@ export function prdQualityEvaluator({
   });
 
   // 6. Priority Classification Check (P0, P1, P2)
-  const priorityPattern = /P[0-2]/g;
+  // Use word boundaries to avoid matching within words like HTTP2 or HTTP1
+  const priorityPattern = /\bP[0-2]\b/g;
   const priorityMatches = prd.match(priorityPattern) ?? [];
   const uniquePriorities = new Set(priorityMatches);
   const hasPriorityClassification = uniquePriorities.size >= 2;

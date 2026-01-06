@@ -387,6 +387,24 @@ Limited to task tracking.
       const priorityResult = results.find((r) => r.key === "prd_priority_classification");
       expect(priorityResult?.score).toBe(0.5); // Only 1 priority level found
     });
+
+    it("should NOT match priority patterns inside words like HTTP2 or HTTP1", () => {
+      const results = prdQualityEvaluator({
+        inputs: {},
+        outputs: {
+          prd: `
+This PRD discusses HTTP2 protocol support and HTTP1.1 fallback.
+We also support HTTP/2 and HTTP/1.1 connections.
+The MP3 decoder and EP2 endpoint will be implemented.
+          `,
+        },
+        referenceOutputs: {},
+      });
+
+      const priorityResult = results.find((r) => r.key === "prd_priority_classification");
+      expect(priorityResult?.score).toBe(0); // No actual P0/P1/P2 priorities
+      expect(priorityResult?.comment).toContain("0 priority levels");
+    });
   });
 
   describe("specQualityEvaluator", () => {
